@@ -1,8 +1,15 @@
 [workspace]
 members = [
     "node",
+    "primitives",
     "pallets/template",
     "runtime",
 ]
+
 [profile.release]
 panic = "unwind"
+
+[profile.production]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
