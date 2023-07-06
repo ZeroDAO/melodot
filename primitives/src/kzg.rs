@@ -44,7 +44,6 @@ impl KZG {
 		self.settings.compute_proof_single(poly, &x).map(KZGProof)
 	}
 
-	// Domain knowledge should not be disclosed
 	pub fn commit(&self, poly: &FsPoly) -> Result<KZGCommitment, String> {
 		self.settings.commit_to_poly(&poly).map(KZGCommitment)
 	}
@@ -68,7 +67,7 @@ impl KZG {
 		blob: &Blob,
 		commitment: &KZGCommitment,
 	) -> Result<KZGProof, String> {
-		compute_blob_kzg_proof_rust(&blob.data, commitment, &self.settings).map(KZGProof)
+		compute_blob_kzg_proof_rust(&blob.0, commitment, &self.settings).map(KZGProof)
 	}
 
 	pub fn verify_blob_proof(
@@ -77,7 +76,7 @@ impl KZG {
 		commitment: &KZGCommitment,
 		proof: &KZGProof,
 	) -> Result<bool, String> {
-		verify_blob_kzg_proof_rust(&blob.data, &commitment, &proof, &self.settings)
+		verify_blob_kzg_proof_rust(&blob.0, &commitment, &proof, &self.settings)
 	}
 
 	pub fn verify_blobs_proof_batch(
@@ -86,7 +85,7 @@ impl KZG {
 		proofs: &[KZGProof],
 		blobs: &[Blob],
 	) -> Result<bool, String> {
-		let blobs_fs_fr: [Vec<FsFr>] = blobs.iter().map(|blob| blob.data).collect();
+		let blobs_fs_fr: Vec<Vec<FsFr>> = blobs.iter().map(|blob| blob.0.clone()).collect();
 		let commitments_fs_g1: Vec<FsG1> =
 			commitments.iter().map(|commitment| commitment.0).collect();
 		let proofs_fs_g1: Vec<FsG1> = proofs.iter().map(|proof| proof.0).collect();

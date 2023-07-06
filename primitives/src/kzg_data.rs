@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Tools for KZG commitment scheme
-
 extern crate alloc;
 
 use alloc::{
