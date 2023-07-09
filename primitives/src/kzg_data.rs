@@ -34,11 +34,12 @@ macro_rules! kzg_data_size {
 		#[repr(transparent)]
 		pub struct $name(pub $type);
 		impl $name {
+			#[warn(dead_code)]
 			const SIZE: usize = $size;
 
 			#[inline]
 			pub fn to_bytes(&self) -> [u8; $size] {
-				self.to_bytes()
+				self.0.to_bytes()
 			}
 
 			#[inline]
