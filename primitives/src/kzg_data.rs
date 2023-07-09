@@ -19,6 +19,7 @@ use alloc::{
 	vec::Vec,
 };
 use core::hash::{Hash, Hasher};
+use core::mem;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
 use kzg::{Fr, G1};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
@@ -147,14 +148,15 @@ pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
 pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut)]
+#[repr(transparent)]
 pub struct Blob(pub Vec<FsFr>);
 
 impl Blob {
 	#[inline]
 	pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, String> {
-		if bytes.len() != BYTES_PER_BLOB {
+		if bytes.len() > BYTES_PER_BLOB {
 			return Err(format!(
-				"Invalid byte length. Expected {} got {}",
+				"Invalid byte length. Expected maximum {} got {}",
 				BYTES_PER_BLOB,
 				bytes.len(),
 			));
@@ -169,6 +171,26 @@ impl Blob {
 			})
 			.collect();
 
-		data_result.map(Self)
+		data_result.map(|mut data| {
+			if data.len() == FIELD_ELEMENTS_PER_BLOB {
+				Self(data)
+			} else {
+				data.resize(FIELD_ELEMENTS_PER_BLOB, FsFr::zero());
+				Self(data)
+			}
+		})
+	}
+
+	#[inline]
+	pub fn vec_to_repr(value: Vec<Self>) -> Vec<Vec<FsFr>> {
+		unsafe {
+			let mut value = mem::ManuallyDrop::new(value);
+			Vec::from_raw_parts(value.as_mut_ptr() as *mut Vec<FsFr>, value.len(), value.capacity())
+		}
+	}
+
+	#[inline]
+	pub fn slice_to_repr(value: &[Self]) -> &[Vec<FsFr>] {
+		unsafe { mem::transmute(value) }
 	}
 }

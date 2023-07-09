@@ -85,12 +85,12 @@ impl KZG {
 		proofs: &[KZGProof],
 		blobs: &[Blob],
 	) -> Result<bool, String> {
-		let blobs_fs_fr: Vec<Vec<FsFr>> = blobs.iter().map(|blob| blob.0.clone()).collect();
+		let blobs_fs_fr: &[Vec<FsFr>] = Blob::slice_to_repr(blobs);
 		let commitments_fs_g1: Vec<FsG1> =
 			commitments.iter().map(|commitment| commitment.0).collect();
 		let proofs_fs_g1: Vec<FsG1> = proofs.iter().map(|proof| proof.0).collect();
 		verify_blob_kzg_proof_batch_rust(
-			&blobs_fs_fr,
+			blobs_fs_fr,
 			&commitments_fs_g1,
 			&proofs_fs_g1,
 			&self.settings,
