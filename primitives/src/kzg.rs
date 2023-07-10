@@ -17,7 +17,7 @@ use super::kzg_data::{Blob, BlsScalar, KZGCommitment, KZGProof};
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use kzg::{FFTSettings, KZGSettings,};
+use kzg::{FFTSettings, KZGSettings};
 use rust_kzg_blst::{
 	eip_4844::{
 		compute_blob_kzg_proof_rust, load_trusted_setup_filename_rust,
@@ -86,14 +86,13 @@ impl KZG {
 		blobs: &[Blob],
 	) -> Result<bool, String> {
 		let blobs_fs_fr: &[Vec<FsFr>] = Blob::slice_to_repr(blobs);
-		let commitments_fs_g1: Vec<FsG1> =
-			commitments.iter().map(|commitment| commitment.0).collect();
-		let proofs_fs_g1: Vec<FsG1> = proofs.iter().map(|proof| proof.0).collect();
+		let commitments_fs_g1: &[FsG1] = KZGCommitment::slice_to_repr(commitments);
+		let proofs_fs_g1: &[FsG1] = KZGProof::slice_to_repr(proofs);
 		verify_blob_kzg_proof_batch_rust(
 			blobs_fs_fr,
-			&commitments_fs_g1,
-			&proofs_fs_g1,
-			&self.settings,    
+			commitments_fs_g1,
+			proofs_fs_g1,
+			&self.settings,
 		)
 	}
 
