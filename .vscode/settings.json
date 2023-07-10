@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./primitives/derive/Cargo.toml",
+        "./primitives/derive/Cargo.toml"
+    ]
+}

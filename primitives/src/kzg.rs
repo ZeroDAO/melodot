@@ -93,7 +93,7 @@ impl KZG {
 			blobs_fs_fr,
 			&commitments_fs_g1,
 			&proofs_fs_g1,
-			&self.settings,
+			&self.settings,    
 		)
 	}
 

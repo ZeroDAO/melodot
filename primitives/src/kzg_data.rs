@@ -148,9 +148,30 @@ pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_B
 pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
 pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut)]
+macro_rules! repr_convertible {
+	($name:ident, $type:ty) => {
+		impl $name {
+	        pub fn slice_to_repr(value: &[Self]) -> &[$type] {
+		        unsafe { mem::transmute(value) }
+	        }
+
+            pub fn vec_to_repr(value: Vec<Self>) -> Vec<$type> {
+                unsafe {
+                    let mut value = mem::ManuallyDrop::new(value);
+                    Vec::from_raw_parts(value.as_mut_ptr() as *mut $type, value.len(), value.capacity())
+                }
+            }
+		}
+	};
+}
+
+#[derive(
+	Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut,
+)]
 #[repr(transparent)]
 pub struct Blob(pub Vec<FsFr>);
+// TODO: Change to automatic implementation
+repr_convertible!(Blob, Vec<FsFr>);
 
 impl Blob {
 	#[inline]
@@ -180,18 +201,5 @@ impl Blob {
 				Self(data)
 			}
 		})
-	}
-
-	#[inline]
-	pub fn vec_to_repr(value: Vec<Self>) -> Vec<Vec<FsFr>> {
-		unsafe {
-			let mut value = mem::ManuallyDrop::new(value);
-			Vec::from_raw_parts(value.as_mut_ptr() as *mut Vec<FsFr>, value.len(), value.capacity())
-		}
-	}
-
-	#[inline]
-	pub fn slice_to_repr(value: &[Self]) -> &[Vec<FsFr>] {
-		unsafe { mem::transmute(value) }
 	}
 }
