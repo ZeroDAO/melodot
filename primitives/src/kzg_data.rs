@@ -172,6 +172,9 @@ macro_rules! repr_convertible {
 pub struct Blob(pub Vec<FsFr>);
 // TODO: Change to automatic implementation
 repr_convertible!(Blob, Vec<FsFr>);
+repr_convertible!(KZGCommitment, FsG1);
+repr_convertible!(KZGProof, FsG1);
+repr_convertible!(BlsScalar, FsFr);
 
 impl Blob {
 	#[inline]
