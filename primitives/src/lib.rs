@@ -13,4 +13,3 @@
 // limitations under the License.
 
 pub mod kzg;
-pub mod kzg_data;
