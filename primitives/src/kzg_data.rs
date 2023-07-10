@@ -26,7 +26,7 @@ use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 use rust_kzg_blst::types::{fr::FsFr, g1::FsG1};
 use scale_info::{Type, TypeInfo};
 
-macro_rules! kzg_data_size {
+macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
 		#[derive(
 			Debug, Default, Copy, Clone, PartialEq, Eq, Into, From, AsRef, AsMut, Deref, DerefMut,
@@ -89,7 +89,7 @@ macro_rules! kzg_data_size {
 		impl Encode for $name {
 			#[inline]
 			fn size_hint(&self) -> usize {
-				$size
+				Self::SIZE
 			}
 
 			fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
@@ -98,7 +98,7 @@ macro_rules! kzg_data_size {
 
 			#[inline]
 			fn encoded_size(&self) -> usize {
-				$size
+				Self::SIZE
 			}
 		}
 
@@ -107,7 +107,7 @@ macro_rules! kzg_data_size {
 		impl MaxEncodedLen for $name {
 			#[inline]
 			fn max_encoded_len() -> usize {
-				$size
+				Self::SIZE
 			}
 		}
 
@@ -121,7 +121,7 @@ macro_rules! kzg_data_size {
 
 			#[inline]
 			fn encoded_fixed_size() -> Option<usize> {
-				Some($size)
+				Some(Self::SIZE)
 			}
 		}
 
@@ -140,9 +140,10 @@ macro_rules! kzg_data_size {
 	};
 }
 
-kzg_data_size!(KZGCommitment, FsG1, 48);
-kzg_data_size!(KZGProof, FsG1, 48);
-kzg_data_size!(BlsScalar, FsFr, 32);
+// TODO: Automatic size reading
+kzg_type_with_size!(KZGCommitment, FsG1, 48);
+kzg_type_with_size!(KZGProof, FsG1, 48);
+kzg_type_with_size!(BlsScalar, FsFr, 32);
 
 pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
 pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
