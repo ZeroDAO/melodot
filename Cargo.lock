@@ -4140,6 +4140,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "melo-erasure-coding"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "kzg",
+ "melo-primitives-crypto",
+ "rand 0.8.5",
+ "rust-kzg-blst",
+]
+
+[[package]]
 name = "melo-primitives-crypto"
 version = "0.1.0"
 dependencies = [
@@ -6011,6 +6022,7 @@ dependencies = [
  "libc",
  "num_cpus",
  "once_cell",
+ "rand 0.8.5",
  "rayon",
  "smallvec",
 ]

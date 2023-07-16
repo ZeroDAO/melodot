@@ -1,0 +1,30 @@
+[package]
+name = "melo-erasure-coding"
+description = "Polynomial erasure coding implementation used in Melodot"
+license = "Apache-2.0"
+version = "0.1.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[lib]
+# Necessary for CLI options to work on benches
+bench = false
+
+[dependencies]
+melo-primitives-crypto = { version = "0.1.0", path = "../../primitives", default-features = false }
+rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
+kzg = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
+
+[dev-dependencies]
+rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b"}
+criterion = "0.4.0"
+rand = "0.8.5"
+
+[features]
+default = ["std", "parallel"]
+std = [
+    "rust-kzg-blst/std",
+    "kzg/std",
+    "melo-primitives-crypto/std",
+]
+parallel = ["rust-kzg-blst/parallel"]

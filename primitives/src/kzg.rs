@@ -25,7 +25,7 @@ use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 use rust_kzg_blst::{
 	eip_4844::{
 		compute_blob_kzg_proof_rust, load_trusted_setup_filename_rust,
-		verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
+		verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust, blob_to_kzg_commitment_rust
 	},
 	types::{
 		fft_settings::FsFFTSettings, fr::FsFr, g1::FsG1, kzg_settings::FsKZGSettings, poly::FsPoly,
@@ -229,6 +229,11 @@ impl Blob {
 					.and_then(FsFr::from_bytes)
 			})
 			.collect()
+	}
+
+	#[inline]
+	pub fn commit(&self, kzg: &KZG) -> KZGCommitment {
+		KZGCommitment(blob_to_kzg_commitment_rust(&self,&kzg.settings))
 	}
 }
 
