@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate alloc;
-
-pub mod recovery;
-pub mod segment;
+pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
+pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
+pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
+pub const SEGMENT_LENGTH: usize = 16;

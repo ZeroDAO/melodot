@@ -11,7 +11,7 @@ edition = "2021"
 bench = false
 
 [dependencies]
-melo-primitives-crypto = { version = "0.1.0", path = "../../primitives", default-features = false }
+melo-core-primitives = { version = "0.1.0", path = "../../primitives", default-features = false }
 rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
 kzg = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
 
@@ -25,6 +25,6 @@ default = ["std", "parallel"]
 std = [
     "rust-kzg-blst/std",
     "kzg/std",
-    "melo-primitives-crypto/std",
+    "melo-core-primitives/std",
 ]
 parallel = ["rust-kzg-blst/parallel"]

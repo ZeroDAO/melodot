@@ -13,3 +13,5 @@
 // limitations under the License.
 
 pub mod kzg;
+pub mod config;
+pub mod segment;

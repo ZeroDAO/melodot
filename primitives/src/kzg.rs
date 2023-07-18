@@ -39,6 +39,9 @@ use rust_kzg_blst::{
 };
 use scale_info::{Type, TypeInfo};
 
+use crate::segment::Segment;
+use crate::config::SEGMENT_LENGTH;
+
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
 		#[derive(
@@ -387,71 +390,4 @@ pub struct Positon {
 pub struct Cell {
 	pub data: FsFr,
 	pub position: Positon,
-}
-
-const SEGMENT_LENGTH: usize = 16;
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
-pub struct Segment {
-	pub position: Positon,
-	pub content: [FsFr; SEGMENT_LENGTH],
-	pub proof: KZGProof,
-}
-
-impl Segment {
-	pub fn new(position: Positon, content: &[FsFr], proof: KZGProof) -> Self {
-
-		let mut arr = [FsFr::default(); SEGMENT_LENGTH];
-        arr.copy_from_slice(&content[..SEGMENT_LENGTH]);
-		Self { position, content: arr, proof }
-	}
-
-	pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment) -> Result<bool, String> {
-		let domain_stride = kzg.max_width() / (2 * FIELD_ELEMENTS_PER_BLOB);
-		let chunk_count = FIELD_ELEMENTS_PER_BLOB / SEGMENT_LENGTH;
-		let domain_pos = Self::reverse_bits_limited(chunk_count, self.position.x as usize);
-		let x = kzg.fs.get_expanded_roots_of_unity_at(domain_pos * domain_stride);
-		kzg.ks.check_proof_multi(
-			&commitment.0,
-			&self.proof,
-			&x,
-			&self.content,
-			FIELD_ELEMENTS_PER_BLOB,
-		)
-	}
-
-	fn reverse_bits_limited(length: usize, value: usize) -> usize {
-		let unused_bits = length.leading_zeros();
-		value.reverse_bits() >> unused_bits
-	}
-
-	pub fn get_cell_by_offset(&self, offset: usize) -> Cell {
-		let x = self.position.x * (SEGMENT_LENGTH as u32) + (offset as u32);
-		let position = Positon { x, y: self.position.y };
-		Cell { data: self.content[offset], position }
-	}
-
-	pub fn get_cell_by_index(&self, index: usize) -> Cell {
-		let offset = index % SEGMENT_LENGTH;
-		self.get_cell_by_offset(offset)
-	}
-
-	pub fn get_all_cells(&self) -> Vec<Cell> {
-		let mut cells = Vec::with_capacity(SEGMENT_LENGTH);
-		for i in 0..SEGMENT_LENGTH {
-			cells.push(self.get_cell_by_offset(i));
-		}
-		cells
-	}
-
-	pub fn segments_to_row(segments: &Vec<Self>) -> [Option<BlsScalar>; 2 * FIELD_ELEMENTS_PER_BLOB] {
-		let mut row = [None; FIELD_ELEMENTS_PER_BLOB * 2];
-		for segment in segments.iter() {
-            let index = segment.position.x * (SEGMENT_LENGTH as u32);
-            for i in 0..SEGMENT_LENGTH {
-                row[(index + (i as u32)) as usize] = Some(BlsScalar(segment.content[i]));
-            }
-        }
-		row
-	}
 }

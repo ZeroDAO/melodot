@@ -4140,18 +4140,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "melo-erasure-coding"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "kzg",
- "melo-primitives-crypto",
- "rand 0.8.5",
- "rust-kzg-blst",
-]
-
-[[package]]
-name = "melo-primitives-crypto"
+name = "melo-core-primitives"
 version = "0.1.0"
 dependencies = [
  "criterion",
@@ -4174,6 +4163,17 @@ dependencies = [
  "thiserror",
  "tracing",
  "uint",
+]
+
+[[package]]
+name = "melo-erasure-coding"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "kzg",
+ "melo-core-primitives",
+ "rand 0.8.5",
+ "rust-kzg-blst",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [package]
-name = "melo-primitives-crypto"
+name = "melo-core-primitives"
 description = "Core primitives for Melodot"
 license = "Apache-2.0"
 version = "0.1.0"
