@@ -13,5 +13,3 @@
 // limitations under the License.
 
 extern crate alloc;
-
-pub mod recovery;
