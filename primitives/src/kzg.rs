@@ -21,7 +21,7 @@ use alloc::{
 use core::hash::{Hash, Hasher};
 use core::mem;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::{FFTFr, FFTSettings, FK20MultiSettings, Fr, KZGSettings, DAS, FFTG1, G1};
+use kzg::{FFTFr, FFTSettings, FK20MultiSettings, Fr, KZGSettings, DAS, FFTG1, G1, PolyRecover};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 use rayon::{
 	prelude::{IndexedParallelIterator, ParallelIterator},
@@ -163,8 +163,10 @@ kzg_type_with_size!(BlsScalar, FsFr, 32);
 
 pub trait ReprConvert<T>: Sized {
 	fn slice_to_repr(value: &[Self]) -> &[T];
+	fn slice_from_repr(value: &[T]) -> &[Self];
 	fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
 	fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
+	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
 
 pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
@@ -174,10 +176,17 @@ pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
 macro_rules! repr_convertible {
 	($name:ident, $type:ty) => {
 		impl ReprConvert<$type> for $name {
+			#[inline]
 			fn slice_to_repr(value: &[Self]) -> &[$type] {
 				unsafe { mem::transmute(value) }
 			}
 
+			#[inline]
+			fn slice_from_repr(value: &[$type]) -> &[Self] {
+				unsafe { mem::transmute(value) }
+			}
+
+			#[inline]
 			fn vec_to_repr(value: Vec<Self>) -> Vec<$type> {
 				unsafe {
 					let mut value = mem::ManuallyDrop::new(value);
@@ -189,6 +198,7 @@ macro_rules! repr_convertible {
 				}
 			}
 
+			#[inline]
 			fn vec_from_repr(value: Vec<$type>) -> Vec<Self> {
 				unsafe {
 					let mut value = mem::ManuallyDrop::new(value);
@@ -198,6 +208,11 @@ macro_rules! repr_convertible {
 						value.capacity(),
 					)
 				}
+			}
+
+			#[inline]
+			fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<$type>] {
+				unsafe { mem::transmute(value) }
 			}
 		}
 	};
@@ -275,13 +290,35 @@ impl Blob {
 			.par_chunks(SEGMENT_LENGTH)
 			.enumerate()
 			.map(|(i, chunk)| {
-				let position = Positon::default();
+				let position = Position::default();
 				let content = chunk;
 				let proof = all_proofs[i];
-				Segment::new(position, content, KZGProof(proof))
+				Segment::new(position, BlsScalar::slice_from_repr(content) , KZGProof(proof))
 			})
 			.collect::<Vec<_>>();
 		Ok(segments)
+	}
+}
+
+#[derive(Debug, Clone, From)]
+pub struct Polynomial(FsPoly);
+
+impl Polynomial {
+    pub fn normalize(&mut self) {
+        let trailing_zeroes = self
+            .0
+            .coeffs
+            .iter()
+            .rev()
+            .take_while(|coeff| coeff.is_zero())
+            .count();
+        self.0
+            .coeffs
+            .truncate((self.0.coeffs.len() - trailing_zeroes).max(1));
+    }
+
+	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
+		BlsScalar::slice_from_repr(&self.0.coeffs)
 	}
 }
 
@@ -306,6 +343,25 @@ impl KZG {
 
 	pub fn get_expanded_roots_of_unity_at(&self, i: usize) -> FsFr {
 		self.fs.get_expanded_roots_of_unity_at(i)
+	}
+
+	pub fn get_kzg_index(&self, chunk_index: usize) -> usize {
+		let domain_stride = self.max_width() / (2 * FIELD_ELEMENTS_PER_BLOB);
+		let chunk_count = FIELD_ELEMENTS_PER_BLOB / SEGMENT_LENGTH;
+		let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
+		domain_pos * domain_stride
+	}
+
+	pub fn compute_proof_multi(
+		&self,
+		poly: &Polynomial,
+		point_indexes: usize,
+		n: usize,
+	) -> Result<KZGProof, String> {
+		let x = self
+			.fs
+			.get_expanded_roots_of_unity_at(point_indexes);
+		self.ks.compute_proof_multi(&poly.0, &x, n).map(KZGProof)
 	}
 
 	pub fn check_proof_multi(
@@ -394,16 +450,29 @@ impl KZG {
 
 		self.fs.fft_g1(&coeffs, false).map(T::vec_from_repr)
 	}
+
+    pub fn recover_poly(&self, shards: &[Option<BlsScalar>]) -> Result<Polynomial, String> {
+		let poly = FsPoly::recover_poly_from_samples(
+			BlsScalar::slice_option_to_repr(shards),
+			&self.fs,
+		)?;
+		Ok(Polynomial::from(poly))
+    }
+
+	fn reverse_bits_limited(length: usize, value: usize) -> usize {
+		let unused_bits = length.leading_zeros();
+		value.reverse_bits() >> unused_bits
+	}
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From)]
-pub struct Positon {
+pub struct Position {
 	pub x: u32,
 	pub y: u32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct Cell {
-	pub data: FsFr,
-	pub position: Positon,
+	pub data: BlsScalar,
+	pub position: Position,
 }

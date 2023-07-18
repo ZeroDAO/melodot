@@ -15,48 +15,70 @@ extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
 use derive_more::{AsMut, AsRef, From};
-use rust_kzg_blst::types::fr::FsFr;
 
 use crate::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
-use crate::kzg::{KZG, KZGCommitment, KZGProof, Positon, Cell};
+use crate::kzg::{
+	BlsScalar, Cell, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG,
+};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct Segment {
-	pub position: Positon,
-	pub content: [FsFr; SEGMENT_LENGTH],
+	pub position: Position,
+	pub content: SegmentData,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
+pub struct SegmentData {
+	pub data: [BlsScalar; SEGMENT_LENGTH],
 	pub proof: KZGProof,
 }
 
-impl Segment {
-	pub fn new(position: Positon, content: &[FsFr], proof: KZGProof) -> Self {
-		// 检查 content 长度是否为 16
+impl SegmentData {
+	pub const SIZE: usize = SEGMENT_LENGTH;
 
-		let mut arr = [FsFr::default(); SEGMENT_LENGTH];
-		arr.copy_from_slice(&content[..SEGMENT_LENGTH]);
-		Self { position, content: arr, proof }
+	pub fn new(data: &[BlsScalar], proof: KZGProof) -> Self {
+		// 检查 data 长度是否为 16
+		let mut arr = [BlsScalar::default(); SEGMENT_LENGTH];
+		arr.copy_from_slice(&data[..SEGMENT_LENGTH]);
+		Self { data: arr, proof }
+	}
+
+	pub fn size(&self) -> usize {
+		Self::SIZE
+	}
+
+	pub fn from_data(
+		positon: &Position,
+		content: &[BlsScalar],
+		kzg: &KZG,
+		poly: &Polynomial,
+	) -> Result<Self, String> {
+		let i = kzg.get_kzg_index(positon.x as usize);
+		kzg.compute_proof_multi(poly, i, FIELD_ELEMENTS_PER_BLOB)
+			.map(|p| Self::new(content, p))
+	}
+}
+
+impl Segment {
+	pub fn new(position: Position, data: &[BlsScalar], proof: KZGProof) -> Self {
+		let segment_data = SegmentData::new(data, proof);
+		Self { position, content: segment_data }
 	}
 
 	pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment) -> Result<bool, String> {
-		let domain_stride = kzg.max_width() / (2 * FIELD_ELEMENTS_PER_BLOB);
-		let chunk_count = FIELD_ELEMENTS_PER_BLOB / SEGMENT_LENGTH;
-		let domain_pos = Self::reverse_bits_limited(chunk_count, self.position.x as usize);
+		let i = kzg.get_kzg_index(self.position.x as usize);
 		kzg.check_proof_multi(
 			&commitment,
-			domain_pos * domain_stride,
-			&self.content,
-			&self.proof,
+			i,
+			BlsScalar::slice_to_repr(&self.content.data),
+			&self.content.proof,
 		)
-	}
-
-	fn reverse_bits_limited(length: usize, value: usize) -> usize {
-		let unused_bits = length.leading_zeros();
-		value.reverse_bits() >> unused_bits
 	}
 
 	pub fn get_cell_by_offset(&self, offset: usize) -> Cell {
 		let x = self.position.x * (SEGMENT_LENGTH as u32) + (offset as u32);
-		let position = Positon { x, y: self.position.y };
-		Cell { data: self.content[offset], position }
+		let position = Position { x, y: self.position.y };
+		Cell { data: self.content.data[offset], position }
 	}
 
 	pub fn get_cell_by_index(&self, index: usize) -> Cell {
