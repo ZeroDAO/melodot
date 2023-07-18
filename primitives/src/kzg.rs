@@ -304,6 +304,22 @@ impl KZG {
 		self.fs.max_width
 	}
 
+	pub fn get_expanded_roots_of_unity_at(&self, i: usize) -> FsFr {
+		self.fs.get_expanded_roots_of_unity_at(i)
+	}
+
+	pub fn check_proof_multi(
+		&self,
+		commitment: &KZGCommitment,
+		i: usize,
+		values: &[FsFr],
+		proof: &KZGProof,
+	) -> Result<bool, String> {
+		let x = self.fs.get_expanded_roots_of_unity_at(i);
+		self.ks
+			.check_proof_multi(&commitment.0,&proof.0, &x, values ,FIELD_ELEMENTS_PER_BLOB)
+	}
+
 	pub fn compute_proof(&self, poly: &FsPoly, point_index: usize) -> Result<KZGProof, String> {
 		let x = self.ks.get_expanded_roots_of_unity_at(point_index as usize);
 		self.ks.compute_proof_single(poly, &x).map(KZGProof)

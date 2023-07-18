@@ -40,13 +40,11 @@ impl Segment {
 		let domain_stride = kzg.max_width() / (2 * FIELD_ELEMENTS_PER_BLOB);
 		let chunk_count = FIELD_ELEMENTS_PER_BLOB / SEGMENT_LENGTH;
 		let domain_pos = Self::reverse_bits_limited(chunk_count, self.position.x as usize);
-		let x = kzg.fs.get_expanded_roots_of_unity_at(domain_pos * domain_stride);
-		kzg.ks.check_proof_multi(
-			&commitment.0,
-			&self.proof,
-			&x,
+		kzg.check_proof_multi(
+			&commitment,
+			domain_pos * domain_stride,
 			&self.content,
-			FIELD_ELEMENTS_PER_BLOB,
+			&self.proof,
 		)
 	}
 
