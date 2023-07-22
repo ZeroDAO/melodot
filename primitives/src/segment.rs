@@ -18,7 +18,7 @@ use derive_more::{AsMut, AsRef, From};
 
 use crate::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
 use crate::kzg::{
-	BlsScalar, Cell, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG,
+	BlsScalar, Cell, KZGProof, Polynomial, Position, KZG,
 };
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
@@ -29,7 +29,7 @@ pub struct Segment {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct SegmentData {
-	pub data: [BlsScalar; SEGMENT_LENGTH],
+	pub data: Vec<BlsScalar>,
 	pub proof: KZGProof,
 }
 
@@ -37,8 +37,8 @@ impl SegmentData {
 	pub const SIZE: usize = SEGMENT_LENGTH;
 
 	pub fn new(data: &[BlsScalar], proof: KZGProof) -> Self {
-		// 检查 data 长度是否为 16
-		let mut arr = [BlsScalar::default(); SEGMENT_LENGTH];
+		// TODO: check data length
+		let mut arr = [BlsScalar::default(); SEGMENT_LENGTH].to_vec();
 		arr.copy_from_slice(&data[..SEGMENT_LENGTH]);
 		Self { data: arr, proof }
 	}
@@ -52,28 +52,32 @@ impl SegmentData {
 		content: &[BlsScalar],
 		kzg: &KZG,
 		poly: &Polynomial,
+		chunk_count: usize,
+		n: usize,
 	) -> Result<Self, String> {
-		let i = kzg.get_kzg_index(positon.x as usize);
+		let i = kzg.get_kzg_index(chunk_count, positon.x as usize, n);
 		kzg.compute_proof_multi(poly, i, FIELD_ELEMENTS_PER_BLOB)
 			.map(|p| Self::new(content, p))
 	}
 }
 
 impl Segment {
+	pub const SIZE: usize = SEGMENT_LENGTH;
+
 	pub fn new(position: Position, data: &[BlsScalar], proof: KZGProof) -> Self {
 		let segment_data = SegmentData::new(data, proof);
 		Self { position, content: segment_data }
 	}
 
-	pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment) -> Result<bool, String> {
-		let i = kzg.get_kzg_index(self.position.x as usize);
-		kzg.check_proof_multi(
-			&commitment,
-			i,
-			BlsScalar::slice_to_repr(&self.content.data),
-			&self.content.proof,
-		)
-	}
+	// pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment) -> Result<bool, String> {
+	// 	let i = kzg.get_kzg_index(self.position.x as usize);
+	// 	kzg.check_proof_multi(
+	// 		&commitment,
+	// 		i,
+	// 		BlsScalar::slice_to_repr(&self.content.data),
+	// 		&self.content.proof,
+	// 	)
+	// }
 
 	pub fn get_cell_by_offset(&self, offset: usize) -> Cell {
 		let x = self.position.x * (SEGMENT_LENGTH as u32) + (offset as u32);

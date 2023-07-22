@@ -21,26 +21,25 @@ use alloc::{
 use core::hash::{Hash, Hasher};
 use core::mem;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::{FFTFr, FFTSettings, FK20MultiSettings, Fr, KZGSettings, DAS, FFTG1, G1, PolyRecover};
-use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
-use rayon::{
-	prelude::{IndexedParallelIterator, ParallelIterator},
-	slice::ParallelSlice,
+use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
+use kzg::{
+	FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2,
 };
+use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
+
 use rust_kzg_blst::{
 	eip_4844::{
-		blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, load_trusted_setup_filename_rust,
+		blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust,
 		verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
 	},
 	types::{
 		fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
-		kzg_settings::FsKZGSettings, poly::FsPoly,
+		g2::FsG2, kzg_settings::FsKZGSettings, poly::FsPoly,
 	},
 };
 use scale_info::{Type, TypeInfo};
 
-use crate::segment::Segment;
-use crate::config::SEGMENT_LENGTH;
+use crate::config::{EMBEDDED_KZG_SETTINGS_BYTES, SEGMENT_LENGTH};
 
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
@@ -172,6 +171,7 @@ pub trait ReprConvert<T>: Sized {
 pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
 pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
 pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
+pub const SCALAT_SAFE_BYTES: usize = 31;
 
 macro_rules! repr_convertible {
 	($name:ident, $type:ty) => {
@@ -227,6 +227,22 @@ repr_convertible!(KZGCommitment, FsG1);
 repr_convertible!(KZGProof, FsG1);
 repr_convertible!(BlsScalar, FsFr);
 
+impl From<&[u8; SCALAT_SAFE_BYTES]> for BlsScalar {
+	#[inline]
+	fn from(value: &[u8; SCALAT_SAFE_BYTES]) -> Self {
+		let mut bytes = [0u8; Self::SIZE];
+		bytes[..SCALAT_SAFE_BYTES].copy_from_slice(value);
+		Self::try_from(bytes).expect("Safe bytes always fit into scalar and thus succeed; qed")
+	}
+}
+
+impl From<[u8; SCALAT_SAFE_BYTES]> for BlsScalar {
+	#[inline]
+	fn from(value: [u8; SCALAT_SAFE_BYTES]) -> Self {
+		Self::from(&value)
+	}
+}
+
 impl Blob {
 	#[inline]
 	pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, String> {
@@ -278,78 +294,110 @@ impl Blob {
 	}
 
 	// bytes_to_blobs
-
-	#[inline]
-	pub fn segments(&self, kzg: &KZG) -> Result<Vec<Segment>, String> {
-		let poly = kzg.poly(&self)?;
-		let poly_len = poly.coeffs.len();
-		let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
-		let all_proofs = fk.data_availability(&poly).unwrap();
-		let segments = kzg
-			.extend_blob(&self)?
-			.par_chunks(SEGMENT_LENGTH)
-			.enumerate()
-			.map(|(i, chunk)| {
-				let position = Position::default();
-				let content = chunk;
-				let proof = all_proofs[i];
-				Segment::new(position, BlsScalar::slice_from_repr(content) , KZGProof(proof))
-			})
-			.collect::<Vec<_>>();
-		Ok(segments)
-	}
 }
 
 #[derive(Debug, Clone, From)]
-pub struct Polynomial(FsPoly);
+pub struct Polynomial(pub FsPoly);
 
 impl Polynomial {
-    pub fn normalize(&mut self) {
-        let trailing_zeroes = self
-            .0
-            .coeffs
-            .iter()
-            .rev()
-            .take_while(|coeff| coeff.is_zero())
-            .count();
-        self.0
-            .coeffs
-            .truncate((self.0.coeffs.len() - trailing_zeroes).max(1));
-    }
+	pub fn new(size: usize) -> Result<Self, String> {
+		FsPoly::new(size).map(Self)
+	}
+
+	pub fn normalize(&mut self) {
+		let trailing_zeroes =
+			self.0.coeffs.iter().rev().take_while(|coeff| coeff.is_zero()).count();
+		self.0.coeffs.truncate((self.0.coeffs.len() - trailing_zeroes).max(1));
+	}
 
 	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
 		BlsScalar::slice_from_repr(&self.0.coeffs)
 	}
 }
 
-const TRUSTED_SETUP_FILENAME: &str = "eth-public-parameters.bin";
+/// Number of G1 powers stored in [`EMBEDDED_KZG_SETTINGS_BYTES`]
+pub const NUM_G1_POWERS: usize = 32_768;
+/// Number of G2 powers stored in [`EMBEDDED_KZG_SETTINGS_BYTES`]
+pub const NUM_G2_POWERS: usize = 65;
 
+// This function clone from https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs
+// Symmetric function is present in tests
+/// Function turns bytes into `FsKZGSettings`, it is up to the user to ensure that bytes make sense,
+/// otherwise result can be very wrong (but will not panic).
+pub fn bytes_to_kzg_settings(
+	bytes: &[u8],
+	num_g1_powers: usize,
+	num_g2_powers: usize,
+) -> Result<FsKZGSettings, String> {
+	if bytes.len() != BYTES_PER_G1 * num_g1_powers + BYTES_PER_G2 * num_g2_powers {
+		return Err("Invalid bytes length".to_string());
+	}
+
+	let (secret_g1_bytes, secret_g2_bytes) = bytes.split_at(BYTES_PER_G1 * num_g1_powers);
+	let secret_g1 = secret_g1_bytes
+		.chunks_exact(BYTES_PER_G1)
+		.map(|bytes| {
+			FsG1::from_bytes(
+				bytes.try_into().expect("Chunked into correct number of bytes above; qed"),
+			)
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let secret_g2 = secret_g2_bytes
+		.chunks_exact(BYTES_PER_G2)
+		.map(|bytes| {
+			FsG2::from_bytes(
+				bytes.try_into().expect("Chunked into correct number of bytes above; qed"),
+			)
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+
+	let fft_settings = FsFFTSettings::new(
+		num_g1_powers
+			.checked_sub(1)
+			.expect("Checked to be not empty above; qed")
+			.ilog2() as usize,
+	)
+	.expect("Scale is within allowed bounds; qed");
+	// Below is the same as `FsKZGSettings::new(&s1, &s2, num_g1_powers, &fft_settings)`, but without
+	// extra checks (parameters are static anyway) and without unnecessary allocations
+	Ok(FsKZGSettings { fs: fft_settings, secret_g1, secret_g2 })
+}
+
+/// Embedded KZG settings
+pub fn embedded_kzg_settings() -> FsKZGSettings {
+	bytes_to_kzg_settings(EMBEDDED_KZG_SETTINGS_BYTES, NUM_G1_POWERS, NUM_G2_POWERS)
+		.expect("Static bytes are correct, there is a test for this; qed")
+}
+
+#[derive(Debug, Clone, AsMut)]
 pub struct KZG {
-	ks: Arc<FsKZGSettings>,
-	fs: Arc<FsFFTSettings>,
+	pub ks: Arc<FsKZGSettings>,
 }
 
 impl KZG {
-	pub fn new() -> Self {
-		Self {
-			ks: Arc::new(load_trusted_setup_filename_rust(TRUSTED_SETUP_FILENAME)),
-			fs: Arc::new(FsFFTSettings::default()),
-		}
+	pub fn new(kzg_settings: FsKZGSettings) -> Self {
+		Self { ks: Arc::new(kzg_settings) }
 	}
 
 	pub fn max_width(&self) -> usize {
-		self.fs.max_width
+		self.ks.fs.max_width
 	}
 
 	pub fn get_expanded_roots_of_unity_at(&self, i: usize) -> FsFr {
-		self.fs.get_expanded_roots_of_unity_at(i)
+		self.ks.get_expanded_roots_of_unity_at(i)
 	}
 
-	pub fn get_kzg_index(&self, chunk_index: usize) -> usize {
-		let domain_stride = self.max_width() / (2 * FIELD_ELEMENTS_PER_BLOB);
-		let chunk_count = FIELD_ELEMENTS_PER_BLOB / SEGMENT_LENGTH;
+	pub fn get_kzg_index(&self, chunk_count: usize, chunk_index: usize, n: usize) -> usize {
+		let domain_stride = self.max_width() / (2 * n * chunk_count);
 		let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
 		domain_pos * domain_stride
+	}
+
+	pub fn all_proofs(&self, poly: &Polynomial) -> Result<Vec<KZGProof>, String> {
+		let poly_len = poly.0.coeffs.len();
+		let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
+		let all_proofs = fk.data_availability(&poly.0).unwrap();
+		Ok(KZGProof::vec_from_repr(all_proofs))
 	}
 
 	pub fn compute_proof_multi(
@@ -358,9 +406,7 @@ impl KZG {
 		point_indexes: usize,
 		n: usize,
 	) -> Result<KZGProof, String> {
-		let x = self
-			.fs
-			.get_expanded_roots_of_unity_at(point_indexes);
+		let x = self.get_expanded_roots_of_unity_at(point_indexes);
 		self.ks.compute_proof_multi(&poly.0, &x, n).map(KZGProof)
 	}
 
@@ -368,21 +414,23 @@ impl KZG {
 		&self,
 		commitment: &KZGCommitment,
 		i: usize,
+		count: usize,
 		values: &[FsFr],
 		proof: &KZGProof,
+		n: usize,
 	) -> Result<bool, String> {
-		let x = self.fs.get_expanded_roots_of_unity_at(i);
-		self.ks
-			.check_proof_multi(&commitment.0,&proof.0, &x, values ,FIELD_ELEMENTS_PER_BLOB)
+		let pos = self.get_kzg_index(count, i, n);
+		let x = self.get_expanded_roots_of_unity_at(pos);
+		self.ks.check_proof_multi(&commitment.0, &proof.0, &x, values, n)
 	}
 
 	pub fn compute_proof(&self, poly: &FsPoly, point_index: usize) -> Result<KZGProof, String> {
-		let x = self.ks.get_expanded_roots_of_unity_at(point_index as usize);
+		let x = self.get_expanded_roots_of_unity_at(point_index as usize);
 		self.ks.compute_proof_single(poly, &x).map(KZGProof)
 	}
 
-	pub fn commit(&self, poly: &FsPoly) -> Result<KZGCommitment, String> {
-		self.ks.commit_to_poly(&poly).map(KZGCommitment)
+	pub fn commit(&self, poly: &Polynomial) -> Result<KZGCommitment, String> {
+		self.ks.commit_to_poly(&poly.0).map(KZGCommitment)
 	}
 
 	pub fn verify(
@@ -392,7 +440,7 @@ impl KZG {
 		scalar: &BlsScalar,
 		proof: &KZGProof,
 	) -> Result<bool, String> {
-		let x = self.fs.get_expanded_roots_of_unity_at(index as usize);
+		let x = self.get_expanded_roots_of_unity_at(index as usize);
 
 		self.ks.check_proof_single(&commitment, &proof, &x, scalar)
 	}
@@ -426,38 +474,9 @@ impl KZG {
 		verify_blob_kzg_proof_batch_rust(blobs_fs_fr, commitments_fs_g1, proofs_fs_g1, &self.ks)
 	}
 
-	pub fn new_fft_settings(&mut self, num_values: usize) -> Result<(), String> {
-		self.fs = Arc::new(FsFFTSettings::new(
-			num_values.checked_sub(1).expect("Checked to be not empty above; qed").ilog2() as usize,
-		)?);
-		Ok(())
+	pub fn get_fs(&self) -> &FsFFTSettings {
+		&self.ks.fs
 	}
-
-	pub fn poly(&self, blob: &Blob) -> Result<FsPoly, String> {
-		// self.new_fft_settings(data.len())?;
-		let poly = FsPoly { coeffs: self.fs.fft_fr(&blob.0, true)? };
-		Ok(poly)
-	}
-
-	pub fn extend_blob(&self, blob: &Blob) -> Result<Vec<FsFr>, String> {
-		self.fs.das_fft_extension(&blob.0)
-	}
-
-	pub fn extend_fs_g1<T: ReprConvert<FsG1>>(&self, source: &[T]) -> Result<Vec<T>, String> {
-		let mut coeffs = self.fs.fft_g1(T::slice_to_repr(source), true)?;
-
-		coeffs.resize(coeffs.len() * 2, FsG1::identity());
-
-		self.fs.fft_g1(&coeffs, false).map(T::vec_from_repr)
-	}
-
-    pub fn recover_poly(&self, shards: &[Option<BlsScalar>]) -> Result<Polynomial, String> {
-		let poly = FsPoly::recover_poly_from_samples(
-			BlsScalar::slice_option_to_repr(shards),
-			&self.fs,
-		)?;
-		Ok(Polynomial::from(poly))
-    }
 
 	fn reverse_bits_limited(length: usize, value: usize) -> usize {
 		let unused_bits = length.leading_zeros();

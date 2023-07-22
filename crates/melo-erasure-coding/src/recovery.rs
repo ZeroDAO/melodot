@@ -13,18 +13,16 @@
 // limitations under the License.
 
 extern crate alloc;
+use crate::erasure_coding::recover_poly;
 use crate::segment::{order_segments_row, segment_datas_to_row};
 use melo_core_primitives::kzg::{Position, KZG};
 use melo_core_primitives::segment::{Segment, SegmentData};
 
-pub fn recovery_row_from_segments(
-	segments: &Vec<Segment>,
-	kzg: &KZG,
-) -> Result<Vec<Segment>, String> {
+pub fn recovery_row_from_segments(segments: &Vec<Segment>, kzg: &KZG) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
 	let order_segments = order_segments_row(&segments)?;
 	let row = segment_datas_to_row(&order_segments);
-	let poly = kzg.recover_poly(&row)?;
+	let poly = recover_poly(kzg.get_fs(), &row)?;
 	let recovery_row = poly.to_bls_scalars();
 	order_segments
 		.iter()
@@ -36,8 +34,16 @@ pub fn recovery_row_from_segments(
 				None => {
 					let index = i * SegmentData::SIZE;
 					let data = recovery_row[index..(i + 1) * SegmentData::SIZE].to_vec();
-					let segment_data = SegmentData::from_data(&position, &data, kzg, &poly).map_err(|e| e.to_string())?;
-                    Ok(Segment { position, content: segment_data })
+					let segment_data = SegmentData::from_data(
+						&position,
+						&data,
+						kzg,
+						&poly,
+						segments.len(),
+						SegmentData::SIZE,
+					)
+					.map_err(|e| e.to_string())?;
+					Ok(Segment { position, content: segment_data })
 				},
 			}
 		})

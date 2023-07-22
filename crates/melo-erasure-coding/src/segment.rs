@@ -13,9 +13,13 @@
 // limitations under the License.
 
 extern crate alloc;
+use kzg::FK20MultiSettings;
 use melo_core_primitives::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
-use melo_core_primitives::kzg::BlsScalar;
+use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, ReprConvert};
 use melo_core_primitives::segment::{Segment, SegmentData};
+use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
+
+use crate::erasure_coding::extend_poly;
 
 pub fn order_segments_row(segments: &Vec<Segment>) -> Result<Vec<Option<SegmentData>>, String> {
 	if segments.len() > FIELD_ELEMENTS_PER_BLOB * 2 {
@@ -62,4 +66,36 @@ pub fn segment_datas_to_row(segments: &Vec<Option<SegmentData>>) -> Vec<Option<B
 			None => vec![None; SEGMENT_LENGTH],
 		})
 		.collect::<Vec<Option<BlsScalar>>>()
+}
+
+/// Converts a polynomial to a vector of segments.
+///
+/// # Arguments
+///
+/// * `poly` - A reference to a `Polynomial` struct.
+/// * `fk` - A reference to a `FsFK20MultiSettings` struct.
+///
+/// # Returns
+///
+/// A `Result` containing a vector of `Segment` structs or an error message.
+pub fn poly_to_segment_vec(
+	poly: &Polynomial,
+	fk: &FsFK20MultiSettings,
+) -> Result<Vec<Segment>, String> {
+	// let poly_len = poly.0.coeffs.len();
+	// let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
+	let all_proofs = fk.data_availability(&poly.0).unwrap();
+
+	let segments = extend_poly(&fk.kzg_settings.fs, &poly)?
+		.chunks(SEGMENT_LENGTH)
+		.enumerate()
+		.map(|(i, chunk)| {
+			let position = Position::default();
+			let content = chunk;
+			let proof = all_proofs[i];
+			Segment::new(position, BlsScalar::slice_from_repr(content), KZGProof(proof))
+		})
+		.collect::<Vec<_>>();
+
+	Ok(segments)
 }

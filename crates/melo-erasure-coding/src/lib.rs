@@ -12,7 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(test)]
+mod tests;
+
 extern crate alloc;
 
 pub mod recovery;
 pub mod segment;
+pub mod erasure_coding;
+pub mod extend_col;
+
+// pub bytes_vec_to_blobs
+// 
