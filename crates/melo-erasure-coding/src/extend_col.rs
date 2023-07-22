@@ -62,7 +62,7 @@ pub fn extend_segments_col(
 	let mut extended_segments = vec![];
 
 	extended_proofs.iter().enumerate().for_each(|(i, proof)| {
-		let position = melo_core_primitives::kzg::Position { x, y: i as u32 };
+		let position = melo_core_primitives::kzg::Position { x, y: (i + k) as u32 };
 		let data = extended_cols.iter().map(|col| col[i]).collect::<Vec<BlsScalar>>();
 		let segment = Segment { position, content: SegmentData { data, proof: proof.clone() } };
 		extended_segments.push(segment);

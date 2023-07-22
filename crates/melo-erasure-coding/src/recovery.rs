@@ -13,12 +13,16 @@
 // limitations under the License.
 
 extern crate alloc;
+
 use crate::erasure_coding::recover_poly;
 use crate::segment::{order_segments_row, segment_datas_to_row};
 use melo_core_primitives::kzg::{Position, KZG};
 use melo_core_primitives::segment::{Segment, SegmentData};
 
-pub fn recovery_row_from_segments(segments: &Vec<Segment>, kzg: &KZG) -> Result<Vec<Segment>, String> {
+pub fn recovery_row_from_segments(
+	segments: &Vec<Segment>,
+	kzg: &KZG,
+) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
 	let order_segments = order_segments_row(&segments)?;
 	let row = segment_datas_to_row(&order_segments);
@@ -50,13 +54,5 @@ pub fn recovery_row_from_segments(segments: &Vec<Segment>, kzg: &KZG) -> Result<
 		.collect()
 }
 
-// pub fn recovery_column_from_segments(segments: &Vec<Segment>, kzg: &KZG) -> Vec<Segment> {
-// }
-
-// pub fn recovery_row_from_cells(segments: &Vec<Cell>, kzg: &KZG) -> Vec<Cell> {
-// }
-
-// pub fn recovery_column_from_cells(segments: &Vec<Cell>, kzg: &KZG) -> Vec<Cell> {
-// }
-// #[path = "./local_tests/local_consts.rs"]
-// pub mod local_consts;
+// TODO
+// pub fn recovery_col_from_segments(kzg: &KZG, segments: &Vec<Segment>, k: usize) -> Result<Vec<Segment>, String> {}

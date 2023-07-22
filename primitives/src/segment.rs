@@ -18,7 +18,7 @@ use derive_more::{AsMut, AsRef, From};
 
 use crate::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
 use crate::kzg::{
-	BlsScalar, Cell, KZGProof, Polynomial, Position, KZG,
+	BlsScalar, Cell, KZGProof, Polynomial, Position, KZG, KZGCommitment, ReprConvert,
 };
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
@@ -69,15 +69,16 @@ impl Segment {
 		Self { position, content: segment_data }
 	}
 
-	// pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment) -> Result<bool, String> {
-	// 	let i = kzg.get_kzg_index(self.position.x as usize);
-	// 	kzg.check_proof_multi(
-	// 		&commitment,
-	// 		i,
-	// 		BlsScalar::slice_to_repr(&self.content.data),
-	// 		&self.content.proof,
-	// 	)
-	// }
+	pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment, count: usize) -> Result<bool, String> {
+		kzg.check_proof_multi(
+			&commitment,
+			self.position.x as usize,
+			count,
+			BlsScalar::slice_to_repr(&self.content.data),
+			&self.content.proof,
+			Self::SIZE
+		)
+	}
 
 	pub fn get_cell_by_offset(&self, offset: usize) -> Cell {
 		let x = self.position.x * (SEGMENT_LENGTH as u32) + (offset as u32);

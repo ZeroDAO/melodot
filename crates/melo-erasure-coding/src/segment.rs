@@ -15,7 +15,7 @@
 extern crate alloc;
 use kzg::FK20MultiSettings;
 use melo_core_primitives::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
-use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, ReprConvert};
+use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, ReprConvert, KZG};
 use melo_core_primitives::segment::{Segment, SegmentData};
 use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
 
@@ -78,19 +78,16 @@ pub fn segment_datas_to_row(segments: &Vec<Option<SegmentData>>) -> Vec<Option<B
 /// # Returns
 ///
 /// A `Result` containing a vector of `Segment` structs or an error message.
-pub fn poly_to_segment_vec(
-	poly: &Polynomial,
-	fk: &FsFK20MultiSettings,
-) -> Result<Vec<Segment>, String> {
-	// let poly_len = poly.0.coeffs.len();
-	// let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
+pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize) -> Result<Vec<Segment>, String> {
+	let poly_len = poly.0.coeffs.len();
+	let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
 	let all_proofs = fk.data_availability(&poly.0).unwrap();
 
 	let segments = extend_poly(&fk.kzg_settings.fs, &poly)?
 		.chunks(SEGMENT_LENGTH)
 		.enumerate()
 		.map(|(i, chunk)| {
-			let position = Position::default();
+			let position = Position { y: y as u32, x: i as u32 };
 			let content = chunk;
 			let proof = all_proofs[i];
 			Segment::new(position, BlsScalar::slice_from_repr(content), KZGProof(proof))

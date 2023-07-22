@@ -14,15 +14,51 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use erasure_coding::blob_to_poly;
+use itertools::Itertools;
+use melo_core_primitives::{
+	config,
+	kzg::{embedded_kzg_settings, Blob, KZG},
+	segment::Segment,
+};
+use segment::poly_to_segment_vec;
+
 #[cfg(test)]
 mod tests;
 
 extern crate alloc;
 
-pub mod recovery;
-pub mod segment;
 pub mod erasure_coding;
 pub mod extend_col;
+pub mod recovery;
+pub mod segment;
 
-// pub bytes_vec_to_blobs
-// 
+pub fn bytes_vec_to_blobs(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Blob>, String> {
+	let blobs = bytes_vec
+		.iter()
+		.flat_map(|bytes| {
+			bytes
+				.chunks(config::BYTES_PER_BLOB)
+				.map(|chunk| {
+					Blob::try_from_bytes_pad(chunk)
+						.expect("Failed to convert bytes to Blob; qed")
+				})
+				.collect_vec()
+		})
+		.collect_vec();
+	Ok(blobs)
+}
+
+pub fn bytes_vec_to_segments(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Vec<Segment>>, String> {
+	let kzg = KZG::new(embedded_kzg_settings());
+	let matrix = bytes_vec_to_blobs(bytes_vec)?
+		.iter()
+		.enumerate()
+		.map(|(y, blob)| {
+			let poly = blob_to_poly(kzg.get_fs(),blob).expect("Failed to convert blob to poly; qed");
+			poly_to_segment_vec(&poly, &kzg, y)
+				.expect("Failed to convert poly to segment vector; qed")
+		})
+		.collect_vec();
+    Ok(matrix)
+}

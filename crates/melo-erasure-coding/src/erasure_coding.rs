@@ -27,10 +27,10 @@ use rust_kzg_blst::{
 	utils::reverse_bit_order,
 };
 
-pub fn poly(fs: &FsFFTSettings, blob: &Blob) -> Result<FsPoly, String> {
+pub fn blob_to_poly(fs: &FsFFTSettings, blob: &Blob) -> Result<Polynomial, String> {
     // self.new_fft_settings(data.len())?;
     let poly = FsPoly { coeffs: fs.fft_fr(&blob.0, true)? };
-    Ok(poly)
+    Ok(Polynomial::from(poly))
 }
 
 pub fn extend(fs: &FsFFTSettings, source: &[BlsScalar]) -> Result<Vec<BlsScalar>, String> {
