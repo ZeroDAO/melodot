@@ -15,5 +15,4 @@
 pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
 pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
 pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
-pub const SEGMENT_LENGTH: usize = 16;
 pub const EMBEDDED_KZG_SETTINGS_BYTES: &[u8] = include_bytes!("../../scripts/eth-public-parameters.bin");

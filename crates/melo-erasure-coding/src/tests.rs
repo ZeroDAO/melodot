@@ -72,7 +72,7 @@ fn commit_multi_random() {
 	// Commit to the polynomial
 	let commitment = kzg.commit(&poly).unwrap();
 	// Compute the multi proofs
-	let proofs = kzg.all_proofs(&poly).unwrap();
+	let proofs = kzg.all_proofs(&poly,chunk_len).unwrap();
 
 	let mut extended_coeffs = poly.0.coeffs.clone();
 
@@ -134,7 +134,7 @@ fn extend_and_commit_multi_random() {
 	// Commit to the polynomial
 	let commitment = kzg.commit(&poly).unwrap();
 	// Compute the multi proofs
-	let proofs = kzg.all_proofs(&poly).unwrap();
+	let proofs = kzg.all_proofs(&poly, chunk_len).unwrap();
 
 	reverse_bit_order(&mut data);
 	let mut ys = vec![FsFr::default(); chunk_len];
@@ -182,7 +182,7 @@ fn extend_segments_col_random() {
     let matrix = polys
         .iter()
         .enumerate()
-        .map(|(i, poly)| poly_to_segment_vec(&poly, &kzg, i).unwrap())
+        .map(|(i, poly)| poly_to_segment_vec(&poly, &kzg, i, chunk_len).unwrap())
         .collect::<Vec<_>>();
     assert!(matrix[0][0].verify(&kzg, &commitments[0], chunk_count).unwrap());
     // Pick a column from the segments

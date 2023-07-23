@@ -22,15 +22,13 @@ use core::hash::{Hash, Hasher};
 use core::mem;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
 use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
-use kzg::{
-	FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2,
-};
+use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 
 use rust_kzg_blst::{
 	eip_4844::{
-		blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust,
-		verify_blob_kzg_proof_batch_rust, verify_blob_kzg_proof_rust,
+		blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, verify_blob_kzg_proof_batch_rust,
+		verify_blob_kzg_proof_rust,
 	},
 	types::{
 		fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
@@ -39,7 +37,7 @@ use rust_kzg_blst::{
 };
 use scale_info::{Type, TypeInfo};
 
-use crate::config::{EMBEDDED_KZG_SETTINGS_BYTES, SEGMENT_LENGTH};
+use crate::config::EMBEDDED_KZG_SETTINGS_BYTES;
 
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
@@ -387,15 +385,20 @@ impl KZG {
 		self.ks.get_expanded_roots_of_unity_at(i)
 	}
 
-	pub fn get_kzg_index(&self, chunk_count: usize, chunk_index: usize, chunk_size: usize) -> usize {
+	pub fn get_kzg_index(
+		&self,
+		chunk_count: usize,
+		chunk_index: usize,
+		chunk_size: usize,
+	) -> usize {
 		let domain_stride = self.max_width() / (2 * chunk_size * chunk_count);
 		let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
 		domain_pos * domain_stride
 	}
 
-	pub fn all_proofs(&self, poly: &Polynomial) -> Result<Vec<KZGProof>, String> {
+	pub fn all_proofs(&self, poly: &Polynomial, chunk_size: usize) -> Result<Vec<KZGProof>, String> {
 		let poly_len = poly.0.coeffs.len();
-		let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, SEGMENT_LENGTH).unwrap();
+		let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, chunk_size).unwrap();
 		let all_proofs = fk.data_availability(&poly.0).unwrap();
 		Ok(KZGProof::vec_from_repr(all_proofs))
 	}

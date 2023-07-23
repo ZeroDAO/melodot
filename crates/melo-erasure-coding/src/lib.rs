@@ -49,14 +49,14 @@ pub fn bytes_vec_to_blobs(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Blob>, String>
 	Ok(blobs)
 }
 
-pub fn blobs_to_segments(blobs: &Vec<Blob>) -> Result<Vec<Vec<Segment>>, String> {
+pub fn blobs_to_segments(blobs: &Vec<Blob>, chunk_size: usize) -> Result<Vec<Vec<Segment>>, String> {
 	let kzg = KZG::new(embedded_kzg_settings());
 	let matrix = blobs
 		.iter()
 		.enumerate()
 		.map(|(y, blob)| {
 			let poly = blob_to_poly(kzg.get_fs(),blob).expect("Failed to convert blob to poly; qed");
-			poly_to_segment_vec(&poly, &kzg, y)
+			poly_to_segment_vec(&poly, &kzg, y,chunk_size)
 				.expect("Failed to convert poly to segment vector; qed")
 		})
 		.collect_vec();

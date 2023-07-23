@@ -22,11 +22,11 @@ use melo_core_primitives::segment::{Segment, SegmentData};
 pub fn recovery_row_from_segments(
 	segments: &Vec<Segment>,
 	kzg: &KZG,
-	segments_size: usize,
 ) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
+	let segments_size = segments[0].size();
 	let order_segments = order_segments_row(&segments)?;
-	let row = segment_datas_to_row(&order_segments);
+	let row = segment_datas_to_row(&order_segments, segments_size);
 	let poly = recover_poly(kzg.get_fs(), &row)?;
 	let recovery_row = poly.to_bls_scalars();
 	order_segments
