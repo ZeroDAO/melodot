@@ -49,9 +49,9 @@ pub fn bytes_vec_to_blobs(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Blob>, String>
 	Ok(blobs)
 }
 
-pub fn bytes_vec_to_segments(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Vec<Segment>>, String> {
+pub fn blobs_to_segments(blobs: &Vec<Blob>) -> Result<Vec<Vec<Segment>>, String> {
 	let kzg = KZG::new(embedded_kzg_settings());
-	let matrix = bytes_vec_to_blobs(bytes_vec)?
+	let matrix = blobs
 		.iter()
 		.enumerate()
 		.map(|(y, blob)| {

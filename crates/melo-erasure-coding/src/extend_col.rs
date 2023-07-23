@@ -49,8 +49,8 @@ pub fn extend_segments_col(
 
 	let mut extended_cols = vec![];
 
-	for (i, _) in [0..(Segment::SIZE)].iter().enumerate() {
-		let col = sorted_rows
+	for i in 0..(Segment::SIZE) {
+		let col: Vec<BlsScalar> = sorted_rows
 			.iter()
 			.skip(i)
 			.step_by(Segment::SIZE as usize)
@@ -61,7 +61,8 @@ pub fn extend_segments_col(
 
 	let mut extended_segments = vec![];
 
-	extended_proofs.iter().enumerate().for_each(|(i, proof)| {
+	// 需要获取奇数部分
+	extended_proofs.iter().skip(1).step_by(2).enumerate().for_each(|(i, proof)| {
 		let position = melo_core_primitives::kzg::Position { x, y: (i + k) as u32 };
 		let data = extended_cols.iter().map(|col| col[i]).collect::<Vec<BlsScalar>>();
 		let segment = Segment { position, content: SegmentData { data, proof: proof.clone() } };

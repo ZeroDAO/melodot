@@ -15,6 +15,7 @@ extern crate alloc;
 
 use alloc::{string::String, vec::Vec};
 use derive_more::{AsMut, AsRef, From};
+use rust_kzg_blst::utils::reverse_bit_order;
 
 use crate::config::{FIELD_ELEMENTS_PER_BLOB, SEGMENT_LENGTH};
 use crate::kzg::{
@@ -68,13 +69,15 @@ impl Segment {
 		let segment_data = SegmentData::new(data, proof);
 		Self { position, content: segment_data }
 	}
-
+ 
 	pub fn verify(&self, kzg: &KZG, commitment: &KZGCommitment, count: usize) -> Result<bool, String> {
+		let mut ys = BlsScalar::vec_to_repr(self.content.data.clone());
+		reverse_bit_order(&mut ys);
 		kzg.check_proof_multi(
 			&commitment,
 			self.position.x as usize,
 			count,
-			BlsScalar::slice_to_repr(&self.content.data),
+			&ys,
 			&self.content.proof,
 			Self::SIZE
 		)
