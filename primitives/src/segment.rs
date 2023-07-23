@@ -52,8 +52,8 @@ impl SegmentData {
 		poly: &Polynomial,
 		chunk_count: usize,
 	) -> Result<Self, String> {
-		let i = kzg.get_kzg_index(chunk_count, positon.x as usize, content.len());
-		kzg.compute_proof_multi(poly, i, FIELD_ELEMENTS_PER_BLOB)
+		// let i = kzg.get_kzg_index(chunk_count, positon.x as usize, content.len());
+		kzg.compute_proof_multi(poly, positon.x as usize, chunk_count, content.len())
 			.map(|p| Ok(Self { data: content.to_vec(), proof: p }))?
 	}
 }

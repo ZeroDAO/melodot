@@ -14,19 +14,18 @@
 
 extern crate alloc;
 use kzg::FK20MultiSettings;
-use melo_core_primitives::config::FIELD_ELEMENTS_PER_BLOB;
-use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, ReprConvert, KZG};
+use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, KZG};
 use melo_core_primitives::segment::{Segment, SegmentData};
 use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
 
 use crate::erasure_coding::extend_poly;
 
-pub fn order_segments_row(segments: &Vec<Segment>) -> Result<Vec<Option<SegmentData>>, String> {
-	if segments.len() > FIELD_ELEMENTS_PER_BLOB * 2 {
+pub fn order_segments_row(segments: &Vec<Segment>, chunk_count: usize) -> Result<Vec<Option<SegmentData>>, String> {
+	if segments.len() > chunk_count * 2 {
 		return Err("segments x not equal".to_string());
 	}
 	let y = segments[0].position.y;
-	let mut ordered_segments = vec![None; FIELD_ELEMENTS_PER_BLOB * 2];
+	let mut ordered_segments = vec![None; chunk_count * 2];
 	for segment in segments.iter() {
 		if segment.position.y != y {
 			return Err("segments y not equal".to_string());
@@ -82,15 +81,14 @@ pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize, chunk_size: u
 	let poly_len = poly.0.coeffs.len();
 	let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size).unwrap();
 	let all_proofs = fk.data_availability(&poly.0).unwrap();
-
-	let segments = extend_poly(&fk.kzg_settings.fs, &poly)?
+	let extended_poly = extend_poly(&fk.kzg_settings.fs, &poly)?;
+	let segments = extended_poly
 		.chunks(chunk_size)
 		.enumerate()
 		.map(|(i, chunk)| {
 			let position = Position { y: y as u32, x: i as u32 };
-			let content = chunk;
 			let proof = all_proofs[i];
-			Segment::new(position, BlsScalar::slice_from_repr(content), KZGProof(proof))
+			Segment::new(position, chunk, KZGProof(proof))
 		})
 		.collect::<Vec<_>>();
 

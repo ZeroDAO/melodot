@@ -14,21 +14,27 @@
 
 extern crate alloc;
 
-use crate::erasure_coding::recover_poly;
+use crate::erasure_coding::{extend_poly, recover_poly};
 use crate::segment::{order_segments_row, segment_datas_to_row};
 use melo_core_primitives::kzg::{Position, KZG};
 use melo_core_primitives::segment::{Segment, SegmentData};
+use rust_kzg_blst::utils::reverse_bit_order;
 
 pub fn recovery_row_from_segments(
 	segments: &Vec<Segment>,
 	kzg: &KZG,
+	chunk_count: usize,
 ) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
 	let segments_size = segments[0].size();
-	let order_segments = order_segments_row(&segments)?;
-	let row = segment_datas_to_row(&order_segments, segments_size);
+	let order_segments = order_segments_row(&segments, chunk_count)?;
+	let mut row = segment_datas_to_row(&order_segments, segments_size);
+	reverse_bit_order(&mut row);
 	let poly = recover_poly(kzg.get_fs(), &row)?;
-	let recovery_row = poly.to_bls_scalars();
+
+	let recovery_row = extend_poly(kzg.get_fs(), &poly)?;
+	// let mut recovery_row = recover(kzg.get_fs(), &row)?;
+	// reverse_bit_order(&mut recovery_row);
 	order_segments
 		.iter()
 		.enumerate()
@@ -39,14 +45,9 @@ pub fn recovery_row_from_segments(
 				None => {
 					let index = i * segments_size;
 					let data = recovery_row[index..(i + 1) * segments_size].to_vec();
-					let segment_data = SegmentData::from_data(
-						&position,
-						&data,
-						kzg,
-						&poly,
-						segments.len(),
-					)
-					.map_err(|e| e.to_string())?;
+					let segment_data =
+						SegmentData::from_data(&position, &data, kzg, &poly, segments.len())
+							.map_err(|e| e.to_string())?;
 					Ok(Segment { position, content: segment_data })
 				},
 			}

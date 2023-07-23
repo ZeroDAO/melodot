@@ -21,7 +21,7 @@ use alloc::{
 use core::hash::{Hash, Hasher};
 use core::mem;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
+use kzg::{eip_4844::{BYTES_PER_G1, BYTES_PER_G2}, FFTFr};
 use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 
@@ -33,7 +33,7 @@ use rust_kzg_blst::{
 	types::{
 		fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
 		g2::FsG2, kzg_settings::FsKZGSettings, poly::FsPoly,
-	},
+	}, utils::reverse_bit_order,
 };
 use scale_info::{Type, TypeInfo};
 
@@ -311,6 +311,12 @@ impl Polynomial {
 	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
 		BlsScalar::slice_from_repr(&self.0.coeffs)
 	}
+
+	pub fn eval(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
+		let mut reconstructed_data = fs.fft_fr(&self.0.coeffs, false)?;
+		reverse_bit_order(&mut reconstructed_data);
+		Ok(BlsScalar::vec_from_repr(reconstructed_data))
+	}
 }
 
 /// Number of G1 powers stored in [`EMBEDDED_KZG_SETTINGS_BYTES`]
@@ -406,11 +412,14 @@ impl KZG {
 	pub fn compute_proof_multi(
 		&self,
 		poly: &Polynomial,
-		point_indexes: usize,
-		n: usize,
+		chunk_index: usize,
+		count: usize,
+		chunk_size: usize,
 	) -> Result<KZGProof, String> {
-		let x = self.get_expanded_roots_of_unity_at(point_indexes);
-		self.ks.compute_proof_multi(&poly.0, &x, n).map(KZGProof)
+		// let x = self.get_expanded_roots_of_unity_at(point_indexes);
+		let pos = self.get_kzg_index(count, chunk_index, chunk_size);
+		let x = self.get_expanded_roots_of_unity_at(pos);
+		self.ks.compute_proof_multi(&poly.0, &x, chunk_size).map(KZGProof)
 	}
 
 	pub fn check_proof_multi(
