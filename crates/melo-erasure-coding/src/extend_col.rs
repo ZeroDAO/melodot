@@ -28,20 +28,21 @@ pub fn extend_segments_col(
 ) -> Result<Vec<Segment>, String> {
 	let k = segments.len();
 	let x = segments[0].position.x;
+	let segment_size = segments[0].size();
 
 	let mut proofs = vec![];
 	let sorted_rows: Vec<BlsScalar> = segments
 		.iter()
 		.sorted_by_key(|s| s.position.y)
 		.enumerate()
-		.filter(|(i, s)| s.position.x == x && *i == s.position.y as usize)
+		.filter(|(i, s)| s.position.x == x && *i == s.position.y as usize && s.size() == segment_size)
 		.flat_map(|(_, s)| {
 			proofs.push(s.content.proof.clone());
 			s.content.data.clone()
 		})
 		.collect();
 
-	if sorted_rows.len() != k * Segment::SIZE {
+	if sorted_rows.len() != k * segment_size {
 		return Err("segments x not equal".to_string());
 	}
 
@@ -49,11 +50,11 @@ pub fn extend_segments_col(
 
 	let mut extended_cols = vec![];
 
-	for i in 0..(Segment::SIZE) {
+	for i in 0..(segment_size) {
 		let col: Vec<BlsScalar> = sorted_rows
 			.iter()
 			.skip(i)
-			.step_by(Segment::SIZE as usize)
+			.step_by(segment_size)
 			.map(|s| s.clone())
 			.collect::<Vec<BlsScalar>>();
 		extended_cols.push(extend(fs, &col)?);

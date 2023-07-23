@@ -22,6 +22,7 @@ use melo_core_primitives::segment::{Segment, SegmentData};
 pub fn recovery_row_from_segments(
 	segments: &Vec<Segment>,
 	kzg: &KZG,
+	segments_size: usize,
 ) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
 	let order_segments = order_segments_row(&segments)?;
@@ -36,15 +37,14 @@ pub fn recovery_row_from_segments(
 			match segment_data {
 				Some(segment_data) => Ok(Segment { position, content: segment_data.clone() }),
 				None => {
-					let index = i * SegmentData::SIZE;
-					let data = recovery_row[index..(i + 1) * SegmentData::SIZE].to_vec();
+					let index = i * segments_size;
+					let data = recovery_row[index..(i + 1) * segments_size].to_vec();
 					let segment_data = SegmentData::from_data(
 						&position,
 						&data,
 						kzg,
 						&poly,
 						segments.len(),
-						SegmentData::SIZE,
 					)
 					.map_err(|e| e.to_string())?;
 					Ok(Segment { position, content: segment_data })

@@ -387,8 +387,8 @@ impl KZG {
 		self.ks.get_expanded_roots_of_unity_at(i)
 	}
 
-	pub fn get_kzg_index(&self, chunk_count: usize, chunk_index: usize, n: usize) -> usize {
-		let domain_stride = self.max_width() / (2 * n * chunk_count);
+	pub fn get_kzg_index(&self, chunk_count: usize, chunk_index: usize, chunk_size: usize) -> usize {
+		let domain_stride = self.max_width() / (2 * chunk_size * chunk_count);
 		let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
 		domain_pos * domain_stride
 	}
