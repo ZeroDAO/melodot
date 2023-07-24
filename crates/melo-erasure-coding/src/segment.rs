@@ -21,7 +21,7 @@ use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
 use crate::erasure_coding::extend_poly;
 
 pub fn order_segments_row(segments: &Vec<Segment>, chunk_count: usize) -> Result<Vec<Option<SegmentData>>, String> {
-	if segments.len() > chunk_count * 2 {
+	if segments.len() > chunk_count * 2 || segments.len() == 0 {
 		return Err("segments x not equal".to_string());
 	}
 	let y = segments[0].position.y;
@@ -39,7 +39,7 @@ pub fn order_segments_col(
 	segments: &Vec<Segment>,
 	k: usize,
 ) -> Result<Vec<Option<SegmentData>>, String> {
-	if segments.len() > k * 2 {
+	if segments.len() > k * 2 || segments.len() == 0 {
 		return Err("segments x not equal".to_string());
 	}
 	let x = segments[0].position.x;
@@ -48,7 +48,7 @@ pub fn order_segments_col(
 		if segment.position.x != x {
 			return Err("segments x not equal".to_string());
 		}
-		ordered_segments[segment.position.x as usize] = Some(segment.content.clone());
+		ordered_segments[segment.position.y as usize] = Some(segment.content.clone());
 	}
 	Ok(ordered_segments)
 }
