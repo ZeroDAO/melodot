@@ -20,25 +20,29 @@ use alloc::{
 };
 use core::hash::{Hash, Hasher};
 use core::mem;
+use core::ptr;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::{eip_4844::{BYTES_PER_G1, BYTES_PER_G2}, FFTFr};
+use kzg::{
+	eip_4844::{BYTES_PER_G1, BYTES_PER_G2},
+	FFTFr,
+};
 use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 
 use rust_kzg_blst::{
-	eip_4844::{
-		blob_to_kzg_commitment_rust, compute_blob_kzg_proof_rust, verify_blob_kzg_proof_batch_rust,
-		verify_blob_kzg_proof_rust,
-	},
 	types::{
 		fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
 		g2::FsG2, kzg_settings::FsKZGSettings, poly::FsPoly,
-	}, utils::reverse_bit_order,
+	},
+	utils::reverse_bit_order,
 };
 use scale_info::{Type, TypeInfo};
 
-use crate::config::EMBEDDED_KZG_SETTINGS_BYTES;
+use crate::{blob::Blob, config::EMBEDDED_KZG_SETTINGS_BYTES};
 
+// `kzg_type_with_size`宏 和 `repr_convertible`宏灵感来源于
+// https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs
+// 但我们使用宏，而不是单独为每个类型都实现一遍
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
 		#[derive(
@@ -157,7 +161,6 @@ macro_rules! kzg_type_with_size {
 kzg_type_with_size!(KZGCommitment, FsG1, 48);
 kzg_type_with_size!(KZGProof, FsG1, 48);
 kzg_type_with_size!(BlsScalar, FsFr, 32);
-
 pub trait ReprConvert<T>: Sized {
 	fn slice_to_repr(value: &[Self]) -> &[T];
 	fn slice_from_repr(value: &[T]) -> &[Self];
@@ -165,11 +168,6 @@ pub trait ReprConvert<T>: Sized {
 	fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
 	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
-
-pub const BYTES_PER_BLOB: usize = BYTES_PER_FIELD_ELEMENT * FIELD_ELEMENTS_PER_BLOB;
-pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
-pub const FIELD_ELEMENTS_PER_BLOB: usize = 4;
-pub const SCALAT_SAFE_BYTES: usize = 31;
 
 macro_rules! repr_convertible {
 	($name:ident, $type:ty) => {
@@ -216,82 +214,78 @@ macro_rules! repr_convertible {
 	};
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut)]
-#[repr(transparent)]
-pub struct Blob(pub Vec<FsFr>);
 // TODO: Change to automatic implementation
-repr_convertible!(Blob, Vec<FsFr>);
+repr_convertible!(Blob, Vec<BlsScalar>);
 repr_convertible!(KZGCommitment, FsG1);
 repr_convertible!(KZGProof, FsG1);
 repr_convertible!(BlsScalar, FsFr);
 
-impl From<&[u8; SCALAT_SAFE_BYTES]> for BlsScalar {
-	#[inline]
-	fn from(value: &[u8; SCALAT_SAFE_BYTES]) -> Self {
-		let mut bytes = [0u8; Self::SIZE];
-		bytes[..SCALAT_SAFE_BYTES].copy_from_slice(value);
-		Self::try_from(bytes).expect("Safe bytes always fit into scalar and thus succeed; qed")
+pub trait SafeScalar: Sized {
+	const SAFE_SIZE: usize = SCALAR_SAFE_BYTES;
+	fn safe_size() -> usize;
+	fn try_from_bytes_safe(bytes: &[u8; SCALAR_SAFE_BYTES]) -> Result<Self, String>;
+	fn to_bytes_safe(&self) -> [u8; SCALAR_SAFE_BYTES];
+}
+
+pub const SCALAR_SAFE_BYTES: usize = 31;
+
+// BlsScalar is 32 bytes, but we only use 31 bytes for safe operations
+// 32 bytes is not safe, because it can be greater than the modulus
+// https://github.com/supranational/blst/blob/327d30a51c858e9c34f5b6eb3a6966b2cf6bc9cc/src/exports.c#L107
+impl SafeScalar for BlsScalar {
+	const SAFE_SIZE: usize = SCALAR_SAFE_BYTES;
+
+	fn safe_size() -> usize {
+		Self::SAFE_SIZE
+	}
+
+	fn try_from_bytes_safe(value: &[u8; SCALAR_SAFE_BYTES]) -> Result<Self, String> {
+		let v_ptr = value.as_ptr();
+		let mut full_scalar = [0u8; Self::SIZE];
+		let f_ptr = full_scalar.as_mut_ptr();
+
+		// SCALAR_SAFE_BYTES 总是小于 FULL_SCALAR_BYTES , 所以是安全的
+		unsafe {
+			ptr::copy_nonoverlapping(v_ptr, f_ptr, SCALAR_SAFE_BYTES);
+		}
+
+		Self::try_from(full_scalar)
+	}
+
+	fn to_bytes_safe(&self) -> [u8; SCALAR_SAFE_BYTES] {
+		let full_bytes = self.to_bytes();
+		let mut bytes = [0u8; SCALAR_SAFE_BYTES];
+
+		unsafe {
+			ptr::copy_nonoverlapping(full_bytes.as_ptr(), bytes.as_mut_ptr(), SCALAR_SAFE_BYTES);
+		}
+
+		bytes
 	}
 }
 
-impl From<[u8; SCALAT_SAFE_BYTES]> for BlsScalar {
+impl From<&[u8; SCALAR_SAFE_BYTES]> for BlsScalar {
 	#[inline]
-	fn from(value: [u8; SCALAT_SAFE_BYTES]) -> Self {
+	fn from(value: &[u8; SCALAR_SAFE_BYTES]) -> Self {
+		let v_ptr = value.as_ptr();
+		let mut full_scalar = [0u8; Self::SIZE];
+		let f_ptr = full_scalar.as_mut_ptr();
+
+		// SCALAR_SAFE_BYTES 总是小于 FULL_SCALAR_BYTES , 所以是安全的
+		unsafe {
+			ptr::copy_nonoverlapping(v_ptr, f_ptr, SCALAR_SAFE_BYTES);
+		}
+
+		Self::try_from(full_scalar)
+			.expect("Safe bytes always fit into scalar and thus succeed; qed")
+	}
+}
+
+impl From<[u8; SCALAR_SAFE_BYTES]> for BlsScalar {
+	#[inline]
+	fn from(value: [u8; SCALAR_SAFE_BYTES]) -> Self {
 		Self::from(&value)
 	}
-}
-
-impl Blob {
-	#[inline]
-	pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, String> {
-		if bytes.len() != BYTES_PER_BLOB {
-			return Err(format!(
-				"Invalid byte length. Expected {} got {}",
-				BYTES_PER_BLOB,
-				bytes.len(),
-			));
-		}
-
-		Self::from_bytes(bytes).map(Self)
-	}
-
-	#[inline]
-	pub fn try_from_bytes_pad(bytes: &[u8]) -> Result<Self, String> {
-		if bytes.len() > BYTES_PER_BLOB {
-			return Err(format!(
-				"Invalid byte length. Expected maximum {} got {}",
-				BYTES_PER_BLOB,
-				bytes.len(),
-			));
-		}
-		Self::from_bytes(bytes).map(|mut data| {
-			if data.len() == FIELD_ELEMENTS_PER_BLOB {
-				Self(data)
-			} else {
-				data.resize(FIELD_ELEMENTS_PER_BLOB, FsFr::zero());
-				Self(data)
-			}
-		})
-	}
-
-	fn from_bytes(bytes: &[u8]) -> Result<Vec<FsFr>, String> {
-		bytes
-			.chunks(BYTES_PER_FIELD_ELEMENT)
-			.map(|chunk| {
-				chunk
-					.try_into()
-					.map_err(|_| "Chunked into incorrect number of bytes".to_string())
-					.and_then(FsFr::from_bytes)
-			})
-			.collect()
-	}
-
-	#[inline]
-	pub fn commit(&self, kzg: &KZG) -> KZGCommitment {
-		KZGCommitment(blob_to_kzg_commitment_rust(&self, &kzg.ks))
-	}
-
-	// bytes_to_blobs
 }
 
 #[derive(Debug, Clone, From)]
@@ -302,20 +296,31 @@ impl Polynomial {
 		FsPoly::new(size).map(Self)
 	}
 
-	pub fn normalize(&mut self) {
-		let trailing_zeroes =
-			self.0.coeffs.iter().rev().take_while(|coeff| coeff.is_zero()).count();
-		self.0.coeffs.truncate((self.0.coeffs.len() - trailing_zeroes).max(1));
+	pub fn from_coeffs(coeffs: &[FsFr]) -> Self {
+		Polynomial(FsPoly { coeffs: coeffs.to_vec() })
+	}
+
+	pub fn left(&mut self) {
+		let half = self.0.coeffs.len() / 2;
+		self.0.coeffs.truncate(half);
 	}
 
 	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
 		BlsScalar::slice_from_repr(&self.0.coeffs)
 	}
 
-	pub fn eval(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
+	pub fn to_blob(&self) -> Blob {
+		Blob::from(self.to_bls_scalars().to_vec())
+	}
+
+	pub fn eval_all(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
 		let mut reconstructed_data = fs.fft_fr(&self.0.coeffs, false)?;
 		reverse_bit_order(&mut reconstructed_data);
 		Ok(BlsScalar::vec_from_repr(reconstructed_data))
+	}
+
+	pub fn eval(&self, x: &BlsScalar) -> BlsScalar {
+		BlsScalar(self.0.eval(x))
 	}
 }
 
@@ -402,7 +407,11 @@ impl KZG {
 		domain_pos * domain_stride
 	}
 
-	pub fn all_proofs(&self, poly: &Polynomial, chunk_size: usize) -> Result<Vec<KZGProof>, String> {
+	pub fn all_proofs(
+		&self,
+		poly: &Polynomial,
+		chunk_size: usize,
+	) -> Result<Vec<KZGProof>, String> {
 		let poly_len = poly.0.coeffs.len();
 		let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, chunk_size).unwrap();
 		let all_proofs = fk.data_availability(&poly.0).unwrap();
@@ -436,9 +445,17 @@ impl KZG {
 		self.ks.check_proof_multi(&commitment.0, &proof.0, &x, values, n)
 	}
 
-	pub fn compute_proof(&self, poly: &FsPoly, point_index: usize) -> Result<KZGProof, String> {
+	pub fn compute_proof_with_index(
+		&self,
+		poly: &Polynomial,
+		point_index: usize,
+	) -> Result<KZGProof, String> {
 		let x = self.get_expanded_roots_of_unity_at(point_index as usize);
-		self.ks.compute_proof_single(poly, &x).map(KZGProof)
+		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
+	}
+
+	pub fn compute_proof(&self, poly: &Polynomial, x: &FsFr) -> Result<KZGProof, String> {
+		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
 	}
 
 	pub fn commit(&self, poly: &Polynomial) -> Result<KZGCommitment, String> {
@@ -449,41 +466,22 @@ impl KZG {
 		&self,
 		commitment: &KZGCommitment,
 		index: u32,
-		scalar: &BlsScalar,
+		value: &BlsScalar,
 		proof: &KZGProof,
 	) -> Result<bool, String> {
 		let x = self.get_expanded_roots_of_unity_at(index as usize);
 
-		self.ks.check_proof_single(&commitment, &proof, &x, scalar)
+		self.ks.check_proof_single(&commitment, &proof, &x, value)
 	}
 
-	pub fn compute_blob_proof(
+	pub fn check_proof_single(
 		&self,
-		blob: &Blob,
-		commitment: &KZGCommitment,
-	) -> Result<KZGProof, String> {
-		compute_blob_kzg_proof_rust(&blob.0, commitment, &self.ks).map(KZGProof)
-	}
-
-	pub fn verify_blob_proof(
-		&self,
-		blob: &Blob,
 		commitment: &KZGCommitment,
 		proof: &KZGProof,
+		x: &FsFr,
+		value: &BlsScalar,
 	) -> Result<bool, String> {
-		verify_blob_kzg_proof_rust(&blob.0, &commitment, &proof, &self.ks)
-	}
-
-	pub fn verify_blobs_proof_batch(
-		&self,
-		commitments: &[KZGCommitment],
-		proofs: &[KZGProof],
-		blobs: &[Blob],
-	) -> Result<bool, String> {
-		let blobs_fs_fr: &[Vec<FsFr>] = Blob::slice_to_repr(blobs);
-		let commitments_fs_g1: &[FsG1] = KZGCommitment::slice_to_repr(commitments);
-		let proofs_fs_g1: &[FsG1] = KZGProof::slice_to_repr(proofs);
-		verify_blob_kzg_proof_batch_rust(blobs_fs_fr, commitments_fs_g1, proofs_fs_g1, &self.ks)
+		self.ks.check_proof_single(&commitment, &proof, &x, value)
 	}
 
 	pub fn get_fs(&self) -> &FsFFTSettings {

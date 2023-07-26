@@ -33,8 +33,7 @@ pub fn recovery_row_from_segments(
 	let poly = recover_poly(kzg.get_fs(), &row)?;
 
 	let recovery_row = extend_poly(kzg.get_fs(), &poly)?;
-	// let mut recovery_row = recover(kzg.get_fs(), &row)?;
-	// reverse_bit_order(&mut recovery_row);
+
 	order_segments
 		.iter()
 		.enumerate()

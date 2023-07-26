@@ -17,7 +17,6 @@ use alloc::{string::String, vec::Vec};
 use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
 
-use crate::config::FIELD_ELEMENTS_PER_BLOB;
 use crate::kzg::{
 	BlsScalar, Cell, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG,
 };

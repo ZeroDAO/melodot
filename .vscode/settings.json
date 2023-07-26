@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./crates/melo-erasure-coding/Cargo.toml"
+    ]
+}

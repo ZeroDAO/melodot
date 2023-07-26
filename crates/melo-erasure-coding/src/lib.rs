@@ -14,14 +14,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use erasure_coding::blob_to_poly;
 use itertools::Itertools;
-use melo_core_primitives::{
-	config,
-	kzg::{embedded_kzg_settings, Blob, KZG},
-	segment::Segment,
-};
-use segment::poly_to_segment_vec;
+use melo_core_primitives::{blob::Blob, kzg::SCALAR_SAFE_BYTES};
 
 #[cfg(test)]
 mod tests;
@@ -33,32 +27,31 @@ pub mod extend_col;
 pub mod recovery;
 pub mod segment;
 
-pub fn bytes_vec_to_blobs(bytes_vec: &Vec<Vec<u8>>) -> Result<Vec<Blob>, String> {
+pub fn bytes_vec_to_blobs(
+	bytes_vec: &Vec<Vec<u8>>,
+	field_elements_per_blob: usize,
+) -> Result<Vec<Blob>, String> {
+	if bytes_vec.iter().any(|bytes| bytes.is_empty()) {
+		return Err("bytes_vec should not contain empty bytes; qed".to_string());
+	}
+	if !field_elements_per_blob.is_power_of_two() {
+		return Err("field_elements_per_blob should be a power of 2; qed".to_string());
+	}
+	if field_elements_per_blob == 0 {
+		return Err("field_elements_per_blob should be greater than 0; qed".to_string());
+	}
+	let bytes_per_blob = SCALAR_SAFE_BYTES * field_elements_per_blob;
 	let blobs = bytes_vec
 		.iter()
 		.flat_map(|bytes| {
 			bytes
-				.chunks(config::BYTES_PER_BLOB)
+				.chunks(bytes_per_blob)
 				.map(|chunk| {
-					Blob::try_from_bytes_pad(chunk)
+					Blob::try_from_bytes_pad(chunk, bytes_per_blob)
 						.expect("Failed to convert bytes to Blob; qed")
 				})
 				.collect_vec()
 		})
 		.collect_vec();
 	Ok(blobs)
-}
-
-pub fn blobs_to_segments(blobs: &Vec<Blob>, chunk_size: usize) -> Result<Vec<Vec<Segment>>, String> {
-	let kzg = KZG::new(embedded_kzg_settings());
-	let matrix = blobs
-		.iter()
-		.enumerate()
-		.map(|(y, blob)| {
-			let poly = blob_to_poly(kzg.get_fs(),blob).expect("Failed to convert blob to poly; qed");
-			poly_to_segment_vec(&poly, &kzg, y,chunk_size)
-				.expect("Failed to convert poly to segment vector; qed")
-		})
-		.collect_vec();
-    Ok(matrix)
 }
