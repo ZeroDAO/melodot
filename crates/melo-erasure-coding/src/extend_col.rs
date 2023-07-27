@@ -22,6 +22,24 @@ use rust_kzg_blst::types::fft_settings::FsFFTSettings;
 
 use crate::erasure_coding::{extend, extend_fs_g1};
 
+/// Extends the segments in a column using FFT settings.
+/// 
+/// It extends the `segments` in the original column to twice their size, and also extends the `proof` in each `Segment`.
+///
+/// # Arguments
+///
+/// * `fs` - FFT settings to use for the extension.
+/// * `segments` - Segments to extend. The number of segments must be a power of two.
+///
+/// # Returns
+///
+/// * `Result<Vec<Segment>, String>` - A vector of extended segments, or an error message if the extension fails.
+/// 
+/// # Notes
+/// 
+/// * The extended `Vec<Segment>` is not interleaved with parity data, and the `x` value of the `Position` in the original 
+/// data is not changed. This is to avoid confusion during the erasure coding process. Additionally, we do not make any 
+/// promises or validations in the column direction, so there is no need to do so.
 pub fn extend_segments_col(
     fs: &FsFFTSettings,
     segments: &Vec<Segment>,
@@ -30,10 +48,12 @@ pub fn extend_segments_col(
     let x = segments[0].position.x;
     let segment_size = segments[0].size();
 
+    // Check if all segments are from the same column
     if segments.iter().any(|s| s.position.x != x) {
         return Err("segments are not from the same column".to_string());
     }
 
+    // Check if k and segment_size are powers of two
     if !k.is_power_of_two() || !segment_size.is_power_of_two() {
         return Err("number of segments and segment size must be powers of two".to_string());
     }
@@ -50,14 +70,17 @@ pub fn extend_segments_col(
         })
         .collect();
 
+    // Check if the number of elements after sorting is equal to k * segment_size
     if sorted_rows.len() != k * segment_size {
         return Err("mismatch in the number of elements after sorting".to_string());
     }
 
+    // Extend the proofs using FFT
     let extended_proofs = extend_fs_g1(fs, &proofs)?;
 
     let mut extended_cols = vec![];
 
+    // Extend each column using FFT
     for i in 0..(segment_size) {
         let col: Vec<BlsScalar> = sorted_rows
             .iter()
@@ -70,7 +93,7 @@ pub fn extend_segments_col(
 
     let mut extended_segments = vec![];
 
-    // Need to obtain odd parts
+    // Obtain the odd parts of the extended proofs and create new segments
     extended_proofs.iter().skip(1).step_by(2).enumerate().for_each(|(i, proof)| {
         let position = melo_core_primitives::kzg::Position { x, y: (i + k) as u32 };
         let data = extended_cols.iter().map(|col| col[i]).collect::<Vec<BlsScalar>>();
