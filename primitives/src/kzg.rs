@@ -38,11 +38,14 @@ use rust_kzg_blst::{
 };
 use scale_info::{Type, TypeInfo};
 
-use crate::{blob::Blob, config::EMBEDDED_KZG_SETTINGS_BYTES};
+use crate::{
+	blob::Blob,
+	config::{BYTES_PER_FIELD_ELEMENT, EMBEDDED_KZG_SETTINGS_BYTES},
+};
 
-// `kzg_type_with_size`宏 和 `repr_convertible`宏灵感来源于
+// kzg_type_with_size macro and repr_convertible macro are inspired by
 // https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs
-// 但我们使用宏，而不是单独为每个类型都实现一遍
+// but we use macros instead of implementing them separately for each type.
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr) => {
 		#[derive(
@@ -158,9 +161,10 @@ macro_rules! kzg_type_with_size {
 }
 
 // TODO: Automatic size reading
-kzg_type_with_size!(KZGCommitment, FsG1, 48);
-kzg_type_with_size!(KZGProof, FsG1, 48);
-kzg_type_with_size!(BlsScalar, FsFr, 32);
+kzg_type_with_size!(KZGCommitment, FsG1, BYTES_PER_G1);
+kzg_type_with_size!(KZGProof, FsG1, BYTES_PER_G1);
+kzg_type_with_size!(BlsScalar, FsFr, BYTES_PER_FIELD_ELEMENT);
+
 pub trait ReprConvert<T>: Sized {
 	fn slice_to_repr(value: &[Self]) -> &[T];
 	fn slice_from_repr(value: &[T]) -> &[Self];
@@ -169,6 +173,9 @@ pub trait ReprConvert<T>: Sized {
 	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
 
+/// This macro provides a convenient way to convert a slice of the underlying representation to a 
+/// commitment for efficiency purposes. To ensure safe conversion, the #[repr(transparent)] attribute 
+/// must be implemented.
 macro_rules! repr_convertible {
 	($name:ident, $type:ty) => {
 		impl ReprConvert<$type> for $name {
@@ -220,18 +227,23 @@ repr_convertible!(KZGCommitment, FsG1);
 repr_convertible!(KZGProof, FsG1);
 repr_convertible!(BlsScalar, FsFr);
 
+/// BlsScalar is 32 bytes, but we only use 31 bytes for safe operations
+/// 32 bytes is not safe, because it can be greater than the modulus
+/// https://github.com/supranational/blst/blob/327d30a51c858e9c34f5b6eb3a6966b2cf6bc9cc/src/exports.c#L107
 pub trait SafeScalar: Sized {
+	/// Safe size of scalar
 	const SAFE_SIZE: usize = SCALAR_SAFE_BYTES;
+	/// Safe size of scalar
 	fn safe_size() -> usize;
+	/// Try to convert bytes to scalar
 	fn try_from_bytes_safe(bytes: &[u8; SCALAR_SAFE_BYTES]) -> Result<Self, String>;
+	/// Convert scalar to bytes
 	fn to_bytes_safe(&self) -> [u8; SCALAR_SAFE_BYTES];
 }
 
+/// BlsScalar is 32 bytes, but we only use 31 bytes for safe operations
 pub const SCALAR_SAFE_BYTES: usize = 31;
 
-// BlsScalar is 32 bytes, but we only use 31 bytes for safe operations
-// 32 bytes is not safe, because it can be greater than the modulus
-// https://github.com/supranational/blst/blob/327d30a51c858e9c34f5b6eb3a6966b2cf6bc9cc/src/exports.c#L107
 impl SafeScalar for BlsScalar {
 	const SAFE_SIZE: usize = SCALAR_SAFE_BYTES;
 
@@ -244,7 +256,7 @@ impl SafeScalar for BlsScalar {
 		let mut full_scalar = [0u8; Self::SIZE];
 		let f_ptr = full_scalar.as_mut_ptr();
 
-		// SCALAR_SAFE_BYTES 总是小于 FULL_SCALAR_BYTES , 所以是安全的
+		// SCALAR_SAFE_BYTES is always less than FULL_SCALAR_BYTES, so it is safe.
 		unsafe {
 			ptr::copy_nonoverlapping(v_ptr, f_ptr, SCALAR_SAFE_BYTES);
 		}
@@ -271,7 +283,7 @@ impl From<&[u8; SCALAR_SAFE_BYTES]> for BlsScalar {
 		let mut full_scalar = [0u8; Self::SIZE];
 		let f_ptr = full_scalar.as_mut_ptr();
 
-		// SCALAR_SAFE_BYTES 总是小于 FULL_SCALAR_BYTES , 所以是安全的
+		// SCALAR_SAFE_BYTES is always less than FULL_SCALAR_BYTES, so it is safe.
 		unsafe {
 			ptr::copy_nonoverlapping(v_ptr, f_ptr, SCALAR_SAFE_BYTES);
 		}
@@ -288,52 +300,87 @@ impl From<[u8; SCALAR_SAFE_BYTES]> for BlsScalar {
 	}
 }
 
+/// A polynomial represented by a `FsPoly` struct.
 #[derive(Debug, Clone, From)]
 pub struct Polynomial(pub FsPoly);
 
 impl Polynomial {
-	pub fn new(size: usize) -> Result<Self, String> {
-		FsPoly::new(size).map(Self)
-	}
-
-	fn is_valid(&self) -> bool {
-		self.0.coeffs.len().is_power_of_two()
+    /// Creates a new polynomial with the given size.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The size of the polynomial.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the new polynomial or an error message.
+    pub fn new(size: usize) -> Result<Self, String> {
+        FsPoly::new(size).map(Self)
     }
 
-	pub fn checked(&self) -> Result<Self, String> {
-		if !self.is_valid() {
-			return Err("Polynomial size must be a power of two".to_string());
-		}
-		Ok(self.clone())
-	}
+    /// Checks if the polynomial is valid.
+    ///
+    /// It checks if the number of coefficients is a power of two to validate the polynomial.
+    fn is_valid(&self) -> bool {
+        self.0.coeffs.len().is_power_of_two()
+    }
 
-	pub fn from_coeffs(coeffs: &[FsFr]) -> Self {
-		Polynomial(FsPoly { coeffs: coeffs.to_vec() })
-	}
+    /// Checks if the polynomial is valid and returns a new polynomial.
+    ///
+    /// If valid, returns the original polynomial. If invalid, returns an error.
+    // TODO We should not clone()
+    pub fn checked(&self) -> Result<Self, String> {
+        if !self.is_valid() {
+            return Err("Polynomial size must be a power of two".to_string());
+        }
+        Ok(self.clone())
+    }
 
-	pub fn left(&mut self) {
-		let half = self.0.coeffs.len() / 2;
-		self.0.coeffs.truncate(half);
-	}
+    /// Creates a new polynomial from the given coefficients.
+    pub fn from_coeffs(coeffs: &[FsFr]) -> Self {
+        Polynomial(FsPoly { coeffs: coeffs.to_vec() })
+    }
 
-	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
-		BlsScalar::slice_from_repr(&self.0.coeffs)
-	}
+    /// Truncates the polynomial to the left half.
+    ///
+    /// This is an in-place operation that truncates the coefficients of the polynomial to the 
+	/// left half. This is typically used when restoring polynomial coefficients, where the left 
+	/// half is usually returned and the right half is empty. Therefore, it is necessary to ensure 
+	/// that the correct result should be returned before truncating.
+    pub fn left(&mut self) {
+        let half = self.0.coeffs.len() / 2;
+        self.0.coeffs.truncate(half);
+    }
 
-	pub fn to_blob(&self) -> Blob {
-		Blob::from(self.to_bls_scalars().to_vec())
-	}
+    /// Converts the polynomial to a slice of `BlsScalar` values.
+    pub fn to_bls_scalars(&self) -> &[BlsScalar] {
+        BlsScalar::slice_from_repr(&self.0.coeffs)
+    }
 
-	pub fn eval_all(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
-		let mut reconstructed_data = fs.fft_fr(&self.0.coeffs, false)?;
-		reverse_bit_order(&mut reconstructed_data);
-		Ok(BlsScalar::vec_from_repr(reconstructed_data))
-	}
+    /// Converts the polynomial to a `Blob`.
+    ///
+    /// This directly converts the polynomial data to a Blob in Lagrange form.
+    pub fn to_blob(&self) -> Blob {
+        Blob::from(self.to_bls_scalars().to_vec())
+    }
 
-	pub fn eval(&self, x: &BlsScalar) -> BlsScalar {
-		BlsScalar(self.0.eval(x))
-	}
+    /// Evaluates the polynomial at all points.
+    ///
+    /// The data in the polynomial is used as coefficients, and FFT transformation is performed. 
+	/// The result is given in Lagrange form on twice the length. The returned result is a `BlsScalar` array, 
+	/// twice the length of the polynomial, and has already undergone `reverse_bit_order`.
+    pub fn eval_all(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
+        let mut reconstructed_data = fs.fft_fr(&self.0.coeffs, false)?;
+        reverse_bit_order(&mut reconstructed_data);
+        Ok(BlsScalar::vec_from_repr(reconstructed_data))
+    }
+
+    /// Evaluates the polynomial at the given point.
+    pub fn eval(&self, x: &BlsScalar) -> BlsScalar {
+        BlsScalar(self.0.eval(x))
+    }
 }
+
 
 /// Number of G1 powers stored in [`EMBEDDED_KZG_SETTINGS_BYTES`]
 pub const NUM_G1_POWERS: usize = 32_768;
@@ -389,120 +436,214 @@ pub fn embedded_kzg_settings() -> FsKZGSettings {
 		.expect("Static bytes are correct, there is a test for this; qed")
 }
 
+/// KZG is a struct that represents a KZG instance.
 #[derive(Debug, Clone, AsMut)]
 pub struct KZG {
-	pub ks: Arc<FsKZGSettings>,
+    pub ks: Arc<FsKZGSettings>,
 }
 
 impl KZG {
-	pub fn new(kzg_settings: FsKZGSettings) -> Self {
-		Self { ks: Arc::new(kzg_settings) }
-	}
+    /// Create a new KZG instance with the given settings.
+    pub fn new(kzg_settings: FsKZGSettings) -> Self {
+        Self { ks: Arc::new(kzg_settings) }
+    }
 
-	pub fn max_width(&self) -> usize {
-		self.ks.fs.max_width
-	}
+    /// Get the maximum width of the KZG instance.
+    pub fn max_width(&self) -> usize {
+        self.ks.fs.max_width
+    }
 
-	pub fn get_expanded_roots_of_unity_at(&self, i: usize) -> FsFr {
-		self.ks.get_expanded_roots_of_unity_at(i)
-	}
+    /// Get the expanded roots of unity at the given index.
+    pub fn get_expanded_roots_of_unity_at(&self, i: usize) -> FsFr {
+        self.ks.get_expanded_roots_of_unity_at(i)
+    }
 
-	pub fn get_kzg_index(
-		&self,
-		chunk_count: usize,
-		chunk_index: usize,
-		chunk_size: usize,
-	) -> usize {
-		let domain_stride = self.max_width() / (2 * chunk_size * chunk_count);
-		let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
-		domain_pos * domain_stride
-	}
+    /// Get the KZG index for the given chunk count, chunk index, and chunk size.
+    pub fn get_kzg_index(
+        &self,
+        chunk_count: usize,
+        chunk_index: usize,
+        chunk_size: usize,
+    ) -> usize {
+        let domain_stride = self.max_width() / (2 * chunk_size * chunk_count);
+        let domain_pos = Self::reverse_bits_limited(chunk_count, chunk_index);
+        domain_pos * domain_stride
+    }
 
-	pub fn all_proofs(
-		&self,
-		poly: &Polynomial,
-		chunk_size: usize,
-	) -> Result<Vec<KZGProof>, String> {
-		let poly_len = poly.0.coeffs.len();
-		let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, chunk_size).unwrap();
-		let all_proofs = fk.data_availability(&poly.0).unwrap();
-		Ok(KZGProof::vec_from_repr(all_proofs))
-	}
+    /// Compute all proofs for the given polynomial and chunk size.
+    ///
+    /// # Arguments
+    ///
+    /// * `poly` - The polynomial to compute proofs for.
+    /// * `chunk_size` - The size of each chunk.
+    ///
+    /// # Returns
+    ///
+    /// A vector of KZGProofs, one for each chunk.
+    pub fn all_proofs(
+        &self,
+        poly: &Polynomial,
+        chunk_size: usize,
+    ) -> Result<Vec<KZGProof>, String> {
+        let poly_len = poly.0.coeffs.len();
+        let fk = FsFK20MultiSettings::new(&self.ks, 2 * poly_len, chunk_size).unwrap();
+        let all_proofs = fk.data_availability(&poly.0).unwrap();
+        Ok(KZGProof::vec_from_repr(all_proofs))
+    }
 
-	pub fn compute_proof_multi(
-		&self,
-		poly: &Polynomial,
-		chunk_index: usize,
-		count: usize,
-		chunk_size: usize,
-	) -> Result<KZGProof, String> {
-		// let x = self.get_expanded_roots_of_unity_at(point_indexes);
-		let pos = self.get_kzg_index(count, chunk_index, chunk_size);
-		let x = self.get_expanded_roots_of_unity_at(pos);
-		self.ks.compute_proof_multi(&poly.0, &x, chunk_size).map(KZGProof)
-	}
+    /// Compute a proof for the given polynomial, chunk index, count, and chunk size.
+    ///
+    /// # Arguments
+    ///
+    /// * `poly` - The polynomial to compute the proof for.
+    /// * `chunk_index` - The index of the chunk to compute the proof for.
+    /// * `count` - The total number of chunks.
+    /// * `chunk_size` - The size of each chunk.
+    ///
+    /// # Returns
+    ///
+    /// A KZGProof for the given chunk.
+    pub fn compute_proof_multi(
+        &self,
+        poly: &Polynomial,
+        chunk_index: usize,
+        count: usize,
+        chunk_size: usize,
+    ) -> Result<KZGProof, String> {
+        let pos = self.get_kzg_index(count, chunk_index, chunk_size);
+        let x = self.get_expanded_roots_of_unity_at(pos);
+        self.ks.compute_proof_multi(&poly.0, &x, chunk_size).map(KZGProof)
+    }
 
-	pub fn check_proof_multi(
-		&self,
-		commitment: &KZGCommitment,
-		i: usize,
-		count: usize,
-		values: &[FsFr],
-		proof: &KZGProof,
-		n: usize,
-	) -> Result<bool, String> {
-		let pos = self.get_kzg_index(count, i, n);
-		let x = self.get_expanded_roots_of_unity_at(pos);
-		self.ks.check_proof_multi(&commitment.0, &proof.0, &x, values, n)
-	}
+    /// Check a proof for the given commitment, index, count, values, proof, and n.
+    ///
+    /// # Arguments
+    ///
+    /// * `commitment` - The KZGCommitment to check the proof against.
+    /// * `i` - The index of the chunk to check the proof for.
+    /// * `count` - The total number of chunks.
+    /// * `chunk_count` - The values of the chunk to check the proof for.
+    /// * `proof` - The KZGProof to check.
+    /// * `chunk_size` - The size of each chunk.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the proof is valid.
+    pub fn check_proof_multi(
+        &self,
+        commitment: &KZGCommitment,
+        i: usize,
+        chunk_count: usize,
+        values: &[FsFr],
+        proof: &KZGProof,
+        chunk_size: usize,
+    ) -> Result<bool, String> {
+        let pos = self.get_kzg_index(chunk_count, i, chunk_size);
+        let x = self.get_expanded_roots_of_unity_at(pos);
+        self.ks.check_proof_multi(&commitment.0, &proof.0, &x, values, chunk_size)
+    }
 
-	pub fn compute_proof_with_index(
-		&self,
-		poly: &Polynomial,
-		point_index: usize,
-	) -> Result<KZGProof, String> {
-		let x = self.get_expanded_roots_of_unity_at(point_index as usize);
-		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
-	}
+    /// Compute a proof for the given polynomial and point index.
+    ///
+    /// # Arguments
+    ///
+    /// * `poly` - The polynomial to compute the proof for.
+    /// * `i` - The index of the point to compute the proof for.
+    ///
+    /// # Returns
+    ///
+    /// A KZGProof for the given point.
+    pub fn compute_proof_with_index(
+        &self,
+        poly: &Polynomial,
+        i: usize,
+    ) -> Result<KZGProof, String> {
+        let x = self.get_expanded_roots_of_unity_at(i as usize);
+        self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
+    }
 
-	pub fn compute_proof(&self, poly: &Polynomial, x: &FsFr) -> Result<KZGProof, String> {
-		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
-	}
+    /// Compute a proof for the given polynomial and x value.
+    ///
+    /// # Arguments
+    ///
+    /// * `poly` - The polynomial to compute the proof for.
+    /// * `x` - The x value to compute the proof for.
+    ///
+    /// # Returns
+    ///
+    /// A KZGProof for the given x value.
+    pub fn compute_proof(&self, poly: &Polynomial, x: &FsFr) -> Result<KZGProof, String> {
+        self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
+    }
 
-	pub fn commit(&self, poly: &Polynomial) -> Result<KZGCommitment, String> {
-		self.ks.commit_to_poly(&poly.0).map(KZGCommitment)
-	}
+    /// Commit to the given polynomial.
+    ///
+    /// # Arguments
+    ///
+    /// * `poly` - The polynomial to commit to.
+    ///
+    /// # Returns
+    ///
+    /// A KZGCommitment for the given polynomial.
+    pub fn commit(&self, poly: &Polynomial) -> Result<KZGCommitment, String> {
+        self.ks.commit_to_poly(&poly.0).map(KZGCommitment)
+    }
 
-	pub fn verify(
-		&self,
-		commitment: &KZGCommitment,
-		index: u32,
-		value: &BlsScalar,
-		proof: &KZGProof,
-	) -> Result<bool, String> {
-		let x = self.get_expanded_roots_of_unity_at(index as usize);
+    /// Verify the given commitment, index, value, and proof.
+    ///
+    /// # Arguments
+    ///
+    /// * `commitment` - The KZGCommitment to verify.
+    /// * `index` - The index of the point to verify.
+    /// * `value` - The value of the point to verify.
+    /// * `proof` - The KZGProof to verify.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the proof is valid.
+    pub fn verify(
+        &self,
+        commitment: &KZGCommitment,
+        index: u32,
+        value: &BlsScalar,
+        proof: &KZGProof,
+    ) -> Result<bool, String> {
+        let x = self.get_expanded_roots_of_unity_at(index as usize);
+        self.ks.check_proof_single(&commitment, &proof, &x, value)
+    }
 
-		self.ks.check_proof_single(&commitment, &proof, &x, value)
-	}
+    /// Check a proof for the given commitment, proof, x, and value.
+    ///
+    /// # Arguments
+    ///
+    /// * `commitment` - The KZGCommitment to check the proof against.
+    /// * `proof` - The KZGProof to check.
+    /// * `x` - The x value to check the proof for.
+    /// * `value` - The value to check the proof for.
+    ///
+    /// # Returns
+    ///
+    /// A boolean indicating whether the proof is valid.
+    pub fn check_proof_single(
+        &self,
+        commitment: &KZGCommitment,
+        proof: &KZGProof,
+        x: &FsFr,
+        value: &BlsScalar,
+    ) -> Result<bool, String> {
+        self.ks.check_proof_single(&commitment, &proof, &x, value)
+    }
 
-	pub fn check_proof_single(
-		&self,
-		commitment: &KZGCommitment,
-		proof: &KZGProof,
-		x: &FsFr,
-		value: &BlsScalar,
-	) -> Result<bool, String> {
-		self.ks.check_proof_single(&commitment, &proof, &x, value)
-	}
+    /// Get the `FsFFTSettings` for the KZG instance.
+    pub fn get_fs(&self) -> &FsFFTSettings {
+        &self.ks.fs
+    }
 
-	pub fn get_fs(&self) -> &FsFFTSettings {
-		&self.ks.fs
-	}
-
-	fn reverse_bits_limited(length: usize, value: usize) -> usize {
-		let unused_bits = length.leading_zeros();
-		value.reverse_bits() >> unused_bits
-	}
+    /// Reverse the bits of the given value up to the given length.
+    fn reverse_bits_limited(length: usize, value: usize) -> usize {
+        let unused_bits = length.leading_zeros();
+        value.reverse_bits() >> unused_bits
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From)]
