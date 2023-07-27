@@ -99,7 +99,7 @@ fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
 }
 
 #[test]
-fn blob_proof_test() {
+fn test_blob_proof() {
     // Test case 1
     blob_proof_case(4096, 0);
 
@@ -117,7 +117,7 @@ fn blob_proof_test() {
 }
 
 #[test]
-fn recover_poly_test() {
+fn test_recover_poly() {
     // Build a random polynomial
     let num_shards: usize = 16;
     let poly = random_poly(num_shards);
@@ -163,7 +163,7 @@ fn recover_poly_test() {
 }
 
 #[test]
-fn blob_verify_batch_test() {
+fn test_blob_verify_batch() {
     // Build a random blob vector
     let blob_count: usize = 4;
     let field_elements_per_blob: usize = 4096;
@@ -229,7 +229,7 @@ fn blob_bytes_conversion_case(field_elements_per_blob: usize, minimize: usize) {
 }
 
 #[test]
-fn blob_bytes_conversion_test() {
+fn test_blob_bytes_conversion() {
 	blob_bytes_conversion_case(4096, 0);
 	blob_bytes_conversion_case(64, 12);
 	blob_bytes_conversion_case(4, 0);
@@ -239,7 +239,7 @@ fn blob_bytes_conversion_test() {
 }
 
 #[test]
-fn segment_datas_to_row_test() {
+fn test_segment_datas_to_row() {
     // Build random segment datas
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -271,7 +271,7 @@ fn segment_datas_to_row_test() {
 }
 
 #[test]
-fn order_segments_col_test() {
+fn test_order_segments_col() {
     // Build random segment datas
     let chunk_len: usize = 16;
     let k: usize = 4;
@@ -345,7 +345,7 @@ fn order_segments_col_test() {
 }
 
 #[test]
-fn poly_to_segment_vec_test() {
+fn test_poly_to_segment_vec() {
     // Build a random polynomial
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -384,7 +384,7 @@ fn poly_to_segment_vec_test() {
 }
 
 #[test]
-fn order_segments_row_test() {
+fn test_order_segments_row() {
     // Build a random polynomial
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -458,7 +458,7 @@ fn order_segments_row_test() {
 }
 
 #[test]
-fn extend_poly_test() {
+fn test_extend_poly() {
     let kzg = KZG::new(embedded_kzg_settings());
     let num_shards = 16;
     let poly = random_poly(num_shards);
@@ -489,7 +489,7 @@ fn extend_poly_test() {
 }
 
 #[test]
-fn recovery_row_from_segments_test() {
+fn test_recovery_row_from_segments() {
     // Build a random polynomial
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -559,7 +559,7 @@ fn recovery_row_from_segments_test() {
 }
 
 #[test]
-fn proof_multi_test() {
+fn test_proof_multi() {
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
     let num_shards = chunk_len * chunk_count;
@@ -600,7 +600,7 @@ fn proof_multi_test() {
 
 // TODO Modify the way data is interleaved
 #[test]
-fn extend_and_commit_multi_test() {
+fn test_extend_and_commit_multi() {
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
     let num_shards = chunk_len * chunk_count;
@@ -668,14 +668,14 @@ fn extend_returns_err_case(
 }
 
 #[test]
-fn extend_returns_err_test() {
+fn test_extend_returns_err() {
     extend_returns_err_case(5);
     extend_returns_err_case(0);
     extend_returns_err_case(321);
 }
 
 #[test]
-fn extend_fs_g1_test() {
+fn test_extend_fs_g1() {
     let kzg = KZG::new(embedded_kzg_settings());
     let mut commits: Vec<KZGCommitment> = Vec::new();
     for _rep in 0..4 {
@@ -694,7 +694,7 @@ fn extend_fs_g1_test() {
 }
 
 #[test]
-fn extend_segments_col_test() {
+fn test_extend_segments_col() {
     // Build multiple polynomials with random coefficients
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -759,7 +759,7 @@ fn extend_segments_col_test() {
 }
 
 #[test]
-fn bytes_to_segments_round_trip_test() {
+fn test_bytes_to_segments_round_trip() {
     // Build random bytes
     let chunk_len: usize = 16;
     let chunk_count: usize = 4;
@@ -801,7 +801,7 @@ fn bytes_to_segments_round_trip_test() {
 }
 
 #[test]
-fn bytes_vec_to_blobs_test() {
+fn test_bytes_vec_to_blobs() {
     // Generate an array representing the lengths of bytes
     let bytes_lens: Vec<usize> = vec![20 * 31, 10 * 31 + 7];
     let field_elements_per_blob: usize = 4;
@@ -847,7 +847,7 @@ fn bytes_vec_to_blobs_returns_err_case(bytes_lens: Vec<usize>, field_elements_pe
 }
 
 #[test]
-fn bytes_vec_to_blobs_returns_err_test() {
+fn test_bytes_vec_to_blobs_returns_err() {
     bytes_vec_to_blobs_returns_err_case(vec![20 * 31, 0], 4);
     bytes_vec_to_blobs_returns_err_case(vec![0], 4);
     bytes_vec_to_blobs_returns_err_case(vec![20 * 31, 0, 20 * 31], 4);
