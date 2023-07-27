@@ -21,10 +21,7 @@ use alloc::{
 	vec::Vec,
 };
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From};
-use kzg::eip_4844::{
-	bytes_of_uint64, hash, CHALLENGE_INPUT_SIZE,
-	FIAT_SHAMIR_PROTOCOL_DOMAIN,
-};
+use kzg::eip_4844::{bytes_of_uint64, hash, CHALLENGE_INPUT_SIZE, FIAT_SHAMIR_PROTOCOL_DOMAIN};
 use kzg::{Fr, G1};
 
 use rust_kzg_blst::{
@@ -35,11 +32,19 @@ use rust_kzg_blst::{
 
 use crate::config::BYTES_PER_FIELD_ELEMENT;
 
+/// A blob is a vector of field elements. It is the basic unit of data that is
+/// stored in the data availability layer.
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut)]
 #[repr(transparent)]
 pub struct Blob(pub Vec<BlsScalar>);
 
 impl Blob {
+	/// Creates a new blob from a vector of field elements.
+	///
+	/// It takes a bytes_per_blob parameter to validate the length of the bytes input,
+	/// which should be a constant
+	/// value for convenience. We pass it as a parameter to make it more flexible, and
+	///  the compiler should optimize it.
 	#[inline]
 	pub fn try_from_bytes(bytes: &[u8], bytes_per_blob: usize) -> Result<Self, String> {
 		if bytes.len() != bytes_per_blob {
@@ -53,6 +58,20 @@ impl Blob {
 		Self::from_bytes(bytes).map(Self)
 	}
 
+	/// Attempts to create a new `Self` instance from a byte slice `bytes` with padding.
+	///
+	/// # Arguments
+	///
+	/// * `bytes` - A byte slice to create the instance from.
+	/// * `bytes_per_blob` - The expected byte length.
+	///
+	/// # Errors
+	///
+	/// Returns an error if the length of `bytes` is greater than `bytes_per_blob`.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` containing the new `Self` instance or an error message.
 	#[inline]
 	pub fn try_from_bytes_pad(bytes: &[u8], bytes_per_blob: usize) -> Result<Self, String> {
 		if bytes.len() > bytes_per_blob {
@@ -80,11 +99,19 @@ impl Blob {
 			.collect()
 	}
 
+	/// Converts the `Self` instance to a byte vector.
+	///
+	/// # Returns
+	///
+	/// Returns a `Vec` of bytes representing the `Self` instance.
 	#[inline]
 	pub fn to_bytes(&self) -> Vec<u8> {
 		self.0.iter().flat_map(|scalar| scalar.to_bytes_safe()).collect()
 	}
 
+	/// Converts the `Self` instance to a byte vector of length `len`.
+	/// If `len` is less than the length of the `Self` instance, it will be truncated.
+	/// If `len` is greater than the length of the `Self` instance, it will be padded with zeros.
 	#[inline]
 	pub fn to_bytes_by_len(&self, len: usize) -> Vec<u8> {
 		let mut bytes = self.to_bytes();
@@ -96,12 +123,30 @@ impl Blob {
 		}
 	}
 
+	/// Commits the `Self` instance using the provided `KZG` scheme.
+	///
+	/// # Arguments
+	///
+	/// * `kzg` - A reference to a `KZG` scheme.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` containing the `KZGCommitment` or an error message.
 	#[inline]
 	pub fn commit(&self, kzg: &KZG) -> Result<KZGCommitment, String> {
 		let poly = self.to_poly();
 		kzg.commit(&poly)
 	}
 
+	/// Computes a KZG proof for the `Self` instance using the provided `KZG` scheme.
+	///
+	/// # Arguments
+	/// * `commitment` - A reference to a `KZGCommitment`.
+	/// * `kzg` - A reference to a `KZG` scheme.
+	/// * `field_elements_per_blob` - The number of field elements per blob.
+	///
+	/// # Returns
+	/// Returns a `Result` containing the `KZGProof` or an error message.
 	#[inline]
 	pub fn kzg_proof(
 		&self,
@@ -111,7 +156,7 @@ impl Blob {
 	) -> Result<KZGProof, String> {
 		check_field_elements_per_blob(field_elements_per_blob)?;
 		let bytes_per_blob: usize = BYTES_PER_FIELD_ELEMENT * field_elements_per_blob;
-		
+
 		let x = compute_challenge(
 			&self.to_fs_fr_vec(),
 			commitment,
@@ -122,6 +167,14 @@ impl Blob {
 		kzg.compute_proof(&poly, &x)
 	}
 
+	/// Computes a KZG commitment and proof for the `Self` instance using the provided `KZG` scheme.
+	///
+	/// # Arguments
+	/// * `kzg` - A reference to a `KZG` scheme.
+	/// * `field_elements_per_blob` - The number of field elements per blob.
+	///
+	/// # Returns
+	/// Returns a `Result` containing the `KZGCommitment` and `KZGProof` or an error message.
 	#[inline]
 	pub fn commit_and_proof(
 		&self,
@@ -133,6 +186,7 @@ impl Blob {
 
 		let poly = self.to_poly();
 		let commitment = kzg.commit(&poly)?;
+
 		let x = compute_challenge(
 			&self.to_fs_fr_vec(),
 			&commitment,
@@ -140,9 +194,20 @@ impl Blob {
 			field_elements_per_blob,
 		);
 		let proof = kzg.compute_proof(&poly, &x)?;
+
 		Ok((commitment, proof))
 	}
 
+	/// Verifies a KZG proof for the `Self` instance using the provided `KZG` scheme.
+	///
+	/// # Arguments
+	/// * `commitment` - A reference to a `KZGCommitment`.
+	/// * `proof` - A reference to a `KZGProof`.
+	/// * `kzg` - A reference to a `KZG` scheme.
+	/// * `field_elements_per_blob` - The number of field elements per blob.
+	///
+	/// # Returns
+	/// Returns a `Result` containing a boolean indicating whether the proof is valid or an error message.
 	#[inline]
 	pub fn verify(
 		&self,
@@ -165,6 +230,17 @@ impl Blob {
 		kzg.check_proof_single(commitment, proof, &x, &y)
 	}
 
+	/// Verifies a batch of KZG proofs for the `Self` instance using the provided `KZG` scheme.
+	///
+	/// # Arguments
+	/// * `blobs` - A slice of `Blob`s.
+	/// * `commitments` - A slice of `KZGCommitment`s.
+	/// * `proofs` - A slice of `KZGProof`s.
+	/// * `kzg` - A reference to a `KZG` scheme.
+	/// * `field_elements_per_blob` - The number of field elements per blob.
+	///
+	/// # Returns
+	/// Returns a `Result` containing a boolean indicating whether the proofs are valid or an error message.
 	pub fn verify_batch(
 		blobs: &[Blob],
 		commitments: &[KZGCommitment],
@@ -172,7 +248,6 @@ impl Blob {
 		kzg: &KZG,
 		field_elements_per_blob: usize,
 	) -> Result<bool, String> {
-
 		if commitments.iter().any(|commitment| !commitment.0.is_valid()) {
 			return Err("Invalid commitment".to_string());
 		}
@@ -181,7 +256,7 @@ impl Blob {
 			return Err("Invalid proof".to_string());
 		}
 
-		// 检查 commitment 、blobs 和 proof 的长度是否一致
+		// Check that the lengths of commitment, blobs, and proof are the same.
 		if blobs.len() != commitments.len() || blobs.len() != proofs.len() {
 			return Err(format!(
 				"Invalid input length. Expected {} got commitments: {} and proofs: {}",
@@ -210,31 +285,40 @@ impl Blob {
 		))
 	}
 
+	/// Converts the `Self` instance to a `Polynomial`.
+	///
+	/// # Returns
+	///
+	/// Returns a `Polynomial` instance.
 	#[inline]
 	pub fn to_poly(&self) -> Polynomial {
 		Polynomial(FsPoly { coeffs: self.to_fs_fr_vec() })
 	}
 
+	/// Converts the `Self` instance to a `&[FsFr]`.
+	/// 
+	/// It will convert directly instead of copying
 	#[inline]
 	pub fn to_fs_fr_slice(&self) -> &[FsFr] {
 		BlsScalar::slice_to_repr(&self.0)
 	}
 
+	/// Converts the `Self` instance to a `Vec<FsFr>`.
 	#[inline]
 	pub fn to_fs_fr_vec(&self) -> Vec<FsFr> {
 		BlsScalar::vec_to_repr(self.0.clone())
 	}
 }
 
-fn check_field_elements_per_blob(
-	field_elements_per_blob: usize,
-) -> Result<(), String> {
+// field_elements_per_blob should be a power of 2
+fn check_field_elements_per_blob(field_elements_per_blob: usize) -> Result<(), String> {
 	if !field_elements_per_blob.is_power_of_two() {
 		return Err("field_elements_per_blob must be powers of two".to_string());
 	}
 	Ok(())
 }
 
+// Calculate the challenge and return the evaluated value at the challenge value
 fn compute_challenges_and_evaluate_polynomial(
 	blobs: &[Blob],
 	commitments: &[KZGCommitment],
@@ -259,7 +343,7 @@ fn compute_challenges_and_evaluate_polynomial(
 }
 
 // This is a copy from kzg-rust https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L337
-// Used to calculate the challenge value for the Blob, where we pass in the constant field_elements_per_blob 
+// Used to calculate the challenge value for the Blob, where we pass in the constant field_elements_per_blob
 // as a parameter for ease of use by the application layer
 fn compute_challenge(
 	blob: &[FsFr],
