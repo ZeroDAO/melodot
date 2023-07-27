@@ -31,7 +31,7 @@ pub fn extend(fs: &FsFFTSettings, source: &[BlsScalar]) -> Result<Vec<BlsScalar>
 pub fn extend_poly(fs: &FsFFTSettings, poly: &Polynomial) -> Result<Vec<BlsScalar>, String> {
 	let mut coeffs = poly.0.coeffs.clone();
 	coeffs.resize(coeffs.len() * 2, FsFr::zero());
-	let mut extended_coeffs_fft = fs.fft_fr(&coeffs, false).unwrap();
+	let mut extended_coeffs_fft = fs.fft_fr(&coeffs, false)?;
 	reverse_bit_order(&mut extended_coeffs_fft);
 	Ok(BlsScalar::vec_from_repr(extended_coeffs_fft))
 }

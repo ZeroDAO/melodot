@@ -35,13 +35,23 @@ pub struct SegmentData {
 
 impl SegmentData {
 	pub fn new(proof: KZGProof, size: usize) -> Self {
-		// TODO: check data length
 		let arr = vec![BlsScalar::default(); size];
 		Self { data: arr, proof }
 	}
 
 	pub fn size(&self) -> usize {
 		self.data.len()
+	}
+
+	pub fn checked(&self) -> Result<Self, String> {
+		if self.data.len() == 0 {
+			return Err("segment data is empty".to_string());
+		}
+		// data.len() is a power of two
+		if !self.data.len().is_power_of_two() {
+			return Err("segment data length is not a power of two".to_string());
+		}
+		Ok(self.clone())
 	}
 
 	pub fn from_data(
@@ -51,7 +61,6 @@ impl SegmentData {
 		poly: &Polynomial,
 		chunk_count: usize,
 	) -> Result<Self, String> {
-		// let i = kzg.get_kzg_index(chunk_count, positon.x as usize, content.len());
 		kzg.compute_proof_multi(poly, positon.x as usize, chunk_count, content.len())
 			.map(|p| Ok(Self { data: content.to_vec(), proof: p }))?
 	}

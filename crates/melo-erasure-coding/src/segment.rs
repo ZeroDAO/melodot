@@ -78,7 +78,13 @@ pub fn segment_datas_to_row(segments: &Vec<Option<SegmentData>>, chunk_size: usi
 ///
 /// A `Result` containing a vector of `Segment` structs or an error message.
 pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize, chunk_size: usize) -> Result<Vec<Segment>, String> {
-	let poly_len = poly.0.coeffs.len();
+	let poly_len = poly.checked()?.0.coeffs.len();
+
+	// chunk_size must be a power of two
+	if !chunk_size.is_power_of_two() {
+		return Err("chunk_size must be a power of two".to_string());
+	}
+	
 	let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size).unwrap();
 	let all_proofs = fk.data_availability(&poly.0).unwrap();
 	let extended_poly = extend_poly(&fk.kzg_settings.fs, &poly)?;

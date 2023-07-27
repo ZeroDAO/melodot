@@ -27,6 +27,17 @@ pub fn recovery_row_from_segments(
 ) -> Result<Vec<Segment>, String> {
 	let y = segments[0].position.y;
 	let segments_size = segments[0].size();
+
+	if segments.iter().any(|s| s.position.y != y) {
+		return Err("segments are not from the same row".to_string());
+	}
+	if !segments_size.is_power_of_two() || !chunk_count.is_power_of_two() {
+		return Err("segment size and chunk_count must be a power of two".to_string());
+	}
+    if segments.iter().any(|s| s.size() != segments_size) {
+        return Err("segments are not of the same size".to_string());
+    }
+
 	let order_segments = order_segments_row(&segments, chunk_count)?;
 	let mut row = segment_datas_to_row(&order_segments, segments_size);
 	reverse_bit_order(&mut row);

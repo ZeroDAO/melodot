@@ -344,7 +344,6 @@ fn order_segments_col_test() {
     assert!(col.is_err());
 }
 
-
 #[test]
 fn poly_to_segment_vec_test() {
     // Build a random polynomial
@@ -467,6 +466,14 @@ fn extend_poly_test() {
     let extended_poly = extend_poly(kzg.get_fs(), &poly).unwrap();
     assert_eq!(extended_poly.len(), 32);
 
+    let poly_err = random_poly(3);
+    let extended_poly_err = extend_poly(kzg.get_fs(), &poly_err);
+    assert!(extended_poly_err.is_err());
+
+    let poly_err = random_poly(6);
+    let extended_poly_err = extend_poly(kzg.get_fs(), &poly_err);
+    assert!(extended_poly_err.is_err());
+
     let random_positions = random_vec(num_shards * 2);
     let mut cells = [None; 32];
     for i in 0..num_shards {
@@ -506,7 +513,6 @@ fn recovery_row_from_segments_test() {
 
     // Recover segments
     let recovered_segments = recovery_row_from_segments(&random_segments, &kzg, chunk_count).unwrap();
-    assert_eq!(recovered_segments[0], segments[0]);
 
     // Verify if the recovered segments are the same as the original segments
     for i in 0..chunk_count {
@@ -514,12 +520,42 @@ fn recovery_row_from_segments_test() {
     }
 
     // Remove one segment from random_segments
-    random_segments.remove(0);
+    let mut segments_err = random_segments.clone();
+    segments_err.remove(0);
     // Recover segments, it should fail due to an incorrect number of segments
-    let recovered_segments = recovery_row_from_segments(&random_segments, &kzg, chunk_count);
+    let result = recovery_row_from_segments(&segments_err, &kzg, chunk_count);
 
     // Verify if it fails
-    assert!(recovered_segments.is_err());
+    assert!(result.is_err());
+
+    // Modify one y value in random_segments
+    let mut segments_err = random_segments.clone();
+    segments_err[0].position.y = 3;
+    // Recover segments, it should fail due to incorrect x values
+    let result = recovery_row_from_segments(&segments_err, &kzg, chunk_count);
+    // Verify if it fails
+    assert!(result.is_err());
+
+    // segment size and chunk_count must be a power of two
+    let result = recovery_row_from_segments(&segments_err, &kzg, chunk_count + 1);
+    assert!(result.is_err());
+
+    // remove one of the segment.data
+    let mut segments_err = random_segments.clone();
+    segments_err[0].content.data.remove(0);
+    // Recover segments, it should fail due to incorrect segment.data length
+    let result = recovery_row_from_segments(&segments_err, &kzg, chunk_count);
+    // Verify if it fails
+    assert!(result.is_err());
+
+    // segments is not enough
+    let mut segments_err = random_segments.clone();
+    segments_err.remove(0);
+    // Recover segments, it should fail due to incorrect segment.data length
+    let result = recovery_row_from_segments(&segments_err, &kzg, chunk_count);
+    // Verify if it fails
+    assert!(result.is_err());
+    
 }
 
 #[test]
@@ -617,6 +653,27 @@ fn extend_and_commit_multi_test() {
     }
 }
 
+fn extend_returns_err_case(
+    num_shards: usize,
+) {
+    let kzg = KZG::new(embedded_kzg_settings());
+
+    let evens = (0..num_shards)
+        .map(|_| rand::random::<[u8; 31]>())
+        .map(BlsScalar::from)
+        .collect::<Vec<_>>();
+
+    let result = extend(&kzg.get_fs(), &evens);
+    assert!(result.is_err());
+}
+
+#[test]
+fn extend_returns_err_test() {
+    extend_returns_err_case(5);
+    extend_returns_err_case(0);
+    extend_returns_err_case(321);
+}
+
 #[test]
 fn extend_fs_g1_test() {
     let kzg = KZG::new(embedded_kzg_settings());
@@ -626,7 +683,14 @@ fn extend_fs_g1_test() {
     }
     let extended_commits = extend_fs_g1(kzg.get_fs(), &commits).unwrap();
     assert!(extended_commits.len() == 8);
-    assert!(extended_commits[2].0 == commits[1].0);
+
+    for i in 0..4 {
+        assert_eq!(extended_commits[i * 2], commits[i]);
+    }
+
+    commits.push(KZGCommitment(FsG1::rand()));
+    let result = extend_fs_g1(kzg.get_fs(), &commits);
+    assert!(result.is_err());
 }
 
 #[test]
@@ -659,6 +723,39 @@ fn extend_segments_col_test() {
         let pick_s = extended_col[i].clone();
         assert!(pick_s.verify(&kzg, &extended_commitments[i * 2 + 1], chunk_count).unwrap());
     }
+
+    // Modify a single x value in the column
+    let mut modified_col = extended_col.clone();
+    modified_col[0].position.x = 3;
+
+    // Extend the column, it should fail due to incorrect x values
+    let extended_col_err = extend_segments_col(kzg.get_fs(), &modified_col);
+    assert!(extended_col_err.is_err());
+
+    // Add 3 random segments to the column
+    for _ in 0..3 {
+        let data = (0..chunk_len)
+            .map(|_| rand::random::<[u8; 31]>())
+            .map(BlsScalar::from)
+            .collect::<Vec<_>>();
+        let proof = KZGProof(FsG1::rand());
+        let segment_data = SegmentData { data, proof };
+        let position = Position { x: 0, y: 0 };
+        modified_col.push(Segment { position, content: segment_data });
+    }
+
+    // Extend the column, it should fail due to an incorrect number of segments
+    let extended_col_err = extend_segments_col(kzg.get_fs(), &modified_col);
+    assert!(extended_col_err.is_err());
+
+    // Modify a single y value in the column
+    let mut extended_col_err = extended_col.clone();
+    extended_col_err[0].position.y = 3;
+
+    // Extend the column, it should fail due to incorrect y values
+    let extended_col = extend_segments_col(kzg.get_fs(), &modified_col);
+    assert!(extended_col.is_err());
+
 }
 
 #[test]
