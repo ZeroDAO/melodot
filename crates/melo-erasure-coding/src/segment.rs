@@ -86,18 +86,29 @@ pub fn order_segments_col(
     Ok(ordered_segments)
 }
 
+/// Converts a vector of `SegmentData` structs to a vector of `BlsScalar` structs.
+///
+/// # Arguments
+///
+/// * `segments` - A reference to a vector of `Option<SegmentData>` structs to be converted. The length 
+/// of the vector must be a power of two.
+/// * `chunk_size` - The size of each chunk. Must be a power of two.
+///
+/// # Returns
+///
+/// A vector of `Option<BlsScalar>` structs.
 pub fn segment_datas_to_row(segments: &Vec<Option<SegmentData>>, chunk_size: usize) -> Vec<Option<BlsScalar>> {
-	segments
-		.iter()
-		.flat_map(|segment_data_option| match segment_data_option {
-			Some(segment_data) => segment_data
-				.data
-				.iter()
-				.map(|scalar| Some(*scalar))
-				.collect::<Vec<Option<BlsScalar>>>(),
-			None => vec![None; chunk_size],
-		})
-		.collect::<Vec<Option<BlsScalar>>>()
+    segments
+        .iter()
+        .flat_map(|segment_data_option| match segment_data_option {
+            Some(segment_data) => segment_data
+                .data
+                .iter()
+                .map(|scalar| Some(*scalar))
+                .collect::<Vec<Option<BlsScalar>>>(),
+            None => vec![None; chunk_size],
+        })
+        .collect::<Vec<Option<BlsScalar>>>()
 }
 
 /// Converts a polynomial to a vector of segments.
