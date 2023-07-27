@@ -17,32 +17,39 @@ use alloc::{string::String, vec::Vec};
 use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
 
-use crate::kzg::{
-	BlsScalar, Cell, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG,
-};
+use crate::kzg::{BlsScalar, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG};
 
+/// This struct represents a segment of data with a position and content.
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct Segment {
+	/// The position of the segment.
 	pub position: Position,
+	/// The content of the segment.
 	pub content: SegmentData,
 }
 
+/// This struct represents the data of a segment with a vector of BlsScalar and a KZGProof.
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct SegmentData {
+	/// The data of the segment.
 	pub data: Vec<BlsScalar>,
+	/// The KZGProof of the segment.
 	pub proof: KZGProof,
 }
 
 impl SegmentData {
+	/// This function creates a new SegmentData with a KZGProof and a size.
 	pub fn new(proof: KZGProof, size: usize) -> Self {
 		let arr = vec![BlsScalar::default(); size];
 		Self { data: arr, proof }
 	}
 
+	/// This function returns the size of the data vector.
 	pub fn size(&self) -> usize {
 		self.data.len()
 	}
 
+	/// This function checks if the data vector is valid and returns a Result.
 	pub fn checked(&self) -> Result<Self, String> {
 		if self.data.len() == 0 {
 			return Err("segment data is empty".to_string());
@@ -54,6 +61,9 @@ impl SegmentData {
 		Ok(self.clone())
 	}
 
+	/// This function creates a new SegmentData from a Position, a vector of BlsScalar, a KZG, a Polynomial, and a chunk count.
+	///
+	/// It calculates the proof based on the given parameters and returns the `SegmentData`.
 	pub fn from_data(
 		positon: &Position,
 		content: &[BlsScalar],
@@ -67,49 +77,35 @@ impl SegmentData {
 }
 
 impl Segment {
-	pub fn new(position: Position, data: &[BlsScalar], proof: KZGProof) -> Self {
-		let segment_data = SegmentData { data: data.to_vec(), proof };
-		Self { position, content: segment_data }
-	}
+    /// This function creates a new `Segment` with a `Position`, a vector of `BlsScalar`, and a `KZGProof`.
+    pub fn new(position: Position, data: &[BlsScalar], proof: KZGProof) -> Self {
+        let segment_data = SegmentData { data: data.to_vec(), proof };
+        Self { position, content: segment_data }
+    }
 
-	pub fn size(&self) -> usize {
-		self.content.data.len()
-	}
+    /// This function returns the size of the data vector in the `SegmentData` of the `Segment`.
+    pub fn size(&self) -> usize {
+        self.content.data.len()
+    }
 
-	pub fn verify(
-		&self,
-		kzg: &KZG,
-		commitment: &KZGCommitment,
-		count: usize,
-	) -> Result<bool, String> {
-		let mut ys = BlsScalar::vec_to_repr(self.content.data.clone());
-		reverse_bit_order(&mut ys);
-		kzg.check_proof_multi(
-			&commitment,
-			self.position.x as usize,
-			count,
-			&ys,
-			&self.content.proof,
-			self.size(),
-		)
-	}
-
-	// pub fn get_cell_by_offset(&self, offset: usize) -> Cell {
-	// 	let x = self.position.x * (SEGMENT_LENGTH as u32) + (offset as u32);
-	// 	let position = Position { x, y: self.position.y };
-	// 	Cell { data: self.content.data[offset], position }
-	// }
-
-	// pub fn get_cell_by_index(&self, index: usize) -> Cell {
-	// 	let offset = index % SEGMENT_LENGTH;
-	// 	self.get_cell_by_offset(offset)
-	// }
-
-	// pub fn get_all_cells(&self) -> Vec<Cell> {
-	// 	let mut cells = Vec::with_capacity(SEGMENT_LENGTH);
-	// 	for i in 0..SEGMENT_LENGTH {
-	// 		cells.push(self.get_cell_by_offset(i));
-	// 	}
-	// 	cells
-	// }
+    /// This function verifies the proof of the `Segment` using a `KZG`, a `KZGCommitment`, and a count.
+    ///
+    /// It returns a `Result` with a boolean indicating if the proof is valid or an error message.
+    pub fn verify(
+        &self,
+        kzg: &KZG,
+        commitment: &KZGCommitment,
+        count: usize,
+    ) -> Result<bool, String> {
+        let mut ys = BlsScalar::vec_to_repr(self.content.data.clone());
+        reverse_bit_order(&mut ys);
+        kzg.check_proof_multi(
+            &commitment,
+            self.position.x as usize,
+            count,
+            &ys,
+            &self.content.proof,
+            self.size(),
+        )
+    }
 }
