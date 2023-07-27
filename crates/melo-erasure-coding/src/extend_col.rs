@@ -24,7 +24,9 @@ use crate::erasure_coding::{extend, extend_fs_g1};
 
 /// Extends the segments in a column using FFT settings.
 /// 
-/// It extends the `segments` in the original column to twice their size, and also extends the `proof` in each `Segment`.
+/// It extends the `segments` in the original column to twice their size, and also extends the `proof` in each 
+/// `Segment`.The homomorphic property of KZG commitments is used to extend the proof to the correct commitment of the 
+/// row where the data is located. This avoids the cost of recalculating commitments and proofs.
 ///
 /// # Arguments
 ///
@@ -37,9 +39,8 @@ use crate::erasure_coding::{extend, extend_fs_g1};
 /// 
 /// # Notes
 /// 
-/// * The extended `Vec<Segment>` is not interleaved with parity data, and the `x` value of the `Position` in the original 
-/// data is not changed. This is to avoid confusion during the erasure coding process. Additionally, we do not make any 
-/// promises or validations in the column direction, so there is no need to do so.
+/// * The extended `Vec<Segment>` is not interleaved with parity data, and the `y` value of the `Position` in the original 
+/// data is not changed. This is to avoid confusion during the erasure coding process.
 pub fn extend_segments_col(
     fs: &FsFFTSettings,
     segments: &Vec<Segment>,
