@@ -296,8 +296,12 @@ impl Polynomial {
 		FsPoly::new(size).map(Self)
 	}
 
+	fn is_valid(&self) -> bool {
+		self.0.coeffs.len().is_power_of_two()
+    }
+
 	pub fn checked(&self) -> Result<Self, String> {
-		if !self.0.coeffs.len().is_power_of_two() {
+		if !self.is_valid() {
 			return Err("Polynomial size must be a power of two".to_string());
 		}
 		Ok(self.clone())

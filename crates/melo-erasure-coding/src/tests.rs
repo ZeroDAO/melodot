@@ -50,7 +50,6 @@ fn random_bytes(len: usize) -> Vec<u8> {
 
 fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
     // Build a random blob
-    let bytes_per_blob: usize = 32 * field_elements_per_blob;
     let blob_data_len: usize = 31 * field_elements_per_blob;
 
     let actual_byte_len = blob_data_len - minimize;
@@ -65,10 +64,10 @@ fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
     assert!(commitment_poly == commitment);
     // Calculate the proof for the blob
     let (commitment, proof) =
-        blob.commit_and_proof(&kzg, bytes_per_blob, field_elements_per_blob).unwrap();
+        blob.commit_and_proof(&kzg, field_elements_per_blob).unwrap();
     // Verify the proof
     let result = blob
-        .verify(&kzg, &commitment, &proof, bytes_per_blob, field_elements_per_blob)
+        .verify(&kzg, &commitment, &proof, field_elements_per_blob)
         .unwrap();
 
     assert!(commitment_poly == commitment);
@@ -78,13 +77,13 @@ fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
     let proof_mut = KZGProof(proof.0.add(&FsG1::rand()));
     // Verification fails
     let verify = blob
-        .verify(&kzg, &commitment, &proof_mut, bytes_per_blob, field_elements_per_blob)
+        .verify(&kzg, &commitment, &proof_mut, field_elements_per_blob)
         .unwrap();
     assert!(!verify);
     // Modify a value in the commit, verification fails
     let commitment_mut = KZGCommitment(commitment.0.add(&FsG1::rand()));
     let verify = blob
-        .verify(&kzg, &commitment_mut, &proof, bytes_per_blob, field_elements_per_blob)
+        .verify(&kzg, &commitment_mut, &proof, field_elements_per_blob)
         .unwrap();
     assert!(!verify);
     // Modify the blob
@@ -93,7 +92,7 @@ fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
 
     // Verification of the blob's proof fails
     let verify = blob
-        .verify(&kzg, &commitment, &proof, bytes_per_blob, field_elements_per_blob)
+        .verify(&kzg, &commitment, &proof, field_elements_per_blob)
         .unwrap();
     assert!(!verify);
 }
@@ -167,7 +166,6 @@ fn test_blob_verify_batch() {
     // Build a random blob vector
     let blob_count: usize = 4;
     let field_elements_per_blob: usize = 4096;
-    let bytes_per_blob: usize = 32 * field_elements_per_blob;
     let blob_data_len: usize = 31 * field_elements_per_blob;
     let mut blobs: Vec<Blob> = Vec::new();
     for _ in 0..blob_count {
@@ -182,7 +180,7 @@ fn test_blob_verify_batch() {
     let kzg = KZG::new(embedded_kzg_settings());
     for blob in blobs.iter() {
         let (commitment, proof) =
-            blob.commit_and_proof(&kzg, bytes_per_blob, field_elements_per_blob).unwrap();
+            blob.commit_and_proof(&kzg, field_elements_per_blob).unwrap();
         commitments.push(commitment);
         proofs.push(proof);
     }
@@ -193,7 +191,6 @@ fn test_blob_verify_batch() {
         &commitments,
         &proofs,
         &kzg,
-        bytes_per_blob,
         field_elements_per_blob,
     )
     .unwrap();

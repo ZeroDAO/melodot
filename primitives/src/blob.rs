@@ -22,7 +22,7 @@ use alloc::{
 };
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From};
 use kzg::eip_4844::{
-	bytes_of_uint64, hash, BYTES_PER_FIELD_ELEMENT, CHALLENGE_INPUT_SIZE,
+	bytes_of_uint64, hash, CHALLENGE_INPUT_SIZE,
 	FIAT_SHAMIR_PROTOCOL_DOMAIN,
 };
 use kzg::{Fr, G1};
@@ -32,6 +32,8 @@ use rust_kzg_blst::{
 	eip_4844::verify_kzg_proof_batch,
 	types::{fr::FsFr, g1::FsG1, poly::FsPoly},
 };
+
+use crate::config::BYTES_PER_FIELD_ELEMENT;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, Deref, DerefMut)]
 #[repr(transparent)]
@@ -105,9 +107,11 @@ impl Blob {
 		&self,
 		commitment: &KZGCommitment,
 		kzg: &KZG,
-		bytes_per_blob: usize,
 		field_elements_per_blob: usize,
 	) -> Result<KZGProof, String> {
+		check_field_elements_per_blob(field_elements_per_blob)?;
+		let bytes_per_blob: usize = BYTES_PER_FIELD_ELEMENT * field_elements_per_blob;
+		
 		let x = compute_challenge(
 			&self.to_fs_fr_vec(),
 			commitment,
@@ -122,9 +126,11 @@ impl Blob {
 	pub fn commit_and_proof(
 		&self,
 		kzg: &KZG,
-		bytes_per_blob: usize,
 		field_elements_per_blob: usize,
 	) -> Result<(KZGCommitment, KZGProof), String> {
+		check_field_elements_per_blob(field_elements_per_blob)?;
+		let bytes_per_blob: usize = BYTES_PER_FIELD_ELEMENT * field_elements_per_blob;
+
 		let poly = self.to_poly();
 		let commitment = kzg.commit(&poly)?;
 		let x = compute_challenge(
@@ -143,9 +149,11 @@ impl Blob {
 		kzg: &KZG,
 		commitment: &KZGCommitment,
 		proof: &KZGProof,
-		bytes_per_blob: usize,
 		field_elements_per_blob: usize,
 	) -> Result<bool, String> {
+		check_field_elements_per_blob(field_elements_per_blob)?;
+		let bytes_per_blob: usize = BYTES_PER_FIELD_ELEMENT * field_elements_per_blob;
+
 		let x = compute_challenge(
 			&self.to_fs_fr_vec(),
 			commitment,
@@ -162,10 +170,30 @@ impl Blob {
 		commitments: &[KZGCommitment],
 		proofs: &[KZGProof],
 		kzg: &KZG,
-		bytes_per_blob: usize,
 		field_elements_per_blob: usize,
 	) -> Result<bool, String> {
-		// validate_batched_input(commitments_g1, proofs_g1)?;
+
+		if commitments.iter().any(|commitment| !commitment.0.is_valid()) {
+			return Err("Invalid commitment".to_string());
+		}
+
+		if proofs.iter().any(|proof| !proof.0.is_valid()) {
+			return Err("Invalid proof".to_string());
+		}
+
+		// 检查 commitment 、blobs 和 proof 的长度是否一致
+		if blobs.len() != commitments.len() || blobs.len() != proofs.len() {
+			return Err(format!(
+				"Invalid input length. Expected {} got commitments: {} and proofs: {}",
+				blobs.len(),
+				commitments.len(),
+				proofs.len()
+			));
+		}
+
+		check_field_elements_per_blob(field_elements_per_blob)?;
+		let bytes_per_blob: usize = BYTES_PER_FIELD_ELEMENT * field_elements_per_blob;
+
 		let (zs, ys) = compute_challenges_and_evaluate_polynomial(
 			blobs,
 			commitments,
@@ -198,6 +226,15 @@ impl Blob {
 	}
 }
 
+fn check_field_elements_per_blob(
+	field_elements_per_blob: usize,
+) -> Result<(), String> {
+	if !field_elements_per_blob.is_power_of_two() {
+		return Err("field_elements_per_blob must be powers of two".to_string());
+	}
+	Ok(())
+}
+
 fn compute_challenges_and_evaluate_polynomial(
 	blobs: &[Blob],
 	commitments: &[KZGCommitment],
@@ -221,6 +258,9 @@ fn compute_challenges_and_evaluate_polynomial(
 	)
 }
 
+// This is a copy from kzg-rust https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L337
+// Used to calculate the challenge value for the Blob, where we pass in the constant field_elements_per_blob 
+// as a parameter for ease of use by the application layer
 fn compute_challenge(
 	blob: &[FsFr],
 	commitment: &FsG1,
