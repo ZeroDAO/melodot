@@ -13,4 +13,4 @@
 // limitations under the License.
 
 pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
-pub const EMBEDDED_KZG_SETTINGS_BYTES: &[u8] = include_bytes!("../../scripts/eth-public-parameters.bin");
+pub const EMBEDDED_KZG_SETTINGS_BYTES: &[u8] = include_bytes!("../../scripts/eth-public-parameters-4096.bin");
