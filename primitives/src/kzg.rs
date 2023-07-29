@@ -369,11 +369,12 @@ pub fn bytes_to_kzg_settings(
 /// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the required data
 /// using `scripts/process_data.sh`.
 ///
-/// ```ssh
+/// ```bash
 /// ./scripts/process_data.sh 4096
 /// ```
 ///
 /// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
+// This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
 pub fn embedded_kzg_settings() -> FsKZGSettings {
 	let (secret_g1_bytes, secret_g2_bytes) =
 		EMBEDDED_KZG_SETTINGS_BYTES.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
