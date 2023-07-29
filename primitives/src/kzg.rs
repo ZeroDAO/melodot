@@ -22,25 +22,20 @@ use core::hash::{Hash, Hasher};
 use core::mem;
 use core::ptr;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::{
-	eip_4844::{BYTES_PER_G1, BYTES_PER_G2},
-	FFTFr,
-};
-use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, Poly, G1, G2};
+use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
+use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, G1, G2};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 
-use rust_kzg_blst::{
-	types::{
-		fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
-		g2::FsG2, kzg_settings::FsKZGSettings, poly::FsPoly,
-	},
-	utils::reverse_bit_order,
+use rust_kzg_blst::types::{
+	fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
+	g2::FsG2, kzg_settings::FsKZGSettings,
 };
 use scale_info::{Type, TypeInfo};
 
 use crate::{
 	blob::Blob,
 	config::{BYTES_PER_FIELD_ELEMENT, EMBEDDED_KZG_SETTINGS_BYTES},
+	polynomial::Polynomial,
 };
 
 // kzg_type_with_size macro are inspired by
@@ -321,87 +316,6 @@ impl From<[u8; SCALAR_SAFE_BYTES]> for BlsScalar {
 	#[inline]
 	fn from(value: [u8; SCALAR_SAFE_BYTES]) -> Self {
 		Self::from(&value)
-	}
-}
-
-/// A polynomial represented by a `FsPoly` struct.
-#[derive(Debug, Clone, From)]
-pub struct Polynomial(pub FsPoly);
-
-impl Polynomial {
-	/// Creates a new polynomial with the given size.
-	///
-	/// # Arguments
-	///
-	/// * `size` - The size of the polynomial.
-	///
-	/// # Returns
-	///
-	/// A `Result` containing the new polynomial or an error message.
-	pub fn new(size: usize) -> Result<Self, String> {
-		FsPoly::new(size).map(Self)
-	}
-
-	/// Checks if the polynomial is valid.
-	///
-	/// It checks if the number of coefficients is a power of two to validate the polynomial.
-	fn is_valid(&self) -> bool {
-		self.0.coeffs.len().is_power_of_two()
-	}
-
-	/// Checks if the polynomial is valid and returns a new polynomial.
-	///
-	/// If valid, returns the original polynomial. If invalid, returns an error.
-	// TODO We should not clone()
-	pub fn checked(&self) -> Result<Self, String> {
-		if !self.is_valid() {
-			return Err("Polynomial size must be a power of two".to_string());
-		}
-		Ok(self.clone())
-	}
-
-	/// Creates a new polynomial from the given coefficients.
-	pub fn from_coeffs(coeffs: &[FsFr]) -> Self {
-		Polynomial(FsPoly { coeffs: coeffs.to_vec() })
-	}
-
-	/// Truncates the polynomial to the left half.
-	///
-	/// This is an in-place operation that truncates the coefficients of the polynomial to the
-	/// left half. This is typically used when restoring polynomial coefficients, where the left
-	/// half is usually returned and the right half is empty. Therefore, it is necessary to ensure
-	/// that the correct result should be returned before truncating.
-	pub fn left(&mut self) {
-		let half = self.0.coeffs.len() / 2;
-		self.0.coeffs.truncate(half);
-	}
-
-	/// Converts the polynomial to a slice of `BlsScalar` values.
-	pub fn to_bls_scalars(&self) -> &[BlsScalar] {
-		BlsScalar::slice_from_repr(&self.0.coeffs)
-	}
-
-	/// Converts the polynomial to a `Blob`.
-	///
-	/// This directly converts the polynomial data to a Blob in Lagrange form.
-	pub fn to_blob(&self) -> Blob {
-		Blob::from(self.to_bls_scalars().to_vec())
-	}
-
-	/// Evaluates the polynomial at all points.
-	///
-	/// The data in the polynomial is used as coefficients, and FFT transformation is performed.
-	/// The result is given in Lagrange form on twice the length. The returned result is a `BlsScalar` array,
-	/// twice the length of the polynomial, and has already undergone `reverse_bit_order`.
-	pub fn eval_all(&self, fs: &FsFFTSettings) -> Result<Vec<BlsScalar>, String> {
-		let mut reconstructed_data = fs.fft_fr(&self.0.coeffs, false)?;
-		reverse_bit_order(&mut reconstructed_data);
-		Ok(BlsScalar::vec_from_repr(reconstructed_data))
-	}
-
-	/// Evaluates the polynomial at the given point.
-	pub fn eval(&self, x: &BlsScalar) -> BlsScalar {
-		BlsScalar(self.0.eval(x))
 	}
 }
 

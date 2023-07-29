@@ -13,8 +13,9 @@
 // limitations under the License.
 extern crate alloc;
 
-use crate::kzg::{
-	BlsScalar, KZGCommitment, KZGProof, Polynomial, ReprConvert, SafeScalar, KZG, SCALAR_SAFE_BYTES,
+use crate::{
+	kzg::{BlsScalar, KZGCommitment, KZGProof, ReprConvert, SafeScalar, KZG, SCALAR_SAFE_BYTES},
+	polynomial::Polynomial,
 };
 use alloc::{
 	string::{String, ToString},
@@ -296,7 +297,7 @@ impl Blob {
 	}
 
 	/// Converts the `Self` instance to a `&[FsFr]`.
-	/// 
+	///
 	/// It will convert directly instead of copying
 	#[inline]
 	pub fn to_fs_fr_slice(&self) -> &[FsFr] {

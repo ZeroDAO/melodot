@@ -16,3 +16,4 @@ pub mod kzg;
 pub mod config;
 pub mod segment;
 pub mod blob;
+pub mod polynomial;

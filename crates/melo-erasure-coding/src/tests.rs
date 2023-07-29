@@ -12,10 +12,10 @@ use kzg::G1;
 use melo_core_primitives::blob::Blob;
 use melo_core_primitives::kzg::BlsScalar;
 use melo_core_primitives::kzg::KZGProof;
-use melo_core_primitives::kzg::Polynomial;
 use melo_core_primitives::kzg::Position;
 use melo_core_primitives::kzg::ReprConvert;
 use melo_core_primitives::kzg::{embedded_kzg_settings, KZGCommitment, KZG};
+use melo_core_primitives::polynomial::Polynomial;
 use melo_core_primitives::segment::Segment;
 use melo_core_primitives::segment::SegmentData;
 

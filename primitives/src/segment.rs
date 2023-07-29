@@ -17,7 +17,7 @@ use alloc::{string::String, vec::Vec};
 use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
 
-use crate::kzg::{BlsScalar, KZGCommitment, KZGProof, Polynomial, Position, ReprConvert, KZG};
+use crate::{kzg::{BlsScalar, KZGCommitment, KZGProof, Position, ReprConvert, KZG}, polynomial::Polynomial};
 
 /// This struct represents a segment of data with a position and content.
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]

@@ -14,7 +14,8 @@
 
 extern crate alloc;
 use kzg::FK20MultiSettings;
-use melo_core_primitives::kzg::{BlsScalar, KZGProof, Polynomial, Position, KZG};
+use melo_core_primitives::kzg::{BlsScalar, KZGProof, Position, KZG};
+use melo_core_primitives::polynomial::Polynomial;
 use melo_core_primitives::segment::{Segment, SegmentData};
 use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
 
