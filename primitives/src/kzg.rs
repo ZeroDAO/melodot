@@ -43,7 +43,7 @@ use crate::{
 	config::{BYTES_PER_FIELD_ELEMENT, EMBEDDED_KZG_SETTINGS_BYTES},
 };
 
-// kzg_type_with_size macro and repr_convertible macro are inspired by
+// kzg_type_with_size macro are inspired by
 // https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs
 // but we use macros instead of implementing them separately for each type.
 macro_rules! kzg_type_with_size {
@@ -181,41 +181,35 @@ macro_rules! repr_convertible {
 		impl ReprConvert<$type> for $name {
 			#[inline]
 			fn slice_to_repr(value: &[Self]) -> &[$type] {
-				unsafe { mem::transmute(value) }
+				unsafe { &*(value as *const [Self] as *const [$type]) }
 			}
 
 			#[inline]
 			fn slice_from_repr(value: &[$type]) -> &[Self] {
-				unsafe { mem::transmute(value) }
+				unsafe { &*(value as *const [$type] as *const [Self]) }
 			}
 
 			#[inline]
 			fn vec_to_repr(value: Vec<Self>) -> Vec<$type> {
-				unsafe {
-					let mut value = mem::ManuallyDrop::new(value);
-					Vec::from_raw_parts(
-						value.as_mut_ptr() as *mut $type,
-						value.len(),
-						value.capacity(),
-					)
-				}
+                let mut value = mem::ManuallyDrop::new(value);
+                unsafe {
+                    let ptr = value.as_mut_ptr() as *mut $type;
+                    Vec::from_raw_parts(ptr, value.len(), value.capacity())
+                }
 			}
 
 			#[inline]
 			fn vec_from_repr(value: Vec<$type>) -> Vec<Self> {
-				unsafe {
-					let mut value = mem::ManuallyDrop::new(value);
-					Vec::from_raw_parts(
-						value.as_mut_ptr() as *mut Self,
-						value.len(),
-						value.capacity(),
-					)
-				}
+                let mut value = mem::ManuallyDrop::new(value);
+                unsafe {
+                    let ptr = value.as_mut_ptr() as *mut Self;
+                    Vec::from_raw_parts(ptr, value.len(), value.capacity())
+                }
 			}
 
 			#[inline]
 			fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<$type>] {
-				unsafe { mem::transmute(value) }
+				unsafe { &*(value as *const [Option<Self>] as *const [Option<$type>]) }
 			}
 		}
 	};
