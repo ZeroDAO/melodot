@@ -165,12 +165,44 @@ kzg_type_with_size!(KZGCommitment, FsG1, BYTES_PER_G1);
 kzg_type_with_size!(KZGProof, FsG1, BYTES_PER_G1);
 kzg_type_with_size!(BlsScalar, FsFr, BYTES_PER_FIELD_ELEMENT);
 
+/// The `ReprConvert` trait defines methods for converting between types `Self` and `T`.
 pub trait ReprConvert<T>: Sized {
-	fn slice_to_repr(value: &[Self]) -> &[T];
-	fn slice_from_repr(value: &[T]) -> &[Self];
-	fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
-	fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
-	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
+    /// Convert a slice of type `Self` to a slice of type `T`.
+    ///
+    /// # Safety
+    /// This method uses `unsafe` code because it transmutes the pointer from `&[Self]` to `&[T]`.
+    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+    fn slice_to_repr(value: &[Self]) -> &[T];
+
+    /// Convert a slice of type `T` to a slice of type `Self`.
+    ///
+    /// # Safety
+    /// This method uses `unsafe` code because it transmutes the pointer from `&[T]` to `&[Self]`.
+    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+    fn slice_from_repr(value: &[T]) -> &[Self];
+
+    /// Convert a `Vec` of type `Self` to a `Vec` of type `T`.
+    ///
+    /// # Safety
+    /// This method uses `unsafe` code because it transmutes the pointer from `Vec<Self>` to `Vec<T>`.
+    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+    /// After the conversion, the original `Vec<Self>` will be dropped.
+    fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
+
+    /// Convert a `Vec` of type `T` to a `Vec` of type `Self`.
+    ///
+    /// # Safety
+    /// This method uses `unsafe` code because it transmutes the pointer from `Vec<T>` to `Vec<Self>`.
+    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+    /// After the conversion, the original `Vec<T>` will be dropped.
+    fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
+
+    /// Convert a slice of `Option<Self>` to a slice of `Option<T>`.
+    ///
+    /// # Safety
+    /// This method uses `unsafe` code because it transmutes the pointer from `&[Option<Self>]` to `&[Option<T>]`.
+    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+    fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
 
 /// This macro provides a convenient way to convert a slice of the underlying representation to a
