@@ -45,7 +45,7 @@ pub fn recovery_row_from_segments(
         return Err("segments are not of the same size".to_string());
     }
 
-    let order_segments = order_segments_row(&segments, chunk_count)?;
+    let order_segments = order_segments_row(segments, chunk_count)?;
     let mut row = segment_datas_to_row(&order_segments, segments_size);
     reverse_bit_order(&mut row);
     let poly = recover_poly(kzg.get_fs(), &row)?;
@@ -63,8 +63,7 @@ pub fn recovery_row_from_segments(
                     let index = i * segments_size;
                     let data = recovery_row[index..(i + 1) * segments_size].to_vec();
                     let segment_data =
-                        SegmentData::from_data(&position, &data, kzg, &poly, segments.len())
-                            .map_err(|e| e.to_string())?;
+                        SegmentData::from_data(&position, &data, kzg, &poly, segments.len())?;
                     Ok(Segment { position, content: segment_data })
                 },
             }

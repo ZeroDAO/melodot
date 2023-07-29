@@ -51,7 +51,7 @@ impl SegmentData {
 
 	/// This function checks if the data vector is valid and returns a Result.
 	pub fn checked(&self) -> Result<Self, String> {
-		if self.data.len() == 0 {
+		if self.data.is_empty() {
 			return Err("segment data is empty".to_string());
 		}
 		// data.len() is a power of two
@@ -100,7 +100,7 @@ impl Segment {
         let mut ys = BlsScalar::vec_to_repr(self.content.data.clone());
         reverse_bit_order(&mut ys);
         kzg.check_proof_multi(
-            &commitment,
+            commitment,
             self.position.x as usize,
             count,
             &ys,

@@ -37,7 +37,7 @@ use crate::erasure_coding::extend_poly;
 /// A `Result` containing a vector of `Option<SegmentData>` representing the ordered row, or an error message 
 /// if ordering fails.
 pub fn order_segments_row(segments: &Vec<Segment>, chunk_count: usize) -> Result<Vec<Option<SegmentData>>, String> {
-    if segments.len() > chunk_count * 2 || segments.len() == 0 {
+    if segments.len() > chunk_count * 2 || segments.is_empty() {
         return Err("segments x not equal".to_string());
     }
     let y = segments[0].position.y;
@@ -73,7 +73,7 @@ pub fn order_segments_col(
     segments: &Vec<Segment>,
     k: usize,
 ) -> Result<Vec<Option<SegmentData>>, String> {
-    if segments.len() > k * 2 || segments.len() == 0 {
+    if segments.len() > k * 2 || segments.is_empty() {
         return Err("segments x not equal".to_string());
     }
     let x = segments[0].position.x;
@@ -98,7 +98,7 @@ pub fn order_segments_col(
 /// # Returns
 ///
 /// A vector of `Option<BlsScalar>` structs.
-pub fn segment_datas_to_row(segments: &Vec<Option<SegmentData>>, chunk_size: usize) -> Vec<Option<BlsScalar>> {
+pub fn segment_datas_to_row(segments: &[Option<SegmentData>], chunk_size: usize) -> Vec<Option<BlsScalar>> {
     segments
         .iter()
         .flat_map(|segment_data_option| match segment_data_option {
@@ -138,7 +138,7 @@ pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize, chunk_size: u
 
     let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size).unwrap();
     let all_proofs = fk.data_availability(&poly.0).unwrap();
-    let extended_poly = extend_poly(&fk.kzg_settings.fs, &poly)?;
+    let extended_poly = extend_poly(&fk.kzg_settings.fs, poly)?;
     let segments = extended_poly
         .chunks(chunk_size)
         .enumerate()

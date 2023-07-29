@@ -103,7 +103,7 @@ pub fn recover(fs: &FsFFTSettings, shards: &[Option<BlsScalar>]) -> Result<Vec<B
 	match shards.contains(&None) {
 		true => {
 			let poly =
-				FsPoly::recover_poly_from_samples(BlsScalar::slice_option_to_repr(shards), &fs)?;
+				FsPoly::recover_poly_from_samples(BlsScalar::slice_option_to_repr(shards), fs)?;
 			Ok(BlsScalar::vec_from_repr(poly.coeffs))
 		},
 		false => {
@@ -130,7 +130,7 @@ pub fn recover_poly(
 		true => {
 			let poly = FsPoly::recover_poly_coeffs_from_samples(
 				BlsScalar::slice_option_to_repr(shards),
-				&fs,
+				fs,
 			)?;
 			Polynomial::from(poly)
 		},

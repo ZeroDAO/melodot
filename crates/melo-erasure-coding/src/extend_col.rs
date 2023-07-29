@@ -66,7 +66,7 @@ pub fn extend_segments_col(
         .enumerate()
         .filter(|(i, s)| s.position.x == x && *i == s.position.y as usize && s.size() == segment_size)
         .flat_map(|(_, s)| {
-            proofs.push(s.content.proof.clone());
+            proofs.push(s.content.proof);
             s.content.data.clone()
         })
         .collect();
@@ -82,12 +82,12 @@ pub fn extend_segments_col(
     let mut extended_cols = vec![];
 
     // Extend each column using FFT
-    for i in 0..(segment_size) {
+    for i in 0..segment_size {
         let col: Vec<BlsScalar> = sorted_rows
             .iter()
             .skip(i)
             .step_by(segment_size)
-            .map(|s| s.clone())
+            .copied() // Use the copied method to copy the scalar values.
             .collect::<Vec<BlsScalar>>();
         extended_cols.push(extend(fs, &col)?);
     }
@@ -98,7 +98,7 @@ pub fn extend_segments_col(
     extended_proofs.iter().skip(1).step_by(2).enumerate().for_each(|(i, proof)| {
         let position = melo_core_primitives::kzg::Position { x, y: (i + k) as u32 };
         let data = extended_cols.iter().map(|col| col[i]).collect::<Vec<BlsScalar>>();
-        let segment = Segment { position, content: SegmentData { data, proof: proof.clone() } };
+        let segment = Segment { position, content: SegmentData { data, proof: *proof } };
         extended_segments.push(segment);
     });
 

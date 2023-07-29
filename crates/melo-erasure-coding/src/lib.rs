@@ -53,7 +53,7 @@ pub mod segment;
 /// are padded with zeroes. When using this function, the final recovered data should be determined 
 /// based on the length of the original data.
 pub fn bytes_vec_to_blobs(
-    bytes_vec: &Vec<Vec<u8>>,
+    bytes_vec: &[Vec<u8>],
     field_elements_per_blob: usize,
 ) -> Result<Vec<Blob>, String> {
     if bytes_vec.iter().any(|bytes| bytes.is_empty()) {

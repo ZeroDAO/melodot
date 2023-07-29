@@ -35,6 +35,14 @@ pub(crate) type FullClient =
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+type FullImportQueue = sc_consensus::DefaultImportQueue<Block, FullClient>;
+type FullTransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
+type GrandpaComponents = (
+	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>,
+	sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+	Option<Telemetry>,
+);
+
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
@@ -42,18 +50,9 @@ pub fn new_partial(
 		FullClient,
 		FullBackend,
 		FullSelectChain,
-		sc_consensus::DefaultImportQueue<Block, FullClient>,
-		sc_transaction_pool::FullPool<Block, FullClient>,
-		(
-			sc_consensus_grandpa::GrandpaBlockImport<
-				FullBackend,
-				Block,
-				FullClient,
-				FullSelectChain,
-			>,
-			sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
-			Option<Telemetry>,
-		),
+		FullImportQueue,
+		FullTransactionPool,
+		GrandpaComponents,
 	>,
 	ServiceError,
 > {
@@ -68,7 +67,7 @@ pub fn new_partial(
 		})
 		.transpose()?;
 
-	let executor = sc_service::new_native_or_wasm_executor(&config);
+	let executor = sc_service::new_native_or_wasm_executor(config);
 
 	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, _>(
@@ -95,7 +94,7 @@ pub fn new_partial(
 
 	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
 		client.clone(),
-		&(client.clone() as Arc<_>),
+		&(client),
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;

@@ -337,23 +337,15 @@ pub fn bytes_to_kzg_settings(
 		return Err("Invalid bytes length".to_string());
 	}
 
-	let g1_values = g1_bytes
-		.chunks_exact(BYTES_PER_G1)
-		.map(|bytes| {
-			FsG1::from_bytes(
-				bytes.try_into().expect("Chunked into correct number of bytes above; qed"),
-			)
-		})
-		.collect::<Result<Vec<_>, _>>()?;
+    let g1_values = g1_bytes
+        .chunks_exact(BYTES_PER_G1)
+        .map(FsG1::from_bytes)
+        .collect::<Result<Vec<_>, _>>()?;
 
 	let g2_values = g2_bytes
-		.chunks_exact(BYTES_PER_G2)
-		.map(|bytes| {
-			FsG2::from_bytes(
-				bytes.try_into().expect("Chunked into correct number of bytes above; qed"),
-			)
-		})
-		.collect::<Result<Vec<_>, _>>()?;
+        .chunks_exact(BYTES_PER_G2)
+        .map(FsG2::from_bytes)
+        .collect::<Result<Vec<_>, _>>()?;
 
 	let fs = FsFFTSettings::new(
 		num_g1_powers
@@ -506,7 +498,7 @@ impl KZG {
 		poly: &Polynomial,
 		i: usize,
 	) -> Result<KZGProof, String> {
-		let x = self.get_expanded_roots_of_unity_at(i as usize);
+		let x = self.get_expanded_roots_of_unity_at(i);
 		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
 	}
 
@@ -521,7 +513,7 @@ impl KZG {
 	///
 	/// A KZGProof for the given x value.
 	pub fn compute_proof(&self, poly: &Polynomial, x: &FsFr) -> Result<KZGProof, String> {
-		self.ks.compute_proof_single(&poly.0, &x).map(KZGProof)
+		self.ks.compute_proof_single(&poly.0, x).map(KZGProof)
 	}
 
 	/// Commit to the given polynomial.
@@ -557,7 +549,7 @@ impl KZG {
 		proof: &KZGProof,
 	) -> Result<bool, String> {
 		let x = self.get_expanded_roots_of_unity_at(index as usize);
-		self.ks.check_proof_single(&commitment, &proof, &x, value)
+		self.ks.check_proof_single(commitment, proof, &x, value)
 	}
 
 	/// Check a proof for the given commitment, proof, x, and value.
@@ -579,7 +571,7 @@ impl KZG {
 		x: &FsFr,
 		value: &BlsScalar,
 	) -> Result<bool, String> {
-		self.ks.check_proof_single(&commitment, &proof, &x, value)
+		self.ks.check_proof_single(commitment, proof, x, value)
 	}
 
 	/// Get the `FsFFTSettings` for the KZG instance.
