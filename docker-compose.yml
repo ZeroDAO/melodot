@@ -1,0 +1,17 @@
+version: "3.2"
+
+services:
+  dev:
+    container_name: melodot
+    image: paritytech/ci-linux:1.71.0-bullseye
+    working_dir: /var/www/melodot
+    ports:
+      - "9944:9944"
+    environment:
+      - CARGO_HOME=/var/www/melodot/.cargo
+    volumes:
+      - .:/var/www/melodot
+      - type: bind
+        source: ./.local
+        target: /root/.local
+    # command: bash -c "cargo build --release && ./target/release/melodot --dev --ws-external"
