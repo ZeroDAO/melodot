@@ -167,42 +167,40 @@ kzg_type_with_size!(BlsScalar, FsFr, BYTES_PER_FIELD_ELEMENT);
 
 /// The `ReprConvert` trait defines methods for converting between types `Self` and `T`.
 pub trait ReprConvert<T>: Sized {
-    /// Convert a slice of type `Self` to a slice of type `T`.
-    ///
-    /// # Safety
-    /// This method uses `unsafe` code because it transmutes the pointer from `&[Self]` to `&[T]`.
-    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
-    fn slice_to_repr(value: &[Self]) -> &[T];
+	/// Convert a slice of type `Self` to a slice of type `T`.
+	///
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `&[Self]` to `&[T]`.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	fn slice_to_repr(value: &[Self]) -> &[T];
 
-    /// Convert a slice of type `T` to a slice of type `Self`.
-    ///
-    /// # Safety
-    /// This method uses `unsafe` code because it transmutes the pointer from `&[T]` to `&[Self]`.
-    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
-    fn slice_from_repr(value: &[T]) -> &[Self];
+	/// Convert a slice of type `T` to a slice of type `Self`.
+	///
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `&[T]` to `&[Self]`.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	fn slice_from_repr(value: &[T]) -> &[Self];
 
-    /// Convert a `Vec` of type `Self` to a `Vec` of type `T`.
-    ///
-    /// # Safety
-    /// This method uses `unsafe` code because it transmutes the pointer from `Vec<Self>` to `Vec<T>`.
-    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
-    /// After the conversion, the original `Vec<Self>` will be dropped.
-    fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
+	/// Convert a `Vec` of type `Self` to a `Vec` of type `T`.
+	///
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<Self>` to `Vec<T>`.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
 
-    /// Convert a `Vec` of type `T` to a `Vec` of type `Self`.
-    ///
-    /// # Safety
-    /// This method uses `unsafe` code because it transmutes the pointer from `Vec<T>` to `Vec<Self>`.
-    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
-    /// After the conversion, the original `Vec<T>` will be dropped.
-    fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
+	/// Convert a `Vec` of type `T` to a `Vec` of type `Self`.
+	///
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<T>` to `Vec<Self>`.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
 
-    /// Convert a slice of `Option<Self>` to a slice of `Option<T>`.
-    ///
-    /// # Safety
-    /// This method uses `unsafe` code because it transmutes the pointer from `&[Option<Self>]` to `&[Option<T>]`.
-    /// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
-    fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
+	/// Convert a slice of `Option<Self>` to a slice of `Option<T>`.
+	///
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `&[Option<Self>]` to `&[Option<T>]`.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
 
 /// This macro provides a convenient way to convert a slice of the underlying representation to a
@@ -223,20 +221,20 @@ macro_rules! repr_convertible {
 
 			#[inline]
 			fn vec_to_repr(value: Vec<Self>) -> Vec<$type> {
-                let mut value = mem::ManuallyDrop::new(value);
-                unsafe {
-                    let ptr = value.as_mut_ptr() as *mut $type;
-                    Vec::from_raw_parts(ptr, value.len(), value.capacity())
-                }
+				let mut value = mem::ManuallyDrop::new(value);
+				unsafe {
+					let ptr = value.as_mut_ptr() as *mut $type;
+					Vec::from_raw_parts(ptr, value.len(), value.capacity())
+				}
 			}
 
 			#[inline]
 			fn vec_from_repr(value: Vec<$type>) -> Vec<Self> {
-                let mut value = mem::ManuallyDrop::new(value);
-                unsafe {
-                    let ptr = value.as_mut_ptr() as *mut Self;
-                    Vec::from_raw_parts(ptr, value.len(), value.capacity())
-                }
+				let mut value = mem::ManuallyDrop::new(value);
+				unsafe {
+					let ptr = value.as_mut_ptr() as *mut Self;
+					Vec::from_raw_parts(ptr, value.len(), value.capacity())
+				}
 			}
 
 			#[inline]
@@ -412,7 +410,7 @@ pub const NUM_G1_POWERS: usize = 4_096;
 /// Number of G2 powers stored in [`EMBEDDED_KZG_SETTINGS_BYTES`]
 pub const NUM_G2_POWERS: usize = 65;
 
-// ref: https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L75
+// This function is derived and modified from `https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L75` .
 pub fn bytes_to_kzg_settings(
 	g1_bytes: &[u8],
 	g2_bytes: &[u8],
@@ -433,7 +431,7 @@ pub fn bytes_to_kzg_settings(
 			)
 		})
 		.collect::<Result<Vec<_>, _>>()?;
-    
+
 	let g2_values = g2_bytes
 		.chunks_exact(BYTES_PER_G2)
 		.map(|bytes| {
@@ -454,7 +452,14 @@ pub fn bytes_to_kzg_settings(
 	Ok(FsKZGSettings { secret_g1: g1_values, secret_g2: g2_values, fs })
 }
 
-/// Embedded KZG settings
+/// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the required data
+/// using `scripts/process_data.sh`.
+///
+/// ```ssh
+/// ./scripts/process_data.sh 4096
+/// ```
+///
+/// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
 pub fn embedded_kzg_settings() -> FsKZGSettings {
 	let (secret_g1_bytes, secret_g2_bytes) =
 		EMBEDDED_KZG_SETTINGS_BYTES.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
