@@ -369,7 +369,7 @@ pub fn bytes_to_kzg_settings(
 // This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
 // This will slightly increase the size of the compiled binary, but it can reduce complexity in the `no-std` 
 // environment. In the long run, we still need to optimize it.
-pub fn embedded_kzg_settings() -> FsKZGSettings {
+fn embedded_kzg_settings() -> FsKZGSettings {
 	let (secret_g1_bytes, secret_g2_bytes) =
 		EMBEDDED_KZG_SETTINGS_BYTES.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
 	bytes_to_kzg_settings(secret_g1_bytes, secret_g2_bytes, NUM_G1_POWERS, NUM_G2_POWERS)
@@ -391,6 +391,11 @@ impl KZG {
 	/// Get the maximum width of the KZG instance.
 	pub fn max_width(&self) -> usize {
 		self.ks.fs.max_width
+	}
+
+	/// Create a new KZG instance with the embedded settings.
+	pub fn default_embedded() -> Self {
+		Self::new(embedded_kzg_settings())
 	}
 
 	/// Get the expanded roots of unity at the given index.

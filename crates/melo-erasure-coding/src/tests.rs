@@ -14,7 +14,7 @@ use melo_core_primitives::kzg::BlsScalar;
 use melo_core_primitives::kzg::KZGProof;
 use melo_core_primitives::kzg::Position;
 use melo_core_primitives::kzg::ReprConvert;
-use melo_core_primitives::kzg::{embedded_kzg_settings, KZGCommitment, KZG};
+use melo_core_primitives::kzg::{KZGCommitment, KZG};
 use melo_core_primitives::polynomial::Polynomial;
 use melo_core_primitives::segment::Segment;
 use melo_core_primitives::segment::SegmentData;
@@ -56,7 +56,7 @@ fn blob_proof_case(field_elements_per_blob: usize, minimize: usize) {
     let blob_data = random_bytes(actual_byte_len);
 
     let blob = Blob::try_from_bytes_pad(&blob_data, blob_data_len).unwrap();
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let commitment = blob.commit(&kzg).unwrap();
     let poly = blob.to_poly();
     let commitment_poly = kzg.commit(&poly).unwrap();
@@ -122,7 +122,7 @@ fn test_recover_poly() {
     let poly = random_poly(num_shards);
 
     // Extend the polynomial
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let extended_poly = extend_poly(kzg.get_fs(), &poly).unwrap();
 
     // Remove some elements from it
@@ -177,7 +177,7 @@ fn test_blob_verify_batch() {
     // Commit and get proof for each blob
     let mut commitments: Vec<KZGCommitment> = Vec::new();
     let mut proofs: Vec<KZGProof> = Vec::new();
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     for blob in blobs.iter() {
         let (commitment, proof) =
             blob.commit_and_proof(&kzg, field_elements_per_blob).unwrap();
@@ -350,7 +350,7 @@ fn test_poly_to_segment_vec() {
     let poly = random_poly(num_shards);
 
     // Get the commitment of poly
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let commitment = kzg.commit(&poly).unwrap();
 
     // Convert to segments
@@ -389,7 +389,7 @@ fn test_order_segments_row() {
     let poly = random_poly(num_shards);
 
     // Get the commitment of poly
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
 
     // Convert to segments
     let segments = poly_to_segment_vec(&poly, &kzg, 0, chunk_len).unwrap();
@@ -456,7 +456,7 @@ fn test_order_segments_row() {
 
 #[test]
 fn test_extend_poly() {
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let num_shards = 16;
     let poly = random_poly(num_shards);
 
@@ -495,7 +495,7 @@ fn test_recovery_row_from_segments() {
     let poly = random_poly(num_shards);
 
     // Convert the polynomial to segments
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let segments: Vec<Segment> = poly_to_segment_vec(&poly, &kzg, 0, chunk_len).unwrap();
     assert_eq!(segments.len(), 8);
 
@@ -561,7 +561,7 @@ fn test_proof_multi() {
     let chunk_count: usize = 4;
     let num_shards = chunk_len * chunk_count;
 
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
 
     let poly = random_poly(num_shards);
 
@@ -602,7 +602,7 @@ fn test_extend_and_commit_multi() {
     let chunk_count: usize = 4;
     let num_shards = chunk_len * chunk_count;
 
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
 
     let evens = (0..num_shards)
         .map(|_| rand::random::<[u8; 31]>())
@@ -653,7 +653,7 @@ fn test_extend_and_commit_multi() {
 fn extend_returns_err_case(
     num_shards: usize,
 ) {
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
 
     let evens = (0..num_shards)
         .map(|_| rand::random::<[u8; 31]>())
@@ -673,7 +673,7 @@ fn test_extend_returns_err() {
 
 #[test]
 fn test_extend_fs_g1() {
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let mut commits: Vec<KZGCommitment> = Vec::new();
     for _rep in 0..4 {
         commits.push(KZGCommitment(FsG1::rand()));
@@ -699,7 +699,7 @@ fn test_extend_segments_col() {
     let k: usize = 4;
     let polys = (0..k).map(|_| random_poly(num_shards)).collect::<Vec<_>>();
     // Commit to all polynomials
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let commitments = polys.iter().map(|poly| kzg.commit(poly).unwrap()).collect::<Vec<_>>();
     // Extend polynomial commitments to twice the size
     let extended_commitments = extend_fs_g1(kzg.get_fs(), &commitments).unwrap();
@@ -767,9 +767,9 @@ fn test_bytes_to_segments_round_trip() {
     // Convert bytes to blob
     let blob = Blob::try_from_bytes_pad(&bytes, bytes_len).unwrap();
     // Convert blob to segments
-    let kzg = KZG::new(embedded_kzg_settings());
+    let kzg = KZG::default_embedded();
     let poly = blob.to_poly();
-    let commitment = blob.commit(&KZG::new(embedded_kzg_settings())).unwrap();
+    let commitment = blob.commit(&kzg).unwrap();
     let segments = poly_to_segment_vec(&poly, &kzg, 0, chunk_len).unwrap();
     // Verify all segments are correct
     for i in 0..chunk_count {
