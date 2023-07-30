@@ -11,7 +11,7 @@ This is a core library for Melodot data availability sampling, providing functio
 We encode byte data into `k` `Blob`s, each `Blob` consisting of `n` elements of `32` bytes, with each element filled with `31` bytes of data from the original data. We treat the `Blob` as coefficients of an `n-1` degree polynomial and use polynomial commitment to generate a `KZGCommitment` for each `Blob`. By interpolation, we extend the `Blob` data to `2n` `Cell`s. Any `n` out of the `2n` elements can be used to recover the original `Blob`.
 
 ```text
-|<-------- n -------->|<-------- 2n -------->|
+|<------1...n ------->|<------n+1...2n ----->|
 +-------+     +-------+-------+     +--------+ +------------+
 |  c_1  | ... |  c_n  | c_n+1 | ... |  c_2n  | | commitment |
 +-------+     +-------+-------+     +--------+ +------------+
@@ -42,6 +42,31 @@ At the `Segment` level, nodes can directly generate extended columns, including 
 
 Currently, we support row recovery. You can use the `recover` method in the `erasures-coding` module to recover row data in units of `BlsScalar`, or use the `recover_poly` method to recover polynomials. It is also possible to recover `Segments` using the `recovery_row_from_segments` method.
 
+## Usage
+
+To utilize most functionalities of this crate, it is essential to construct a `KZGSetting` first, which facilitates subsequent data encoding and recovery. We provide a default embedded setting for convenience:
+
+```rust
+// Assuming you have already imported the necessary modules or structs.
+
+// Create a default embedded KZGSetting for convenience.
+let kzg = KZG::default_embedded();
+
+// Prepare the data to be committed.
+let bytes: Vec<[u8; 31]> = vec![[255; 31]; 64];
+
+// Commit the data using the KZGSetting.
+let commitment = Blob::try_from_bytes(&bytes, 64)?.commit(&kzg);
+```
+
+To construct a custom `KZGSetting`, you can use the `bytes_to_kzg_settings` function available in the `kzg` module. This function requires passing precomputed data. Additionally, you have the option to generate data of various lengths from Ethereum-style trusted setups located in the `melodot` root directory using the following command:
+
+```bash
+./scripts/process_data.sh 4096
+```
+
+By changing the value `4096`, you can generate data of different lengths. The available options are: `["4096" "8192" "16384" "32768"]`.
+
 ## Docker
 
 First, install Docker and Docker Compose.
@@ -71,9 +96,9 @@ Alternatively, you can directly use the following commands to perform unit tests
 
 ## TODO List
 
--  Improve multi-threading performance
--  Optimize memory usage related to KZG setup
--  Implement column recovery
+- [ ] Improve multi-threading performance
+- [ ] Optimize memory usage related to KZG setup
+- [ ] Implement column recovery
 
 ## References
 
