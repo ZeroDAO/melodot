@@ -688,6 +688,11 @@ fn test_extend_fs_g1() {
     commits.push(KZGCommitment(FsG1::rand()));
     let result = extend_fs_g1(kzg.get_fs(), &commits);
     assert!(result.is_err());
+
+    // Test the empty case
+    let empty_commits: Vec<KZGCommitment> = Vec::new();
+    let result = extend_fs_g1(kzg.get_fs(), &empty_commits);
+    assert!(result.is_err());
 }
 
 #[test]
