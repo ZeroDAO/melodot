@@ -67,6 +67,26 @@ To construct a custom `KZGSetting`, you can use the `bytes_to_kzg_settings` func
 
 By changing the value `4096`, you can generate data of different lengths. The available options are: `["4096" "8192" "16384" "32768"]`.
 
+Next you can build `KZGSetting` using `embedded_kzg_settings`.
+
+```rust
+// Assuming you have already imported the necessary modules or structs.
+
+const EMBEDDED_KZG_SETTINGS_BYTES: &[u8] = include_bytes!("../scripts/eth-public-parameters-4096.bin");
+
+// Create a KZGSetting from the precomputed data.
+let kzg = KZG::embedded_kzg_settings(EMBEDDED_KZG_SETTINGS_BYTES);
+
+```
+
+## Testing
+
+To run unit tests, you can use the following command:
+
+```bash
+cargo test
+```
+
 ## Docker
 
 First, install Docker and Docker Compose.

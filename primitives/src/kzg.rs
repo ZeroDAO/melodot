@@ -359,23 +359,6 @@ pub fn bytes_to_kzg_settings(
 	Ok(FsKZGSettings { secret_g1: g1_values, secret_g2: g2_values, fs })
 }
 
-/// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the required data
-/// using `scripts/process_data.sh`.
-///
-/// ```bash
-/// ./scripts/process_data.sh 4096
-/// ```
-///
-/// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
-// This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
-// This will slightly increase the size of the compiled binary, but it can reduce complexity in the `no-std`
-// environment. In the long run, we still need to optimize it.
-fn embedded_kzg_settings(settings_bytes: &[u8]) -> FsKZGSettings {
-	let (secret_g1_bytes, secret_g2_bytes) = settings_bytes.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
-	bytes_to_kzg_settings(secret_g1_bytes, secret_g2_bytes, NUM_G1_POWERS, NUM_G2_POWERS)
-		.expect("Static bytes are correct, there is a test for this; qed")
-}
-
 /// KZG is a struct that represents a KZG instance.
 #[derive(Debug, Clone, AsMut)]
 pub struct KZG {
@@ -393,9 +376,27 @@ impl KZG {
 		self.ks.fs.max_width
 	}
 
+	/// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the required data
+	/// using `scripts/process_data.sh`.
+	///
+	/// ```bash
+	/// ./scripts/process_data.sh 4096
+	/// ```
+	///
+	/// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
+	// This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
+	// This will slightly increase the size of the compiled binary, but it can reduce complexity in the `no-std`
+	// environment. In the long run, we still need to optimize it.
+	pub fn embedded_kzg_settings(settings_bytes: &[u8]) -> FsKZGSettings {
+		let (secret_g1_bytes, secret_g2_bytes) =
+			settings_bytes.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
+		bytes_to_kzg_settings(secret_g1_bytes, secret_g2_bytes, NUM_G1_POWERS, NUM_G2_POWERS)
+			.expect("Static bytes are correct, there is a test for this; qed")
+	}
+
 	/// Create a new KZG instance with the embedded settings.
 	pub fn default_embedded() -> Self {
-		Self::new(embedded_kzg_settings(EMBEDDED_KZG_SETTINGS_BYTES))
+		Self::new(Self::embedded_kzg_settings(EMBEDDED_KZG_SETTINGS_BYTES))
 	}
 
 	/// Get the expanded roots of unity at the given index.
