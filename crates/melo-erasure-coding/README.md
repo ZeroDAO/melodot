@@ -74,9 +74,11 @@ Next you can build `KZGSetting` using `embedded_kzg_settings`.
 
 // Include your precomputed data.
 const SETTINGS_BYTES: &[u8] = include_bytes!("../scripts/your-public-parameters-4096.bin");
+const NUM_G1_POWERS: usize = 4096;
+const NUM_G2_POWERS: usize = 65;
 
 // Create a KZGSetting from the precomputed data.
-let kzg = KZG::embedded_kzg_settings(SETTINGS_BYTES);
+let kzg = KZG::embedded_kzg_settings(SETTINGS_BYTES, NUM_G1_POWERS, NUM_G2_POWERS);
 
 ```
 

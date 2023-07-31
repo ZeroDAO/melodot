@@ -387,16 +387,24 @@ impl KZG {
 	// This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
 	// This will slightly increase the size of the compiled binary, but it can reduce complexity in the `no-std`
 	// environment. In the long run, we still need to optimize it.
-	pub fn embedded_kzg_settings(settings_bytes: &[u8]) -> FsKZGSettings {
+	pub fn embedded_kzg_settings(
+		settings_bytes: &[u8],
+		num_g1_powers: usize,
+		num_g2_powers: usize,
+	) -> FsKZGSettings {
 		let (secret_g1_bytes, secret_g2_bytes) =
-			settings_bytes.split_at(BYTES_PER_G1 * NUM_G1_POWERS);
-		bytes_to_kzg_settings(secret_g1_bytes, secret_g2_bytes, NUM_G1_POWERS, NUM_G2_POWERS)
+			settings_bytes.split_at(BYTES_PER_G1 * num_g1_powers);
+		bytes_to_kzg_settings(secret_g1_bytes, secret_g2_bytes, num_g1_powers, num_g2_powers)
 			.expect("Static bytes are correct, there is a test for this; qed")
 	}
 
 	/// Create a new KZG instance with the embedded settings.
 	pub fn default_embedded() -> Self {
-		Self::new(Self::embedded_kzg_settings(EMBEDDED_KZG_SETTINGS_BYTES))
+		Self::new(Self::embedded_kzg_settings(
+			EMBEDDED_KZG_SETTINGS_BYTES,
+			NUM_G1_POWERS,
+			NUM_G2_POWERS,
+		))
 	}
 
 	/// Get the expanded roots of unity at the given index.
