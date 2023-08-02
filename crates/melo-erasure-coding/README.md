@@ -125,9 +125,22 @@ Alternatively, you can directly use the following commands to perform unit tests
 - [ ] Optimize memory usage related to KZG setup
 - [ ] Implement column recovery
 
-## References
+## Acknowledgments
 
-- [Melodot whitepaper](https://www.notion.so/zerodao/Melodot-Data-Availability-Layer-Whitepaper-b72b1f3de81c40fc94a56763756ce34a?pvs=4)
-- [kzg-rust](https://github.com/sifraitech/rust-kzg)
-- [subspace](https://github.com/subspace/subspace)
-- [substrate](https://github.com/paritytech/substrate)
+During the development of this project, we drew inspiration from several outstanding open-source projects, and we express our heartfelt gratitude to the contributors of these projects.
+
+### Reference Projects
+
+- [subspace](https://github.com/subspace/subspace): This project's design patterns, based on KZG, had a significant impact on our project, providing us with inspiration that we applied in our implementation.
+- [kzg-rust](https://github.com/sifraitech/rust-kzg): Our project relies on specific implementations from this project concerning KZG.
+
+### Appreciation for Theoretical Contributions
+
+We would like to extend special thanks to the contributors in the theoretical field and the authors of the following articles, as their research has provided invaluable theoretical foundations and guidance for our project:
+
+- [Constant-Size Commitments to Polynomials and Their Applications](https://link.springer.com/chapter/10.1007/978-3-642-17373-8_11)
+- [Aggregatable Subvector Commitments for Stateless Cryptocurrencies](https://eprint.iacr.org/2020/527)
+- [Fraud and Data Availability Proofs: Maximising Light Client Security and Scaling Blockchains with Dishonest Majorities](https://arxiv.org/abs/1809.09044)
+- [2D data availability with Kate commitments](https://ethresear.ch/t/2d-data-availability-with-kate-commitments/8081)
+
+We are deeply aware of the importance of academic contributions to the development of open-source projects and sincerely appreciate these researchers' valuable contributions to the academic and technical community. We also express our gratitude to the authors and communities of the aforementioned open-source projects and libraries, as they generously shared their work, enabling us to stand on the shoulders of giants and accelerate the progress of our own project.
