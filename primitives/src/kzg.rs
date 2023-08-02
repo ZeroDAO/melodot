@@ -38,9 +38,13 @@ use crate::{
 	polynomial::Polynomial,
 };
 
-// kzg_type_with_size macro are inspired by
-// https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs
-// but we use macros instead of implementing them separately for each type.
+
+// The kzg_type_with_size macro is inspired by
+// https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs.
+// This macro is used to wrap multiple core types of the underlying KZG, with the ultimate goal of minimizing
+// the exposure of low-level KZG domain knowledge while allowing for a more convenient implementation of a rich
+// type system.
+// But we use macros instead of separate implementations for each type.
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr, $docs:tt, $type_name:tt) => {
 		#[derive(
@@ -150,7 +154,6 @@ macro_rules! kzg_type_with_size {
 					.composite(scale_info::build::Fields::named().field(|f| {
 						f.ty::<[u8; $size]>().name(stringify!(inner)).type_name($type_name)
 					}))
-				// Scalar
 			}
 		}
 	};
@@ -326,6 +329,8 @@ pub const NUM_G1_POWERS: usize = 4_096;
 pub const NUM_G2_POWERS: usize = 65;
 
 // This function is derived and modified from `https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L75` .
+// The original function only supported G1 with a specific length. Here, we modified it to be configurable, allowing it to adapt to
+// different environments and the needs of various projects.
 pub fn bytes_to_kzg_settings(
 	g1_bytes: &[u8],
 	g2_bytes: &[u8],
@@ -384,9 +389,12 @@ impl KZG {
 	/// ```
 	///
 	/// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
-	// This references subpace's design https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101
-	// This will slightly increase the size of the compiled binary, but it can reduce complexity in the `no-std`
-	// environment. In the long run, we still need to optimize it.
+	// Using direct strings is too large for the no-std environment. We referred to the design in subspace at
+	// https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101, where we directly
+	// save the values in binary format and load them into the program using an embedded approach. The side effect is a slight
+	// increase in the size of the compiled binary file, but it remains well within acceptable limits.
+	//
+	// We modified its design, allowing users to configure their own embedded files.
 	pub fn embedded_kzg_settings(
 		settings_bytes: &[u8],
 		num_g1_powers: usize,
