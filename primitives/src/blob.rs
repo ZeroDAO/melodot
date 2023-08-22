@@ -309,6 +309,11 @@ impl Blob {
 	pub fn to_fs_fr_vec(&self) -> Vec<FsFr> {
 		BlsScalar::vec_to_repr(self.0.clone())
 	}
+
+	#[inline]
+	pub fn blob_count(bytes_len: usize, bytes_per_blob: usize) -> usize {
+		(bytes_len + bytes_per_blob - 1) / bytes_per_blob
+	}
 }
 
 // field_elements_per_blob should be a power of 2
