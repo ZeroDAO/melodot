@@ -3,7 +3,7 @@ members = [
     "node",
     "primitives",
     "crates/*",
-    "pallets/template",
+    "pallets/*",
     "runtime",
 ]
 
