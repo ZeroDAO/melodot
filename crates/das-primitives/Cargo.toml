@@ -1,5 +1,5 @@
 [package]
-name = "melo-core-primitives"
+name = "melo-das-primitives"
 description = "Core primitives for Melodot"
 license = "Apache-2.0"
 version = "0.1.0"
@@ -15,12 +15,16 @@ include = [
 bench = false
 
 [dependencies]
-rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
+rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false}
+kzg = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
+
 derive_more = "0.99.17"
 hex = { version  = "0.4.3", default-features = false, features = ["alloc"] }
-kzg = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
 num-traits = { version = "0.2.15", default-features = false }
-parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
+	"derive",
+] }
+# parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
 parking_lot = { version = "0.12.1", optional = true }
 rayon = { version = "1.6.1", optional = true }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
@@ -60,7 +64,7 @@ std = [
     "hex/std",
     "kzg/std",
     "num-traits/std",
-    "parity-scale-codec/std",
+    # "parity-scale-codec/std",
     # In no-std environment we use `spin`
     "parking_lot",
     "scale-info/std",

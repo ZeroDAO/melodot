@@ -1,0 +1,44 @@
+[package]
+name = "melo-core-primitives"
+description = "Core primitives for Melodot"
+license = "Apache-2.0"
+version = "0.1.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false}
+
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+serde = { version = "1.0.136", features = ["derive"], optional = true }
+
+sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
+sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
+# sc-network = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"log/std",
+	"scale-info/std",
+	"serde",
+	"sp-core/std",
+	"sp-runtime/std",
+	"melo-das-primitives/std",
+	"sp-io/std"
+]
+serde = [
+    "dep:serde",
+    "melo-das-primitives/serde",
+]
+parallel = [
+    "melo-das-primitives/parallel",
+]

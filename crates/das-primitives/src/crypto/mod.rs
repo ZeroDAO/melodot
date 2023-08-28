@@ -24,7 +24,7 @@ use core::ptr;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
 use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
 use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, G1, G2};
-use parity_scale_codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
+use codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
 
 use rust_kzg_blst::types::{
 	fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
@@ -32,13 +32,13 @@ use rust_kzg_blst::types::{
 };
 use scale_info::{Type, TypeInfo};
 
-use crate::{
-	blob::Blob,
+#[cfg(feature = "serde")]
+mod serde;
+
+use super::{
 	config::{BYTES_PER_FIELD_ELEMENT, EMBEDDED_KZG_SETTINGS_BYTES},
-	polynomial::Polynomial,
+	Blob, Polynomial,
 };
-use serde::de::Error;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // The kzg_type_with_size macro is inspired by
 // https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs.
 // This macro is used to wrap multiple core types of the underlying KZG, with the ultimate goal of minimizing
@@ -64,6 +64,16 @@ macro_rules! kzg_type_with_size {
 			#[inline]
 			pub fn try_from_bytes(bytes: &[u8; $size]) -> Result<Self, String> {
 				Ok($name(<$type>::from_bytes(bytes)?))
+			}
+
+			#[inline]
+			pub fn size_of(&self) -> usize {
+				$size
+			}
+
+			#[inline]
+			pub fn size() -> usize {
+				$size
 			}
 		}
 
@@ -131,9 +141,9 @@ macro_rules! kzg_type_with_size {
 		}
 
 		impl Decode for $name {
-			fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+			fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
 				Self::try_from_bytes(&Decode::decode(input)?).map_err(|error| {
-					parity_scale_codec::Error::from("Failed to decode from bytes")
+					codec::Error::from("Failed to decode from bytes")
 						.chain(alloc::format!("{error:?}"))
 				})
 			}
@@ -157,33 +167,53 @@ macro_rules! kzg_type_with_size {
 			}
 		}
 
-		#[derive(Serialize, Deserialize)]
-		struct $wrapper(#[serde(with = "hex::serde")] pub [u8; $size]);
+		// impl Serialize for $name {
+		// 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+		// 	where
+		// 		S: Serializer,
+		// 	{
+		// 		$wrapper(self.to_bytes()).serialize(serializer)
+		// 	}
+		// }
 
-		impl Serialize for $name {
-			fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-			where
-				S: Serializer,
-			{
-				$wrapper(self.to_bytes()).serialize(serializer)
-			}
-		}
-
-		impl<'de> Deserialize<'de> for $name {
-			fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-			where
-				D: Deserializer<'de>,
-			{
-				let $wrapper(bytes) = $wrapper::deserialize(deserializer)?;
-				Self::try_from_bytes(&bytes).map_err(|error| D::Error::custom(format!("{error:?}")))
-			}
-		}
+		// impl<'de> Deserialize<'de> for $name {
+		// 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+		// 	where
+		// 		D: Deserializer<'de>,
+		// 	{
+		// 		let $wrapper(bytes) = $wrapper::deserialize(deserializer)?;
+		// 		Self::try_from_bytes(&bytes).map_err(|error| D::Error::custom(format!("{error:?}")))
+		// 	}
+		// }
 	};
 }
 
+// #[derive(Serialize, Deserialize)]
+// struct KZGCommitmentWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_G1]);
+
+// #[derive(Serialize, Deserialize)]
+// struct KZGProofWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_G1]);
+
+// #[derive(Serialize, Deserialize)]
+// struct BlsScalarWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_FIELD_ELEMENT]);
+
 // TODO: Automatic size reading
-kzg_type_with_size!(KZGCommitment, KZGCommitmentWrapper, FsG1, BYTES_PER_G1, "Commitment to polynomial", "G1Affine");
-kzg_type_with_size!(KZGProof, KZGProofWrapper, FsG1, BYTES_PER_G1, "Proof of polynomial", "G1Affine");
+kzg_type_with_size!(
+	KZGCommitment,
+	KZGCommitmentWrapper,
+	FsG1,
+	BYTES_PER_G1,
+	"Commitment to polynomial",
+	"G1Affine"
+);
+kzg_type_with_size!(
+	KZGProof,
+	KZGProofWrapper,
+	FsG1,
+	BYTES_PER_G1,
+	"Proof of polynomial",
+	"G1Affine"
+);
 kzg_type_with_size!(BlsScalar, BlsScalarWrapper, FsFr, BYTES_PER_FIELD_ELEMENT, "Scalar", "Fr");
 
 /// The `ReprConvert` trait defines methods for converting between types `Self` and `T`.

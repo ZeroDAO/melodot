@@ -9,15 +9,15 @@ use kzg::FFTFr;
 use kzg::Fr;
 use kzg::G1;
 
-use melo_core_primitives::blob::Blob;
-use melo_core_primitives::kzg::BlsScalar;
-use melo_core_primitives::kzg::KZGProof;
-use melo_core_primitives::kzg::Position;
-use melo_core_primitives::kzg::ReprConvert;
-use melo_core_primitives::kzg::{KZGCommitment, KZG};
-use melo_core_primitives::polynomial::Polynomial;
-use melo_core_primitives::segment::Segment;
-use melo_core_primitives::segment::SegmentData;
+use melo_das_primitives::blob::Blob;
+use melo_das_primitives::crypto::BlsScalar;
+use melo_das_primitives::crypto::KZGProof;
+use melo_das_primitives::crypto::Position;
+use melo_das_primitives::crypto::ReprConvert;
+use melo_das_primitives::crypto::{KZGCommitment, KZG};
+use melo_das_primitives::polynomial::Polynomial;
+use melo_das_primitives::segment::Segment;
+use melo_das_primitives::segment::SegmentData;
 
 use rand::seq::SliceRandom;
 use rand::Rng;

@@ -1,5 +1,5 @@
 [package]
-name = "melo-store"
+name = "pallet-melo-store"
 description = "Pallets for Data Availability Storage Logic"
 license = "Apache-2.0"
 version = "0.1.0"
@@ -10,30 +10,24 @@ edition = "2021"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-melo-erasure-coding = { version = "0.1.0", path = "../../crates/melo-erasure-coding" }
-melo-core-primitives = { version = "0.1.0", path = "../../primitives" }
-sc-network-das = { version = "0.0.1", path = "../sc-network-das" }
+melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false }
+melo-core-primitives = { version = "0.1.0", path = "../core-primitives", default-features = false }
 
-codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
-	"derive",
-] }
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 frame-benchmarking = { version = "4.0.0-dev", default-features = false, optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 log = { version = "0.4.17", default-features = false }
 sp-application-crypto = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-core = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-io = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sc-client-db = { version = "0.10.0-dev", default-features = false, git =  "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 [dev-dependencies]
-pallet-session = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+pallet-session = { version = "4.0.0-dev"}
 
 [features]
 default = ["std"]
@@ -44,14 +38,17 @@ std = [
 	"frame-system/std",
 	"scale-info/std",
 	"log/std",
-	"pallet-authorship/std",
 	"sp-application-crypto/std",
 	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",
-	"sp-staking/std",
 	"sp-std/std",
-	"pallet-session/std"
+	"pallet-session/std",
+	"melo-das-primitives/std",
+	"melo-core-primitives/std",
+]
+serde = [
+    "melo-das-primitives/serde",
 ]
 runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
 try-runtime = ["frame-support/try-runtime"]

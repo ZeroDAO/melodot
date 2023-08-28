@@ -16,8 +16,8 @@ extern crate alloc;
 
 use crate::erasure_coding::{extend_poly, recover_poly};
 use crate::segment::{order_segments_row, segment_datas_to_row};
-use melo_core_primitives::kzg::{Position, KZG};
-use melo_core_primitives::segment::{Segment, SegmentData};
+use melo_das_primitives::crypto::{Position, KZG};
+use melo_das_primitives::segment::{Segment, SegmentData};
 use rust_kzg_blst::utils::reverse_bit_order;
 
 /// Recover a row of segments from a vector of segments, using the provided KZG instance and chunk count.

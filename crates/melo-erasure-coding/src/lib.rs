@@ -15,7 +15,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use itertools::Itertools;
-use melo_core_primitives::{blob::Blob, kzg::SCALAR_SAFE_BYTES};
+use melo_das_primitives::{blob::Blob, crypto::SCALAR_SAFE_BYTES};
 
 #[cfg(test)]
 mod tests;

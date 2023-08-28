@@ -12,8 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod kzg;
-pub mod config;
-pub mod segment;
-pub mod blob;
-pub mod polynomial;
+use sp_core::offchain::StorageKind;
+use crate::Vec;
+
+pub fn save_to_localstorage_with_prefix(key: &[u8], value: &[u8], prefix: &[u8]) {
+	let mut prefixed_key = prefix.to_vec();
+	prefixed_key.extend_from_slice(key);
+	sp_io::offchain::local_storage_set(StorageKind::PERSISTENT, &prefixed_key, value);
+}
+
+pub fn get_from_localstorage_with_prefix(key: &[u8], prefix: &[u8]) -> Option<Vec<u8>> {
+	let mut prefixed_key = prefix.to_vec();
+	prefixed_key.extend_from_slice(key);
+	sp_io::offchain::local_storage_get(StorageKind::PERSISTENT, &prefixed_key)
+}
