@@ -13,11 +13,15 @@
 // limitations under the License.
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{
+	string::{String, ToString},
+	vec::Vec,
+};
+use alloc::vec;
 use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
-
-use crate::{kzg::{BlsScalar, KZGCommitment, KZGProof, Position, ReprConvert, KZG}, polynomial::Polynomial};
+use crate::crypto::{BlsScalar, KZGCommitment, KZGProof, Position, ReprConvert, KZG};
+use crate::polynomial::Polynomial;
 
 /// This struct represents a segment of data with a position and content.
 #[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]

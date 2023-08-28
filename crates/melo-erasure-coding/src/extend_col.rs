@@ -14,8 +14,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 use itertools::Itertools;
-use melo_core_primitives::{
-	kzg::BlsScalar,
+use melo_das_primitives::{
+	crypto::BlsScalar,
 	segment::{Segment, SegmentData},
 };
 use rust_kzg_blst::types::fft_settings::FsFFTSettings;
@@ -96,7 +96,7 @@ pub fn extend_segments_col(
 
     // Obtain the odd parts of the extended proofs and create new segments
     extended_proofs.iter().skip(1).step_by(2).enumerate().for_each(|(i, proof)| {
-        let position = melo_core_primitives::kzg::Position { x, y: (i + k) as u32 };
+        let position = melo_das_primitives::crypto::Position { x, y: (i + k) as u32 };
         let data = extended_cols.iter().map(|col| col[i]).collect::<Vec<BlsScalar>>();
         let segment = Segment { position, content: SegmentData { data, proof: *proof } };
         extended_segments.push(segment);

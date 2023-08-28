@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 extern crate alloc;
+use super::crypto::{BlsScalar, KZGCommitment, KZGProof, ReprConvert, SafeScalar, KZG, SCALAR_SAFE_BYTES};
 
-use crate::{
-	kzg::{BlsScalar, KZGCommitment, KZGProof, ReprConvert, SafeScalar, KZG, SCALAR_SAFE_BYTES},
-	polynomial::Polynomial,
-};
+use super::polynomial::Polynomial;
 use alloc::{
 	string::{String, ToString},
 	vec::Vec,
 };
+use alloc::vec;
 use derive_more::{AsMut, AsRef, Deref, DerefMut, From};
 use kzg::eip_4844::{bytes_of_uint64, hash, CHALLENGE_INPUT_SIZE, FIAT_SHAMIR_PROTOCOL_DOMAIN};
 use kzg::{Fr, G1};
@@ -49,7 +48,7 @@ impl Blob {
 	#[inline]
 	pub fn try_from_bytes(bytes: &[u8], bytes_per_blob: usize) -> Result<Self, String> {
 		if bytes.len() != bytes_per_blob {
-			return Err(format!(
+			return Err(alloc::format!(
 				"Invalid byte length. Expected {} got {}",
 				bytes_per_blob,
 				bytes.len(),
@@ -76,7 +75,7 @@ impl Blob {
 	#[inline]
 	pub fn try_from_bytes_pad(bytes: &[u8], bytes_per_blob: usize) -> Result<Self, String> {
 		if bytes.len() > bytes_per_blob {
-			return Err(format!(
+			return Err(alloc::format!(
 				"Invalid byte length. Expected maximum {} got {}",
 				bytes_per_blob,
 				bytes.len(),
@@ -95,7 +94,7 @@ impl Blob {
 				chunk
 					.try_into()
 					.map_err(|_| "Chunked into incorrect number of bytes".to_string())
-					.and_then(<BlsScalar as crate::kzg::SafeScalar>::try_from_bytes_safe)
+					.and_then(<BlsScalar as SafeScalar>::try_from_bytes_safe)
 			})
 			.collect()
 	}
@@ -259,7 +258,7 @@ impl Blob {
 
 		// Check that the lengths of commitment, blobs, and proof are the same.
 		if blobs.len() != commitments.len() || blobs.len() != proofs.len() {
-			return Err(format!(
+			return Err(alloc::format!(
 				"Invalid input length. Expected {} got commitments: {} and proofs: {}",
 				blobs.len(),
 				commitments.len(),

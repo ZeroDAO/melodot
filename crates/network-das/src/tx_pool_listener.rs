@@ -14,16 +14,28 @@
 
 use frame_system::Config;
 use futures::StreamExt;
-use node_primitives::AccountId;
-use sc_network::NetworkDHTProvider;
+use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
+use sc_network::{KademliaKey, NetworkDHTProvider};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
+use sp_core::H256;
 use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::Extrinsic;
 use std::sync::Arc;
 
-use crate::{
-	get_sidercar_from_localstorage, save_sidercar_to_localstorage, Extractor, NetworkProvider,
-	Sidercar, SidercarMetadata,
-};
+use crate::AccountId;
+
+fn sidercar_kademlia_key(sidercar: &Sidercar) -> KademliaKey {
+	KademliaKey::from(Vec::from(sidercar.id()))
+}
+
+use crate::{NetworkProvider, Sidercar, SidercarMetadata};
+
+/// Extracts the `data` field from some types of extrinsics.
+pub trait Extractor<T: Extrinsic, AccountId> {
+	fn extract(
+		app_ext: T,
+	) -> Option<(H256, u32, u32, Vec<KZGCommitment>, Vec<KZGProof>, AccountId)>;
+}
 
 pub async fn process_tx_pool_notifications<Network, TP, B, C>(
 	transaction_pool: TP,
@@ -42,7 +54,7 @@ pub async fn process_tx_pool_notifications<Network, TP, B, C>(
 		match transaction_pool.ready_transaction(&notification) {
 			Some(transaction) => {
 				let extrinsic = transaction.data();
-				if let Some((data_hash, bytes_len, _, commitments, proofs, from)) =
+				if let Some((data_hash, bytes_len, _, commitments, proofs, _)) =
 					C::extract(extrinsic.clone())
 				{
 					let metadata = SidercarMetadata {
@@ -52,16 +64,20 @@ pub async fn process_tx_pool_notifications<Network, TP, B, C>(
 						proofs,
 					};
 
-					match get_sidercar_from_localstorage(&metadata.id()) {
+					let fetch_value_from_network = |sidercar: &Sidercar| {
+						network.get_value(&sidercar_kademlia_key(sidercar));
+					};
+
+					match Sidercar::from_local(&metadata.id()) {
 						Some(sidercar) => {
 							if sidercar.status.is_none() {
-								network.get_value(&sidercar.kademlia_key());
+								fetch_value_from_network(&sidercar);
 							}
 						},
 						None => {
-							let sidercar = Sidercar { from, blobs: None, metadata, status: None };
-							save_sidercar_to_localstorage(sidercar.clone());
-							network.get_value(&sidercar.kademlia_key());
+							let sidercar = Sidercar { blobs: None, metadata, status: None };
+							sidercar.save_to_local();
+							fetch_value_from_network(&sidercar);
 						},
 					}
 				}

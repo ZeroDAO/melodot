@@ -14,9 +14,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 use kzg::{FFTFr, Fr, PolyRecover, DAS, FFTG1, G1};
-use melo_core_primitives::kzg::BlsScalar;
-use melo_core_primitives::kzg::ReprConvert;
-use melo_core_primitives::polynomial::Polynomial;
+use melo_das_primitives::crypto::BlsScalar;
+use melo_das_primitives::crypto::ReprConvert;
+use melo_das_primitives::polynomial::Polynomial;
 
 use rust_kzg_blst::{
 	types::{fft_settings::FsFFTSettings, fr::FsFr, g1::FsG1, poly::FsPoly},

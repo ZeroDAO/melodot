@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub const BYTES_PER_FIELD_ELEMENT: usize = 32;
-pub const EMBEDDED_KZG_SETTINGS_BYTES: &[u8] = include_bytes!("../../scripts/eth-public-parameters-4096.bin");
+#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "std", warn(missing_debug_implementations))]
 
-pub const FIELD_ELEMENTS_PER_BLOB: usize = 4096;
-pub const BYTES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB * BYTES_PER_FIELD_ELEMENT;
+pub mod crypto;
+pub use crypto::*;
+
+pub mod blob;
+pub mod config;
+pub mod polynomial;
+pub mod segment;
+
+pub use polynomial::*;
+pub use segment::*;
+
+pub use blob::Blob;

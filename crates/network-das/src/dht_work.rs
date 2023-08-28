@@ -16,28 +16,24 @@
 
 use futures::Future;
 use futures::{FutureExt, Stream, StreamExt};
-use melo_core_primitives::blob::Blob;
-use melo_core_primitives::config::FIELD_ELEMENTS_PER_BLOB;
-use melo_core_primitives::kzg::KZG;
+use melo_das_primitives::blob::Blob;
+use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
+use melo_das_primitives::crypto::KZG;
 use melo_erasure_coding::bytes_vec_to_blobs;
 use sc_network::{DhtEvent, KademliaKey};
-use sp_core::blake2_256;
 use std::sync::Arc;
 
-use crate::{
-	get_sidercar_from_localstorage, save_sidercar_to_localstorage, NetworkProvider, SidercarStatus,
-};
+use crate::{NetworkProvider, Sidercar, SidercarStatus};
 
 pub struct Worker<Client, Network, DhtEventStream> {
-	#[warn(dead_code)]
+	#[allow(dead_code)]
 	client: Arc<Client>,
 
-	#[warn(dead_code)]
+	#[allow(dead_code)]
 	network: Arc<Network>,
 
 	/// Channel we receive Dht events on.
 	dht_event_rx: DhtEventStream,
-	// from_service: Fuse<mpsc::Receiver<ServicetoWorkerMsg<'a>>>,
 }
 
 impl<Client, Network, DhtEventStream> Worker<Client, Network, DhtEventStream>
@@ -80,11 +76,11 @@ pub fn handle_dht_event<B, C>(event: DhtEvent) {
 
 pub fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
 	for (key, value) in values {
-		let maybe_sidercar = get_sidercar_from_localstorage(key.as_ref());
+		let maybe_sidercar = Sidercar::from_local(key.as_ref());
 		match maybe_sidercar {
 			Some(sidercar) => {
 				if sidercar.status.is_none() {
-					let data_hash = blake2_256(&value);
+					let data_hash = Sidercar::calculate_id(&value);
 					let mut new_sidercar = sidercar.clone();
 					if data_hash != sidercar.metadata.blobs_hash.as_bytes() {
 						new_sidercar.status = Some(SidercarStatus::ProofError);
@@ -107,7 +103,7 @@ pub fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
 							new_sidercar.status = Some(SidercarStatus::ProofError);
 						}
 					}
-					save_sidercar_to_localstorage(new_sidercar);
+					new_sidercar.save_to_local();
 				}
 			},
 			None => {},
@@ -116,13 +112,13 @@ pub fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
 }
 
 fn handle_dht_value_not_found_event(key: KademliaKey) {
-	let maybe_sidercar = get_sidercar_from_localstorage(key.as_ref());
+	let maybe_sidercar = Sidercar::from_local(key.as_ref());
 	match maybe_sidercar {
 		Some(sidercar) => {
 			if sidercar.status.is_none() {
 				let mut new_sidercar = sidercar.clone();
 				new_sidercar.status = Some(SidercarStatus::NotFound);
-				save_sidercar_to_localstorage(new_sidercar);
+				new_sidercar.save_to_local();
 			}
 		},
 		None => {},

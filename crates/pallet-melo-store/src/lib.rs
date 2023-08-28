@@ -1,11 +1,11 @@
 // Copyright 2023 ZeroDAO
-//
+
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//
+
 //     http://www.apache.org/licenses/LICENSE-2.0
-//
+
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,8 +27,8 @@ use frame_system::{
 	offchain::{SendTransactionTypes, SubmitTransaction},
 	pallet_prelude::*,
 };
-use melo_core_primitives::blob::Blob;
-use melo_core_primitives::config::BYTES_PER_BLOB;
+use melo_das_primitives::blob::Blob;
+use melo_das_primitives::config::BYTES_PER_BLOB;
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_application_crypto::RuntimeAppPublic;
@@ -39,11 +39,12 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-use melo_core_primitives::kzg::{KZGCommitment, KZGProof};
-use sc_network_das::get_sidercar_from_localstorage;
+use melo_core_primitives::Sidercar;
+use melo_core_primitives::traits::HeaderCommitList;
+use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
-// 延迟确认不可用的阈值
+// Threshold for delayed acknowledgement of unavailability
 const DELAY_CHECK_THRESHOLD: u32 = 1;
 
 pub type AuthIndex = u32;
@@ -356,8 +357,11 @@ pub mod pallet {
 			if T::BlockNumber::from(DELAY_CHECK_THRESHOLD + 1) >= now {
 				return;
 			}
-			let _ =
-				UnavailableVote::<T>::clear_prefix(now - (DELAY_CHECK_THRESHOLD + 1).into(), T::MaxBlobNum::get(), None);
+			let _ = UnavailableVote::<T>::clear_prefix(
+				now - (DELAY_CHECK_THRESHOLD + 1).into(),
+				T::MaxBlobNum::get(),
+				None,
+			);
 		}
 
 		fn offchain_worker(now: BlockNumberFor<T>) {
@@ -424,7 +428,7 @@ impl<T: Config> Pallet<T> {
 			.enumerate()
 			.filter_map(|(i, metadata)| {
 				if let Some(sidercar) =
-					get_sidercar_from_localstorage(&metadata.data_hash.as_bytes())
+					Sidercar::from_local(&metadata.data_hash.as_bytes())
 				{
 					if sidercar.is_unavailability() {
 						Some(i as u32)
@@ -620,6 +624,17 @@ impl<T: Config> Pallet<T> {
 			let bounded_keys = <BoundedSlice<'_, _, T::MaxKeys>>::try_from(keys)
 				.expect("More than the maximum number of keys provided");
 			Keys::<T>::put(bounded_keys);
+		}
+	}
+}
+
+impl<T: Config> HeaderCommitList for Pallet<T> {
+	fn last() -> Vec<KZGCommitment> {
+		let now = <frame_system::Pallet<T>>::block_number();
+		if now <= DELAY_CHECK_THRESHOLD.into() {
+			Vec::default()
+		} else {
+			Self::get_commitment_list(now - DELAY_CHECK_THRESHOLD.into())
 		}
 	}
 }

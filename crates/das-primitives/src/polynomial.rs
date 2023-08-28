@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate alloc;
+
 use derive_more::From;
 use kzg::{FFTFr, Poly};
 use rust_kzg_blst::{
@@ -19,11 +21,12 @@ use rust_kzg_blst::{
 	utils::reverse_bit_order,
 };
 
-use crate::{
-	blob::Blob,
-	kzg::{BlsScalar, ReprConvert},
+use crate::crypto::{BlsScalar, ReprConvert};
+use crate::Blob;
+use alloc::{
+	string::{String, ToString},
+	vec::Vec,
 };
-extern crate alloc;
 
 /// A polynomial represented by a `FsPoly` struct.
 #[derive(Debug, Clone, From)]
