@@ -142,6 +142,7 @@ pub mod pallet {
 		/// The maximum number of keys that can be added.
 		type MaxKeys: Get<u32>;
 
+		#[pallet::constant]
 		type MaxBlobNum: Get<u32>;
 
 		#[pallet::constant]
