@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "node",
+    "crates/auto-config",
     "crates/core-primitives",
     "crates/das-primitives",
     "crates/frame-executive-ext",
