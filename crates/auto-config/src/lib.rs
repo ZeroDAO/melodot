@@ -1,3 +1,44 @@
+// Copyright 2023 ZeroDAO
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! # Melo Auto Config
+//! 
+//! This crate provides a procedural macro to automatically generate boilerplate code for Substrate pallet configuration traits.
+//! 
+//! ## Example Usage
+//! 
+//! ```rust
+//! use melo_auto_config::auto_config;
+//! 
+//! #[auto_config]
+//! impl pallet_balances::Config for Runtime {
+//!     type MaxLocks = ConstU32<50>;
+//!     // other types...
+//! }
+//! ```
+//! 
+//! You can add the following attributes to enable or disable features:
+//! - `skip_event`: Skips the generation of `RuntimeEvent` type
+//! - `skip_weight`: Skips the generation of `WeightInfo` type
+//! - `include_currency`: Includes the generation of `Currency` type
+//! 
+//! ```rust
+//! #[auto_config(skip_event, include_currency)]
+//! impl pallet_balances::Config for Runtime {
+//!     // ...
+//! }
+//! ```
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
@@ -5,7 +46,27 @@ use quote::quote;
 use syn::{parse_macro_input, ItemImpl, ImplItem, Visibility, PathSegment};
 use syn::spanned::Spanned;
 
-/// Generates an implementation block with optional types: RuntimeEvent, WeightInfo, and Currency.
+/// This attribute macro generates additional types for the Substrate pallet configuration trait.
+///
+/// You can use `skip_event` to skip `RuntimeEvent` type generation, `skip_weight` to skip `WeightInfo` type generation, and `include_currency` to include `Currency` type.
+///
+/// # Example
+///
+/// ```ignore
+/// #[auto_config]
+/// impl pallet_balances::Config for Runtime {
+///     type MaxLocks = ConstU32<50>;
+/// }
+/// ```
+///
+/// This will automatically generate:
+/// 
+/// ```ignore
+/// type RuntimeEvent = RuntimeEvent;
+/// type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
+/// ```
+///
+/// The `RuntimeEvent` and `WeightInfo` types are automatically generated and added to your trait implementation.
 #[proc_macro_attribute]
 pub fn auto_config(args: TokenStream, input: TokenStream) -> TokenStream {
     // Parse the input and arguments
@@ -54,6 +115,17 @@ pub fn auto_config(args: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
+// A helper function to generate a new `ImplItem::Type`.
+//
+// # Arguments
+//
+// * `type_name` - The name of the type as a string.
+// * `field_name` - The name of the field in the impl.
+// * `visibility` - The visibility of the type.
+//
+// # Returns
+//
+// Returns a new `ImplItem::Type` that can be added to an existing `ItemImpl`.
 fn generate_impl_item_type(
     type_name: &str,
     field_name: &str,
