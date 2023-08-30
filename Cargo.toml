@@ -1,8 +1,16 @@
 [workspace]
+resolver = "2"
 members = [
     "node",
-    "crates/*",
-    "pallets/*",
+    "crates/auto-config",
+    "crates/core-primitives",
+    "crates/das-primitives",
+    "crates/frame-executive-ext",
+    "crates/frame-system-ext",
+    "crates/melo-erasure-coding",
+    "crates/network-das",
+    "crates/pallet-melo-store",
+    "pallets/template",
     "runtime",
 ]
 
