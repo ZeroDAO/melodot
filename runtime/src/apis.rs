@@ -33,8 +33,8 @@ use crate::{
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("node-template"),
-	impl_name: create_runtime_str!("node-template"),
+	spec_name: create_runtime_str!("melodot"),
+	impl_name: create_runtime_str!("melodot"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 1,

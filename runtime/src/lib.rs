@@ -72,8 +72,7 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{FixedU128, Perbill, Permill};
 
-/// Import the template pallet.
-pub use pallet_template;
+use melo_core_primitives::Header as ExtendedHeader;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -97,6 +96,9 @@ pub type Hash = sp_core::H256;
 /// Time type
 pub type Moment = u64;
 
+/// Block header type as expected by this runtime.
+pub type Header = ExtendedHeader<BlockNumber, BlakeTwo256>;
+
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
@@ -107,7 +109,7 @@ pub mod opaque {
 	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
 	/// Opaque block header type.
-	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	pub type Header = ExtendedHeader<BlockNumber, BlakeTwo256>;
 	/// Opaque block type.
 	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 	/// Opaque block identifier type.
@@ -152,7 +154,7 @@ impl frame_system::Config for Runtime {
 	/// The hashing algorithm used.
 	type Hashing = BlakeTwo256;
 	/// The header type.
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Header = Header;
 	/// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	/// The ubiquitous origin type.
@@ -257,12 +259,6 @@ impl pallet_transaction_payment::Config for Runtime {
 #[auto_config(skip_weight)]
 impl pallet_sudo::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
-}
-
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
 
 #[auto_config(skip_weight)]
@@ -678,6 +674,21 @@ impl pallet_preimage::Config for Runtime {
 	type ByteDeposit = PreimageByteDeposit;
 }
 
+impl frame_system_ext::Config for Runtime {
+	type CommitList = MeloStore;
+	type ExtendedHeader = Header;
+}
+
+#[auto_config(skip_weight)]
+impl pallet_melo_store::Config for Runtime {
+	type AuthorityId = ImOnlineId;
+	type MaxBlobNum = system::MaxBlobNumber;
+	type MaxKeys = consensus::MaxKeys;
+	type ValidatorSet = Historical;
+	type WeightInfo = ();
+	type UnsignedPriority = ();
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
@@ -686,42 +697,46 @@ construct_runtime!(
 		NodeBlock = opaque::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
+		// Basic stuff.
 		System: frame_system,
 		Timestamp: pallet_timestamp,
+
+		// Consensus support.
 		Babe: pallet_babe,
 		Grandpa: pallet_grandpa,
-		Balances: pallet_balances,
-		TransactionPayment: pallet_transaction_payment,
-		Sudo: pallet_sudo,
-
-		TemplateModule: pallet_template,
-
 		Session: pallet_session,
 		Staking: pallet_staking,
-		VoterList: pallet_bags_list::<Instance1>,
-
-		TechnicalCommittee: pallet_collective::<Instance2>,
-		TechnicalMembership: pallet_membership::<Instance1>,
-		Council: pallet_collective::<Instance1>,
-
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase,
-		Democracy: pallet_democracy,
-		Treasury: pallet_treasury,
 		ImOnline: pallet_im_online,
 		AuthorityDiscovery: pallet_authority_discovery,
 		Offences: pallet_offences,
 		Historical: pallet_session_historical::{Pallet},
 		NominationPools: pallet_nomination_pools,
 		Scheduler: pallet_scheduler,
+		VoterList: pallet_bags_list::<Instance1>,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase,
+
+		// Currency stuff.
+		Balances: pallet_balances,
+		TransactionPayment: pallet_transaction_payment,
+
+		// Governance support.
+		Sudo: pallet_sudo,
+		TechnicalCommittee: pallet_collective::<Instance2>,
+		TechnicalMembership: pallet_membership::<Instance1>,
+		Council: pallet_collective::<Instance1>,
+		Democracy: pallet_democracy,
+		Treasury: pallet_treasury,
 		Bounties: pallet_bounties,
 		Preimage: pallet_preimage,
+
+		// Melodot.
+		MeloStore: pallet_melo_store,
+		SystemExt: frame_system_ext,
 	}
 );
 
 /// The address format for describing accounts.
 pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
-/// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// The SignedExtension to the basic transaction logic.
@@ -742,7 +757,7 @@ pub type UncheckedExtrinsic =
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<
+pub type Executive = frame_executive_ext::Executive<
 	Runtime,
 	Block,
 	frame_system::ChainContext<Runtime>,
@@ -759,9 +774,24 @@ mod benches {
 	define_benchmarks!(
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
-		[pallet_balances, Balances]
-		[pallet_timestamp, Timestamp]
-		[pallet_template, TemplateModule]
+
+		[pallet_babe, crate::Babe]
+		[pallet_timestamp, crate::Timestamp]
+		[pallet_balances, crate::Balances]
+		[pallet_election_provider_multi_phase, crate::ElectionProviderMultiPhase]
+		[pallet_staking, crate::Staking]
+		[pallet_democracy, crate::Democracy]
+		[pallet_collective, crate::Council]
+		[pallet_collective, crate::TechnicalCommittee]
+		[pallet_elections_phragmen, crate::Elections]
+		[pallet_grandpa, crate::Grandpa]
+		[pallet_treasury, crate::Treasury]
+		[pallet_im_online, crate::ImOnline]
+		[pallet_scheduler, crate::Scheduler]
+		[pallet_bounties, crate::Bounties]
+
+		[pallet_melo_store, crate::MeloStore]
+		[frame_system_ext, crate::SystemExt]
 	);
 }
 

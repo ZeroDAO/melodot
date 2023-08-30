@@ -10,7 +10,6 @@ members = [
     "crates/melo-erasure-coding",
     "crates/network-das",
     "crates/pallet-melo-store",
-    "pallets/template",
     "runtime",
 ]
 

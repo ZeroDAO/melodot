@@ -15,8 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! A set of constant values used in substrate runtime.
-
+//! A set of configuration types used to configure the FRAME pallets.
 #![allow(clippy::identity_op)]
 use frame_support::{
 	dispatch::DispatchClass,
@@ -71,6 +70,8 @@ pub mod core {
 	pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * time::HOURS;
+
+	pub const MAX_BLOB_NUMBER: u32 = 100;
 }
 
 /// Money matters.
@@ -116,8 +117,11 @@ pub mod system {
 	parameter_types! {
 		pub const BlockHashCount: BlockNumber = 2400;
 		pub const Version: RuntimeVersion = VERSION;
+
+		pub MaxBlobNumber: u32 = core::MAX_BLOB_NUMBER;
 		pub RuntimeBlockLength: BlockLength =
 			BlockLength::max_with_normal_ratio(5 * 1024 * 1024, core::NORMAL_DISPATCH_RATIO);
+			
 		pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
 		.base_block(BlockExecutionWeight::get())
 		.for_class(DispatchClass::all(), |weights| {
