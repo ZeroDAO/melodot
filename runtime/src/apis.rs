@@ -28,7 +28,7 @@ use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use crate::{
 	AccountId, AuthorityDiscovery, Babe, Balance, Block, BlockT, consensus::EpochDuration, opaque::SessionKeys,
 	Executive, Grandpa, Historical, Index, InherentDataExt, KeyTypeId, OpaqueMetadata, Runtime,
-	RuntimeCall, RuntimeVersion, System, TransactionPayment, Weight, consensus::GENESIS_EPOCH_CONFIG
+	RuntimeCall, RuntimeVersion, System, TransactionPayment, Weight, Vec, consensus::GENESIS_EPOCH_CONFIG
 };
 
 #[sp_version::runtime_version]
