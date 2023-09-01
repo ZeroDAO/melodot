@@ -12,40 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use frame_system::Config;
 use futures::StreamExt;
-use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
+use melo_core_primitives::{traits::Extractor, Encode};
 use sc_network::{KademliaKey, NetworkDHTProvider};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use sp_core::H256;
+use sp_api::ProvideRuntimeApi;
+use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
-use sp_runtime::traits::Extrinsic;
 use std::sync::Arc;
 
-use crate::AccountId;
+const LOG_TARGET: &str = "tx_pool_listener";
+
+use crate::{NetworkProvider, Sidercar, SidercarMetadata};
 
 fn sidercar_kademlia_key(sidercar: &Sidercar) -> KademliaKey {
 	KademliaKey::from(Vec::from(sidercar.id()))
 }
 
-use crate::{NetworkProvider, Sidercar, SidercarMetadata};
-
-/// Extracts the `data` field from some types of extrinsics.
-pub trait Extractor<T: Extrinsic, AccountId> {
-	fn extract(
-		app_ext: T,
-	) -> Option<(H256, u32, u32, Vec<KZGCommitment>, Vec<KZGProof>, AccountId)>;
+#[derive(Clone)]
+pub struct TPListenerParams<Client, Network, TP> {
+	pub client: Arc<Client>,
+	pub network: Arc<Network>,
+	pub transaction_pool: Arc<TP>,
 }
 
-pub async fn process_tx_pool_notifications<Network, TP, B, C>(
-	transaction_pool: TP,
-	network: Arc<Network>,
+pub async fn start_tx_pool_listener<Client, Network, TP, B>(
+	TPListenerParams { client, network, transaction_pool }: TPListenerParams<Client, Network, TP>,
 ) where
-	B: BlockT + 'static,
-	Network: NetworkProvider,
-	TP: TransactionPool<Block = B>,
-	C: Config + Send + Sync + Extractor<B::Extrinsic, AccountId>,
+	Network: NetworkProvider + 'static,
+	TP: TransactionPool<Block = B> + 'static,
+	B: BlockT + Send + Sync + 'static,
+	Client: HeaderBackend<B> + ProvideRuntimeApi<B>,
+	Client::Api: Extractor<B>,
 {
+	tracing::info!(
+		target: LOG_TARGET,
+		"Starting transaction pool listener.",
+	);
 	// Obtain the import notification event stream from the transaction pool
 	let mut import_notification_stream = transaction_pool.import_notification_stream();
 
@@ -53,34 +56,63 @@ pub async fn process_tx_pool_notifications<Network, TP, B, C>(
 	while let Some(notification) = import_notification_stream.next().await {
 		match transaction_pool.ready_transaction(&notification) {
 			Some(transaction) => {
-				let extrinsic = transaction.data();
-				if let Some((data_hash, bytes_len, _, commitments, proofs, _)) =
-					C::extract(extrinsic.clone())
-				{
-					let metadata = SidercarMetadata {
-						data_len: bytes_len,
-						blobs_hash: data_hash,
-						commitments,
-						proofs,
-					};
+				// TODO: Can we avoid decoding the extrinsic here?
+				let encoded = transaction.data().encode();
+				let at = client.info().best_hash;
+				match client.runtime_api().extract(at, &encoded) {
+					Ok(res) => match res {
+						Some(data) => {
+							data.into_iter().for_each(
+								|(data_hash, bytes_len, commitments, proofs)| {
+									tracing::debug!(
+										target: LOG_TARGET,
+										"New blob transaction found. Hash: {:?}", data_hash,
+									);
 
-					let fetch_value_from_network = |sidercar: &Sidercar| {
-						network.get_value(&sidercar_kademlia_key(sidercar));
-					};
+									let metadata = SidercarMetadata {
+										data_len: bytes_len,
+										blobs_hash: data_hash,
+										commitments,
+										proofs,
+									};
 
-					match Sidercar::from_local(&metadata.id()) {
-						Some(sidercar) => {
-							if sidercar.status.is_none() {
-								fetch_value_from_network(&sidercar);
-							}
+									let fetch_value_from_network = |sidercar: &Sidercar| {
+										network.get_value(&sidercar_kademlia_key(sidercar));
+									};
+
+									match Sidercar::from_local(&metadata.id()) {
+										Some(sidercar) => {
+											if sidercar.status.is_none() {
+												fetch_value_from_network(&sidercar);
+											}
+										},
+										None => {
+											let sidercar =
+												Sidercar { blobs: None, metadata, status: None };
+											sidercar.save_to_local();
+											fetch_value_from_network(&sidercar);
+										},
+									}
+								},
+							);
 						},
 						None => {
-							let sidercar = Sidercar { blobs: None, metadata, status: None };
-							sidercar.save_to_local();
-							fetch_value_from_network(&sidercar);
+							tracing::debug!(
+								target: LOG_TARGET,
+								"Decoding of extrinsic failed. Transaction: {:?}",
+								transaction.hash(),
+							);
 						},
-					}
-				}
+					},
+					Err(err) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							"Failed to extract data from extrinsic. Transaction: {:?}. Error: {:?}",
+							transaction.hash(),
+							err,
+						);
+					},
+				};
 			},
 			None => {},
 		}

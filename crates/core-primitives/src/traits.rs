@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use melo_das_primitives::KZGCommitment;
 use crate::{Digest, HeaderExtension, Vec};
+use melo_das_primitives::{KZGCommitment, KZGProof};
+use sp_core::H256;
 
 pub trait ExtendedHeader {
 	/// Header number.
@@ -32,29 +33,39 @@ pub trait ExtendedHeader {
 		extension: HeaderExtension,
 	) -> Self;
 
-    /// Returns the header extension.
+	/// Returns the header extension.
 	fn extension(&self) -> &HeaderExtension;
 
-    /// Set the header extension.
+	/// Set the header extension.
 	fn set_extension(&mut self, extension: HeaderExtension);
 
-    /// Set the commitment of root.
-    fn set_commitments(&mut self, commitment_set: &[KZGCommitment]);
+	/// Set the commitment of root.
+	fn set_commitments(&mut self, commitment_set: &[KZGCommitment]);
 
-    /// Returns the commitments.
-    fn commitments(&self) -> Option<Vec<KZGCommitment>>;
+	/// Returns the commitments.
+	fn commitments(&self) -> Option<Vec<KZGCommitment>>;
 
-    /// Returns the commitments set bytes.
-    fn commitments_bytes(&self) -> &[u8];
+	/// Returns the commitments set bytes.
+	fn commitments_bytes(&self) -> &[u8];
 
-    /// Returns the number of columns.
-    fn col_num(&self) -> Option<u32>;
+	/// Returns the number of columns.
+	fn col_num(&self) -> Option<u32>;
 }
 
 pub trait HeaderCommitList {
-    /// Returns a list of the latest confirmed commitments available for the Blob Matrix.
-    /// 
-    /// Note that they are not related to data availability, but rather to the validator's 
+	/// Returns a list of the latest confirmed commitments available for the Blob Matrix.
+	///
+	/// Note that they are not related to data availability, but rather to the validator's
 	/// initial confirmation of the probability of availability.
-    fn last() -> Vec<KZGCommitment>;
+	fn last() -> Vec<KZGCommitment>;
+}
+
+sp_api::decl_runtime_apis! {
+	/// Extracts the `data` field from some types of extrinsics.
+	pub trait Extractor {
+		fn extract(
+			extrinsic: &Vec<u8>,
+			// (data_hash, bytes_len, commitments, proofs)
+		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>>;
+}
 }
