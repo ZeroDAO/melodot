@@ -24,8 +24,8 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 pub mod config;
-use config::{consensus, currency::*, gov, system};
 pub use config::core::*;
+use config::{consensus, currency::*, gov, system};
 
 pub mod apis;
 pub use apis::*;
@@ -216,6 +216,12 @@ impl pallet_timestamp::Config for Runtime {
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type EventHandler = (Staking, ImOnline);
+}
+
+#[auto_config]
+impl pallet_utility::Config for Runtime {
+    type RuntimeCall = RuntimeCall;
+    type PalletsOrigin = OriginCaller;
 }
 
 use sp_runtime::traits::Convert;
@@ -721,6 +727,7 @@ construct_runtime!(
 		// Basic stuff.
 		System: frame_system,
 		Timestamp: pallet_timestamp,
+		Utility: pallet_utility,
 
 		// Consensus support.
 		Babe: pallet_babe,

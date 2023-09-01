@@ -18,18 +18,24 @@
 use frame_support::traits::KeyOwnerProofSystem;
 use pallet_grandpa::AuthorityId as GrandpaId;
 use sp_api::impl_runtime_apis;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_core::H256;
 use sp_runtime::{
+	create_runtime_str,
 	traits::NumberFor,
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, create_runtime_str,
+	ApplyExtrinsicResult,
 };
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_std::vec;
 
 use crate::{
-	AccountId, AuthorityDiscovery, Babe, Balance, Block, BlockT, consensus::EpochDuration, opaque::SessionKeys,
-	Executive, Grandpa, Historical, Index, InherentDataExt, KeyTypeId, OpaqueMetadata, Runtime,
-	RuntimeCall, RuntimeVersion, System, TransactionPayment, Weight, Vec, consensus::GENESIS_EPOCH_CONFIG
+	consensus::EpochDuration, consensus::GENESIS_EPOCH_CONFIG, opaque::SessionKeys, AccountId,
+	AuthorityDiscovery, Babe, Balance, Block, BlockT, Executive, Grandpa, Historical, Index,
+	InherentDataExt, KeyTypeId, OpaqueMetadata, Runtime, RuntimeCall, RuntimeVersion, System,
+	TransactionPayment, UncheckedExtrinsic, Vec, Weight,
 };
+use codec::Decode;
+use melo_das_primitives::{KZGCommitment, KZGProof};
 
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
@@ -44,6 +50,39 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 impl_runtime_apis! {
+	impl melo_core_primitives::traits::Extractor<Block> for Runtime {
+		fn extract(
+			extrinsic: &Vec<u8>,
+		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>> {
+			// Decode the unchecked extrinsic
+			let extrinsic = UncheckedExtrinsic::decode(&mut &extrinsic[..]).ok()?;
+
+			fn filter(call: RuntimeCall) -> Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+				match call {
+					RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
+						app_id: _,
+						bytes_len,
+						data_hash,
+						commitments,
+						proofs,
+					}) => vec![(data_hash, bytes_len, commitments, proofs)],
+					RuntimeCall::Utility(pallet_utility::Call::batch { calls })
+					| RuntimeCall::Utility(pallet_utility::Call::batch_all { calls })
+					| RuntimeCall::Utility(pallet_utility::Call::force_batch { calls }) => process_calls(calls),
+					_ => vec![],
+				}
+			}
+
+			fn process_calls(
+				calls: Vec<RuntimeCall>,
+			) -> Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+				calls.into_iter().flat_map(filter).collect()
+			}
+
+			Some(process_calls(vec![extrinsic.function]))
+		}
+	}
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION

@@ -4532,6 +4532,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-api 4.0.0-dev",
  "sp-core 7.0.0",
  "sp-io 7.0.0",
  "sp-runtime 7.0.0",
@@ -4587,6 +4588,7 @@ dependencies = [
  "frame-system 4.0.0-dev",
  "futures",
  "jsonrpsee",
+ "melo-core-primitives",
  "melodot-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
@@ -4603,6 +4605,7 @@ dependencies = [
  "sc-executor",
  "sc-keystore",
  "sc-network",
+ "sc-network-das",
  "sc-rpc",
  "sc-rpc-api",
  "sc-service",
@@ -4644,6 +4647,7 @@ dependencies = [
  "frame-try-runtime",
  "melo-auto-config",
  "melo-core-primitives",
+ "melo-das-primitives",
  "node-primitives",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -4672,6 +4676,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
+ "pallet-utility",
  "parity-scale-codec",
  "scale-info",
  "sp-api 4.0.0-dev",
@@ -5834,6 +5839,22 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-runtime 7.0.0",
+ "sp-std 5.0.0",
+]
+
+[[package]]
+name = "pallet-utility"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.42#ff24c60ac7d9f87727ecdd0ded9a80c56e4f4b65"
+dependencies = [
+ "frame-benchmarking 4.0.0-dev",
+ "frame-support 4.0.0-dev",
+ "frame-system 4.0.0-dev",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 7.0.0",
+ "sp-io 7.0.0",
  "sp-runtime 7.0.0",
  "sp-std 5.0.0",
 ]
@@ -7711,8 +7732,11 @@ dependencies = [
  "sc-network",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "sp-api 4.0.0-dev",
+ "sp-blockchain",
  "sp-core 7.0.0",
  "sp-runtime 7.0.0",
+ "tracing",
 ]
 
 [[package]]

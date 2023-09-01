@@ -73,6 +73,8 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate.git", 
 
 # Local Dependencies
 melodot-runtime = { version = "0.0.1", path = "../runtime" }
+sc-network-das = { version = "0.0.1", path = "../crates/network-das" }
+melo-core-primitives = { version = "0.1.0", path = "../crates/core-primitives" }
 
 # CLI-specific dependencies
 try-runtime-cli = { optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

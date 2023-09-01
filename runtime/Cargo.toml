@@ -21,6 +21,7 @@ codec = { package = "parity-scale-codec", version = "3.2.2", default-features = 
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
 melo-auto-config = { version = "0.9.42", default-features = false, path="../crates/auto-config" }
+# parity-scale-codec = { package = "parity-scale-codec", version = "3.3", default-features = false}
 
 # Substrate
 pallet-babe = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -48,6 +49,7 @@ pallet-offences = { default-features = false, git = "https://github.com/parityte
 pallet-session = { features = ['historical'], default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 pallet-staking = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 
 frame-election-provider-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -85,6 +87,7 @@ frame-system-benchmarking = { default-features = false, git = "https://github.co
 frame-executive-ext = { default-features = false, path = "../crates/frame-executive-ext" }
 frame-system-ext = { default-features = false, path = "../crates/frame-system-ext" }
 melo-core-primitives = { version = "0.1.0", default-features = false, path = "../crates/core-primitives"}
+melo-das-primitives = { version = "0.1.0", default-features = false, path = "../crates/das-primitives"}
 pallet-melo-store = { version = "0.1.0", default-features = false, path = "../crates/pallet-melo-store" }
 
 [build-dependencies]
@@ -147,6 +150,7 @@ std = [
 	"pallet-bounties/std",
 	"pallet-preimage/std",
 	"pallet-membership/std",
+	"pallet-utility/std",
 	"sp-staking/std",
 	"node-primitives/std",
 ]
@@ -167,6 +171,8 @@ runtime-benchmarks = [
 	"pallet-bounties/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
+
 ]
 try-runtime = [
 	"frame-try-runtime/try-runtime",
@@ -191,4 +197,5 @@ try-runtime = [
 	"pallet-bounties/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-membership/try-runtime",
+	"pallet-utility/try-runtime",
 ]
