@@ -14,7 +14,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use futures::Future;
 use futures::{FutureExt, Stream, StreamExt};
 use melo_das_primitives::blob::Blob;
 use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
@@ -45,82 +44,81 @@ where
 		Worker { client, network, dht_event_rx }
 	}
 
-	pub async fn run<Fut, FStart, FHandler>(mut self, start: FStart, handler: FHandler)
+	pub async fn run<FStart>(mut self, start: FStart)
 	where
-		FStart: Fn() -> Fut + Send + Sync + 'static,
-		Fut: Future + Send + 'static,
-		FHandler: Fn(DhtEvent) -> Fut + Send + Sync + 'static,
+		FStart: Fn(),
 	{
 		loop {
 			start();
 			futures::select! {
 				event = self.dht_event_rx.next().fuse() => {
 					if let Some(event) = event {
-						handler(event).await;
+						Self::handle_dht_event(event).await;
 					}
 				},
 			}
 		}
 	}
-}
 
-pub fn handle_dht_event<B, C>(event: DhtEvent) {
-	match event {
-		DhtEvent::ValueFound(v) => {
-			handle_dht_value_found_event(v);
-		},
-		DhtEvent::ValueNotFound(key) => handle_dht_value_not_found_event(key),
-		_ => {},
+	async fn handle_dht_event(event: DhtEvent) {
+		match event {
+			DhtEvent::ValueFound(v) => {
+				Self::handle_dht_value_found_event(v);
+			},
+			DhtEvent::ValueNotFound(key) => Self::handle_dht_value_not_found_event(key),
+			_ => {},
+		}
 	}
-}
 
-pub fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
-	for (key, value) in values {
+	fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
+		for (key, value) in values {
+			let maybe_sidercar = Sidercar::from_local(key.as_ref());
+			match maybe_sidercar {
+				Some(sidercar) => {
+					if sidercar.status.is_none() {
+						let data_hash = Sidercar::calculate_id(&value);
+						let mut new_sidercar = sidercar.clone();
+						if data_hash != sidercar.metadata.blobs_hash.as_bytes() {
+							new_sidercar.status = Some(SidercarStatus::ProofError);
+						} else {
+							let kzg = KZG::default_embedded();
+							// TODO bytes to blobs
+							let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
+							let encoding_valid = Blob::verify_batch(
+								&blobs,
+								&sidercar.metadata.commitments,
+								&sidercar.metadata.proofs,
+								&kzg,
+								FIELD_ELEMENTS_PER_BLOB,
+							)
+							.unwrap();
+							if encoding_valid {
+								new_sidercar.blobs = Some(value.clone());
+								new_sidercar.status = Some(SidercarStatus::Success);
+							} else {
+								new_sidercar.status = Some(SidercarStatus::ProofError);
+							}
+						}
+						new_sidercar.save_to_local();
+					}
+				},
+				None => {},
+			}
+		}
+	}
+	
+	fn handle_dht_value_not_found_event(key: KademliaKey) {
 		let maybe_sidercar = Sidercar::from_local(key.as_ref());
 		match maybe_sidercar {
 			Some(sidercar) => {
 				if sidercar.status.is_none() {
-					let data_hash = Sidercar::calculate_id(&value);
 					let mut new_sidercar = sidercar.clone();
-					if data_hash != sidercar.metadata.blobs_hash.as_bytes() {
-						new_sidercar.status = Some(SidercarStatus::ProofError);
-					} else {
-						let kzg = KZG::default_embedded();
-						// TODO bytes to blobs
-						let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
-						let encoding_valid = Blob::verify_batch(
-							&blobs,
-							&sidercar.metadata.commitments,
-							&sidercar.metadata.proofs,
-							&kzg,
-							FIELD_ELEMENTS_PER_BLOB,
-						)
-						.unwrap();
-						if encoding_valid {
-							new_sidercar.blobs = Some(value.clone());
-							new_sidercar.status = Some(SidercarStatus::Success);
-						} else {
-							new_sidercar.status = Some(SidercarStatus::ProofError);
-						}
-					}
+					new_sidercar.status = Some(SidercarStatus::NotFound);
 					new_sidercar.save_to_local();
 				}
 			},
 			None => {},
 		}
 	}
-}
-
-fn handle_dht_value_not_found_event(key: KademliaKey) {
-	let maybe_sidercar = Sidercar::from_local(key.as_ref());
-	match maybe_sidercar {
-		Some(sidercar) => {
-			if sidercar.status.is_none() {
-				let mut new_sidercar = sidercar.clone();
-				new_sidercar.status = Some(SidercarStatus::NotFound);
-				new_sidercar.save_to_local();
-			}
-		},
-		None => {},
-	}
+	
 }
