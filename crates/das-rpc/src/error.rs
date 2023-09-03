@@ -1,0 +1,88 @@
+// This file is part of Substrate.
+
+// Copyright (C) Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! DAS RPC errors.
+
+use jsonrpsee::{
+    core::Error as JsonRpseeError,
+    types::error::{CallError, ErrorObject},
+};
+
+/// DAS RPC errors.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Decoding extrinsic failed
+    #[error("Decoding extrinsic failed: {}", .0)]
+    DecodingExtrinsicFailed(Box<dyn std::error::Error + Send + Sync>),
+    /// Decoding transaction metadata failed
+    #[error("Decoding transaction metadata failed: {}", .0)]
+    DecodingTransactionMetadataFailed(Box<dyn std::error::Error + Send + Sync>),
+    /// Failed to fetch transaction metadata details
+    #[error("Failed to fetch transaction metadata details: {}", .0)]
+    FetchTransactionMetadataFailed(Box<dyn std::error::Error + Send + Sync>),
+    /// Invalid transaction format
+    #[error("Invalid transaction format")]
+    InvalidTransactionFormat,
+    /// Data length or hash error
+    #[error("Data length or hash error")]
+    DataLengthOrHashError,
+    /// Failed to push transaction
+    #[error("Failed to push transaction: {}", .0)]
+    TransactionPushFailed(Box<dyn std::error::Error + Send + Sync>),
+}
+
+/// DAS error codes
+const BASE_ERROR: i32 = 10000;
+
+impl From<Error> for JsonRpseeError {
+    fn from(e: Error) -> Self {
+        match e {
+            Error::DecodingExtrinsicFailed(e) => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 1,
+                "Decoding extrinsic failed",
+                Some(format!("{:?}", e)),
+            )),
+            Error::DecodingTransactionMetadataFailed(e) => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 2,
+                "Decoding transaction metadata failed",
+                Some(format!("{:?}", e)),
+            )),
+            Error::FetchTransactionMetadataFailed(e) => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 3,
+                "Failed to fetch transaction metadata details",
+                Some(format!("{:?}", e)),
+            )),
+            Error::InvalidTransactionFormat => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 4,
+                "Invalid transaction format",
+                None::<()>,
+            )),
+            Error::DataLengthOrHashError => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 5,
+                "Data length or hash error",
+                None::<()>,
+            )),
+            Error::TransactionPushFailed(e) => CallError::Custom(ErrorObject::owned(
+                BASE_ERROR + 6,
+                "Failed to push transaction",
+                Some(format!("{:?}", e)),
+            )),
+        }.into()
+    }
+}
+

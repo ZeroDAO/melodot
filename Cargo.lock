@@ -1282,7 +1282,7 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-entity 0.93.2",
  "cranelift-frontend",
- "itertools 0.10.5",
+ "itertools",
  "log",
  "smallvec",
  "wasmparser 0.100.0",
@@ -1325,7 +1325,7 @@ dependencies = [
  "ciborium",
  "clap 3.2.25",
  "criterion-plot",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -1346,7 +1346,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
- "itertools 0.10.5",
+ "itertools",
 ]
 
 [[package]]
@@ -2347,7 +2347,7 @@ dependencies = [
  "frame-system 4.0.0-dev",
  "gethostname",
  "handlebars",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "linked-hash-map",
  "log",
@@ -2549,7 +2549,7 @@ dependencies = [
  "cfg-expr",
  "derive-syn-parse",
  "frame-support-procedural-tools 4.0.0-dev",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro-warning",
  "proc-macro2",
  "quote",
@@ -2565,7 +2565,7 @@ dependencies = [
  "Inflector",
  "cfg-expr",
  "frame-support-procedural-tools 4.0.0",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -2840,6 +2840,10 @@ name = "futures-timer"
 version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e64b03909df88034c26dc1547e8970b91f98bdb65165d6a4e9110d94263dbb2c"
+dependencies = [
+ "gloo-timers",
+ "send_wrapper",
+]
 
 [[package]]
 name = "futures-util"
@@ -2976,6 +2980,51 @@ dependencies = [
  "fnv",
  "log",
  "regex",
+]
+
+[[package]]
+name = "gloo-net"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9902a044653b26b99f7e3693a42f171312d9be8b26b5697bd1e43ad1f8a35e10"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "gloo-utils",
+ "js-sys",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "gloo-timers"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b995a66bb87bebce9a0f4a95aed01daca4872c050bfcb21653361c03bc35e5c"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "gloo-utils"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037fcb07216cb3a30f7292bd0176b050b7b9a052ba830ef7d5d65f6dc64ba58e"
+dependencies = [
+ "js-sys",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -3526,15 +3575,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3564,11 +3604,13 @@ version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "367a292944c07385839818bb71c8d76611138e2dedb0677d035b8da21d29c78b"
 dependencies = [
+ "jsonrpsee-client-transport",
  "jsonrpsee-core",
  "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
  "jsonrpsee-server",
  "jsonrpsee-types",
+ "jsonrpsee-wasm-client",
  "jsonrpsee-ws-client",
  "tracing",
 ]
@@ -3579,7 +3621,11 @@ version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8b3815d9f5d5de348e5f162b316dc9cdf4548305ebb15b4eb9328e66cf27d7a"
 dependencies = [
+ "anyhow",
+ "futures-channel",
+ "futures-timer",
  "futures-util",
+ "gloo-net",
  "http",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -3620,6 +3666,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -3688,6 +3735,17 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "jsonrpsee-wasm-client"
+version = "0.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e5df77c8f625d36e4cfb583c5a674eccebe32403fcfe42f7ceff7fac9324dd"
+dependencies = [
+ "jsonrpsee-client-transport",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
 ]
 
 [[package]]
@@ -4529,7 +4587,9 @@ version = "0.1.0"
 dependencies = [
  "log",
  "melo-das-primitives",
+ "melo-erasure-coding",
  "parity-scale-codec",
+ "rayon",
  "scale-info",
  "serde",
  "sp-api 4.0.0-dev",
@@ -4537,6 +4597,27 @@ dependencies = [
  "sp-io 7.0.0",
  "sp-runtime 7.0.0",
  "sp-std 5.0.0",
+]
+
+[[package]]
+name = "melo-das-network"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "frame-system 4.0.0-dev",
+ "futures",
+ "melo-core-primitives",
+ "melo-das-primitives",
+ "melo-erasure-coding",
+ "node-primitives",
+ "sc-network",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api",
+ "sp-api 4.0.0-dev",
+ "sp-blockchain",
+ "sp-core 7.0.0",
+ "sp-runtime 7.0.0",
+ "tracing",
 ]
 
 [[package]]
@@ -4566,12 +4647,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "melo-das-rpc"
+version = "0.0.1"
+dependencies = [
+ "jsonrpsee",
+ "melo-core-primitives",
+ "melo-das-network",
+ "melodot-runtime",
+ "parity-scale-codec",
+ "sc-rpc-api",
+ "sc-transaction-pool-api",
+ "serde",
+ "sp-api 4.0.0-dev",
+ "sp-blockchain",
+ "sp-core 7.0.0",
+ "sp-runtime 7.0.0",
+ "thiserror",
+]
+
+[[package]]
 name = "melo-erasure-coding"
 version = "0.1.0"
 dependencies = [
  "criterion",
  "derive_more",
- "itertools 0.11.0",
  "kzg",
  "melo-das-primitives",
  "rand 0.8.5",
@@ -4589,6 +4688,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "melo-core-primitives",
+ "melo-das-network",
  "melodot-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
@@ -4605,7 +4705,6 @@ dependencies = [
  "sc-executor",
  "sc-keystore",
  "sc-network",
- "sc-network-das",
  "sc-rpc",
  "sc-rpc-api",
  "sc-service",
@@ -6264,7 +6363,7 @@ checksum = "59230a63c37f3e18569bdb90e4a89cbf5bf8b06fea0b84e65ea10cc4df47addd"
 dependencies = [
  "difflib",
  "float-cmp",
- "itertools 0.10.5",
+ "itertools",
  "normalize-line-endings",
  "predicates-core",
  "regex",
@@ -6418,7 +6517,7 @@ checksum = "119533552c9a7ffacc21e099c24a0ac8bb19c2a2a3f363de84cd9b844feab270"
 dependencies = [
  "bytes",
  "heck",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "log",
  "multimap",
@@ -6452,7 +6551,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -7719,27 +7818,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-network-das"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "frame-system 4.0.0-dev",
- "futures",
- "melo-core-primitives",
- "melo-das-primitives",
- "melo-erasure-coding",
- "node-primitives",
- "sc-network",
- "sc-transaction-pool",
- "sc-transaction-pool-api",
- "sp-api 4.0.0-dev",
- "sp-blockchain",
- "sp-core 7.0.0",
- "sp-runtime 7.0.0",
- "tracing",
-]
-
-[[package]]
 name = "sc-network-gossip"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.42#ff24c60ac7d9f87727ecdd0ded9a80c56e4f4b65"
@@ -8434,6 +8512,12 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+
+[[package]]
+name = "send_wrapper"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
 name = "serde"

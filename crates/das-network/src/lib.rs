@@ -13,7 +13,7 @@
 // limitations under the License.
 
 pub use node_primitives::AccountId;
-use sc_network::{NetworkDHTProvider, NetworkSigner, NetworkStateInfo};
+pub use sc_network::{KademliaKey, NetworkDHTProvider, NetworkSigner, NetworkStateInfo};
 
 pub mod dht_work;
 pub mod tx_pool_listener;
@@ -25,3 +25,12 @@ pub use melo_core_primitives::{
 	Sidercar, SidercarMetadata,
 	SidercarStatus,
 };
+use sp_core::H256;
+
+pub fn sidercar_kademlia_key(sidercar: &Sidercar) -> KademliaKey {
+	KademliaKey::from(Vec::from(sidercar.id()))
+}
+
+pub fn kademlia_key_from_sidercar_id(sidercar_id: &H256) -> KademliaKey {
+	KademliaKey::from(Vec::from(&sidercar_id[..]))
+}

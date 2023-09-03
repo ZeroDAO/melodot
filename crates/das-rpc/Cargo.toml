@@ -1,0 +1,26 @@
+[package]
+name = "melo-das-rpc"
+version = "0.0.1"
+description = "Network Core Module in Data Availability."
+license = "Apache-2.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sc-transaction-pool-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-blockchain = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sc-rpc-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+
+codec = { package = "parity-scale-codec", version = "3.6.1" }
+jsonrpsee = { version = "0.16.2", features = ["server", "client", "macros"] }
+thiserror = "1.0"
+serde = { version = "1.0.159", features = ["derive"] }
+
+melodot-runtime = { path = "../../runtime" }
+melo-core-primitives = { path = "../core-primitives" }
+melo-das-network = { path = "../das-network" }
+
+[dev-dependencies]

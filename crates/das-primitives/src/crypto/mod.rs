@@ -31,6 +31,10 @@ use rust_kzg_blst::types::{
 	g2::FsG2, kzg_settings::FsKZGSettings,
 };
 use scale_info::{Type, TypeInfo};
+// #[cfg(feature = "serde")]
+// use serde::de::Error;
+// #[cfg(feature = "serde")]
+// use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[cfg(feature = "serde")]
 mod serde;
@@ -46,7 +50,7 @@ use super::{
 // type system.
 // But we use macros instead of separate implementations for each type.
 macro_rules! kzg_type_with_size {
-	($name:ident, $wrapper:ident, $type:ty, $size:expr, $docs:tt, $type_name:tt) => {
+	($name:ident, $type:ty, $size:expr, $docs:tt, $type_name:tt) => {
 		#[derive(
 			Debug, Default, Copy, Clone, PartialEq, Eq, Into, From, AsRef, AsMut, Deref, DerefMut,
 		)]
@@ -166,41 +170,12 @@ macro_rules! kzg_type_with_size {
 					}))
 			}
 		}
-
-		// impl Serialize for $name {
-		// 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-		// 	where
-		// 		S: Serializer,
-		// 	{
-		// 		$wrapper(self.to_bytes()).serialize(serializer)
-		// 	}
-		// }
-
-		// impl<'de> Deserialize<'de> for $name {
-		// 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-		// 	where
-		// 		D: Deserializer<'de>,
-		// 	{
-		// 		let $wrapper(bytes) = $wrapper::deserialize(deserializer)?;
-		// 		Self::try_from_bytes(&bytes).map_err(|error| D::Error::custom(format!("{error:?}")))
-		// 	}
-		// }
 	};
 }
-
-// #[derive(Serialize, Deserialize)]
-// struct KZGCommitmentWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_G1]);
-
-// #[derive(Serialize, Deserialize)]
-// struct KZGProofWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_G1]);
-
-// #[derive(Serialize, Deserialize)]
-// struct BlsScalarWrapper(#[serde(with = "hex::serde")] pub [u8; BYTES_PER_FIELD_ELEMENT]);
 
 // TODO: Automatic size reading
 kzg_type_with_size!(
 	KZGCommitment,
-	KZGCommitmentWrapper,
 	FsG1,
 	BYTES_PER_G1,
 	"Commitment to polynomial",
@@ -208,13 +183,12 @@ kzg_type_with_size!(
 );
 kzg_type_with_size!(
 	KZGProof,
-	KZGProofWrapper,
 	FsG1,
 	BYTES_PER_G1,
 	"Proof of polynomial",
 	"G1Affine"
 );
-kzg_type_with_size!(BlsScalar, BlsScalarWrapper, FsFr, BYTES_PER_FIELD_ELEMENT, "Scalar", "Fr");
+kzg_type_with_size!(BlsScalar, FsFr, BYTES_PER_FIELD_ELEMENT, "Scalar", "Fr");
 
 /// The `ReprConvert` trait defines methods for converting between types `Self` and `T`.
 pub trait ReprConvert<T>: Sized {

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::{Digest, HeaderExtension, Vec};
+use codec::Encode;
 use melo_das_primitives::{KZGCommitment, KZGProof};
 use sp_core::H256;
 
@@ -67,5 +68,18 @@ sp_api::decl_runtime_apis! {
 			extrinsic: &Vec<u8>,
 			// (data_hash, bytes_len, commitments, proofs)
 		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>>;
+	}
 }
+
+sp_api::decl_runtime_apis! {
+	pub trait AppDataApi<Call>
+	where Call: Encode + Clone {
+		fn is_blob_call(
+			function: &Vec<u8>,
+		) -> Option<bool>;
+
+		fn get_blob_tx_param(
+			function: &Call,
+		) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>;
+	}
 }
