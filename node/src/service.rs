@@ -1,13 +1,15 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+use futures::channel::mpsc::Receiver;
 use futures::prelude::*;
+use melo_das_network::{new_service, new_worker, new_workgroup, ServicetoWorkerMsg};
+use melo_das_network::{start_tx_pool_listener, TPListenerParams};
+use melo_das_network_protocol::DasDhtService;
 use melodot_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::BlockBackend;
 use sc_consensus_grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream};
-use melo_das_network::dht_work::Worker as DhtWorker;
-use melo_das_network::tx_pool_listener::{start_tx_pool_listener, TPListenerParams};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use std::{sync::Arc, time::Duration};
@@ -63,6 +65,7 @@ pub fn new_partial(
 			),
 			sc_consensus_grandpa::SharedVoterState,
 			Option<Telemetry>,
+			Receiver<ServicetoWorkerMsg>,
 		),
 	>,
 	ServiceError,
@@ -144,6 +147,8 @@ pub fn new_partial(
 
 	let import_setup = (babe_block_import, grandpa_link, babe_link);
 
+	let (dht_sender, dht_receiver) = new_workgroup();
+
 	let (rpc_extensions_builder, rpc_setup) = {
 		let (_, grandpa_link, _) = &import_setup;
 
@@ -163,6 +168,8 @@ pub fn new_partial(
 		let keystore = keystore_container.keystore();
 		let chain_spec = config.chain_spec.cloned_box();
 
+		let dht_service = new_service(dht_sender.clone()) as DasDhtService;
+
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = melo_rpc::FullDeps {
 				client: client.clone(),
@@ -181,6 +188,7 @@ pub fn new_partial(
 					subscription_executor,
 					finality_provider: finality_proof_provider.clone(),
 				},
+				dht_service: dht_service.clone(),
 			};
 
 			melo_rpc::create_full(deps).map_err(Into::into)
@@ -197,7 +205,7 @@ pub fn new_partial(
 		import_queue,
 		keystore_container,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry),
+		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry, dht_receiver),
 	})
 }
 
@@ -211,7 +219,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		import_queue,
 		keystore_container,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, _, mut telemetry),
+		other: (rpc_extensions_builder, import_setup, _, mut telemetry, dht_receiver),
 	} = new_partial(&config)?;
 
 	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
@@ -258,21 +266,6 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-		network: network.clone(),
-		client: client.clone(),
-		keystore: keystore_container.keystore(),
-		task_manager: &mut task_manager,
-		transaction_pool: transaction_pool.clone(),
-		rpc_builder: Box::new(rpc_extensions_builder),
-		backend,
-		system_rpc_tx,
-		tx_handler_controller,
-		sync_service: sync_service.clone(),
-		config,
-		telemetry: telemetry.as_mut(),
-	})?;
-
 	task_manager.spawn_essential_handle().spawn_blocking(
 		"new-blob-worker",
 		None,
@@ -290,11 +283,27 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		}
 	});
 
-	let dht_worker = DhtWorker::new(client.clone(), network.clone(), Box::pin(dht_event_stream));
+	let dht_worker =
+		new_worker(client.clone(), network.clone(), dht_receiver, Box::pin(dht_event_stream));
 
 	task_manager
 		.spawn_essential_handle()
 		.spawn("dht-worker", None, dht_worker.run(|| {}));
+
+	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
+		network: network.clone(),
+		client: client.clone(),
+		keystore: keystore_container.keystore(),
+		task_manager: &mut task_manager,
+		transaction_pool: transaction_pool.clone(),
+		rpc_builder: Box::new(rpc_extensions_builder),
+		backend,
+		system_rpc_tx,
+		tx_handler_controller,
+		sync_service: sync_service.clone(),
+		config,
+		telemetry: telemetry.as_mut(),
+	})?;
 
 	if role.is_authority() {
 		let authority_discovery_role =

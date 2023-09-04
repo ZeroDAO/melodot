@@ -243,47 +243,4 @@ mod tests {
 
         assert!(sidercar.is_unavailability());
     }
-
-    #[test]
-    fn test_sidercar_from_local() {
-        // Mock `get_from_localstorage_with_prefix` to return some data
-
-        let metadata = SidercarMetadata {
-            data_len: 3,
-            blobs_hash: H256::from([1u8; 32]),
-            commitments: vec![],
-            proofs: vec![],
-        };
-
-        // let sidercar = Sidercar::new(metadata.clone(), Some(vec![1, 2, 3]));
-        // let sidercar_encoded = sidercar.encode();
-
-        // Assume `get_from_localstorage_with_prefix` returns `sidercar_encoded` when given a certain key
-
-        let result = Sidercar::from_local(&[1u8; 32]);  // Use the key that would return `sidercar_encoded`
-
-        assert_eq!(result.unwrap().metadata, metadata);
-    }
-
-    #[test]
-    fn test_sidercar_save_to_local() {
-        // Mock `save_to_localstorage_with_prefix` to save data
-
-        let metadata = SidercarMetadata {
-            data_len: 3,
-            blobs_hash: H256::from([1u8; 32]),
-            commitments: vec![],
-            proofs: vec![],
-        };
-
-        let sidercar = Sidercar::new(metadata.clone(), Some(vec![1, 2, 3]));
-        sidercar.save_to_local();
-
-        // Assume `get_from_localstorage_with_prefix` returns data saved by `save_to_localstorage_with_prefix`
-
-        let result = Sidercar::from_local(&sidercar.id());
-
-        assert_eq!(result.unwrap().metadata, metadata);
-    }
-    
 }

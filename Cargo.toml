@@ -7,6 +7,7 @@ members = [
     "crates/das-primitives",
     "crates/das-rpc",
     "crates/das-network",
+    "crates/das-network/protocol",
     "crates/frame-executive-ext",
     "crates/frame-system-ext",
     "crates/melo-erasure-coding",

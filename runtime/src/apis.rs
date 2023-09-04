@@ -83,6 +83,22 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl melo_core_primitives::traits::AppDataApi<Block, RuntimeCall> for Runtime {
+
+		fn get_blob_tx_param(function: &RuntimeCall) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+			match function {
+				RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
+					app_id: _,
+					bytes_len,
+					data_hash,
+					commitments,
+					proofs,
+				}) => Some((*data_hash, *bytes_len, commitments.clone(), proofs.clone())),
+				_ => None,
+			}
+		}
+	}
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION

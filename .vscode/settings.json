@@ -1,3 +1,4 @@
 {
-    "rust-analyzer.server.path": null
+    "rust-analyzer.server.path": null,
+    "rust-analyzer.showUnlinkedFileNotification": false
 }

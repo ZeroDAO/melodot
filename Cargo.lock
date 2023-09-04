@@ -4621,6 +4621,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "melo-das-network-protocol"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "futures",
+ "melo-das-network",
+ "sc-network",
+ "tracing",
+]
+
+[[package]]
 name = "melo-das-primitives"
 version = "0.1.0"
 dependencies = [
@@ -4653,9 +4664,11 @@ dependencies = [
  "jsonrpsee",
  "melo-core-primitives",
  "melo-das-network",
+ "melo-das-network-protocol",
  "melodot-runtime",
  "parity-scale-codec",
  "sc-rpc-api",
+ "sc-service",
  "sc-transaction-pool-api",
  "serde",
  "sp-api 4.0.0-dev",
@@ -4689,6 +4702,8 @@ dependencies = [
  "jsonrpsee",
  "melo-core-primitives",
  "melo-das-network",
+ "melo-das-network-protocol",
+ "melo-das-rpc",
  "melodot-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",

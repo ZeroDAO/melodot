@@ -13,6 +13,7 @@ sc-transaction-pool-api = { default-features = false, git = "https://github.com/
 sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 sp-blockchain = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 sc-rpc-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sc-service = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
 
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 jsonrpsee = { version = "0.16.2", features = ["server", "client", "macros"] }
@@ -22,5 +23,6 @@ serde = { version = "1.0.159", features = ["derive"] }
 melodot-runtime = { path = "../../runtime" }
 melo-core-primitives = { path = "../core-primitives" }
 melo-das-network = { path = "../das-network" }
+melo-das-network-protocol = { path = "../das-network/protocol" }
 
 [dev-dependencies]

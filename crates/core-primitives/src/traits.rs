@@ -72,14 +72,10 @@ sp_api::decl_runtime_apis! {
 }
 
 sp_api::decl_runtime_apis! {
-	pub trait AppDataApi<Call>
-	where Call: Encode + Clone {
-		fn is_blob_call(
-			function: &Vec<u8>,
-		) -> Option<bool>;
-
+	pub trait AppDataApi<RuntimeCall>
+	where RuntimeCall: Encode {
 		fn get_blob_tx_param(
-			function: &Call,
+			function: &RuntimeCall,
 		) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>;
 	}
 }
