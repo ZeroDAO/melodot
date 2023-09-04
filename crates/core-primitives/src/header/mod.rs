@@ -62,23 +62,6 @@ pub struct Header<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> {
 	pub extension: HeaderExtension,
 }
 
-// #[cfg(feature = "std")]
-// impl<Number, Hash> parity_util_mem::MallocSizeOf for Header<Number, Hash>
-// where
-// 	Number: Copy + Into<U256> + TryFrom<U256> + parity_util_mem::MallocSizeOf,
-// 	Hash: HashT,
-// 	Hash::Output: parity_util_mem::MallocSizeOf,
-// {
-// 	fn size_of(&self, ops: &mut parity_util_mem::MallocSizeOfOps) -> usize {
-// 		self.parent_hash.size_of(ops)
-// 			+ self.number.size_of(ops)
-// 			+ self.state_root.size_of(ops)
-// 			+ self.extrinsics_root.size_of(ops)
-// 			+ self.digest.size_of(ops)
-// 			+ self.extension.size_of(ops)
-// 	}
-// }
-
 #[cfg(feature = "std")]
 pub fn serialize_number<S, T: Copy + Into<U256> + TryFrom<U256>>(
 	val: &T,

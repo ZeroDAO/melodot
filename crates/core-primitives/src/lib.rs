@@ -14,8 +14,14 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+pub use alloc::{
+	string::{String, ToString},
+	vec::Vec,
+	vec,
+};
+
 use sp_runtime::generic::Digest;
-pub use sp_std::vec::Vec;
 
 pub mod header;
 pub use header::*;

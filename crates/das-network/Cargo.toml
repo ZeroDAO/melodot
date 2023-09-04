@@ -1,5 +1,5 @@
 [package]
-name = "sc-network-das"
+name = "melo-das-network"
 version = "0.0.1"
 description = "Network Core Module in Data Availability."
 license = "Apache-2.0"

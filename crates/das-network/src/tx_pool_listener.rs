@@ -14,7 +14,7 @@
 
 use futures::StreamExt;
 use melo_core_primitives::{traits::Extractor, Encode};
-use sc_network::{KademliaKey, NetworkDHTProvider};
+use sc_network::NetworkDHTProvider;
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -23,11 +23,7 @@ use std::sync::Arc;
 
 const LOG_TARGET: &str = "tx_pool_listener";
 
-use crate::{NetworkProvider, Sidercar, SidercarMetadata};
-
-fn sidercar_kademlia_key(sidercar: &Sidercar) -> KademliaKey {
-	KademliaKey::from(Vec::from(sidercar.id()))
-}
+use crate::{sidercar_kademlia_key, NetworkProvider, Sidercar, SidercarMetadata};
 
 #[derive(Clone)]
 pub struct TPListenerParams<Client, Network, TP> {

@@ -11,18 +11,19 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false}
+melo-erasure-coding = { version = "0.1.0", path = "../melo-erasure-coding", default-features = false}
 
+rayon = "1.5.1"
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-serde = { version = "1.0.136", features = ["derive"], optional = true }
+serde = { version = "1.0.136", optional = true, features = ["alloc", "derive"] }
 
 sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
-# sc-network = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 [features]
 default = ["std"]
@@ -34,10 +35,9 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"melo-das-primitives/std",
-	"sp-io/std"
-]
-serde = [
-    "dep:serde",
+	"sp-io/std",
+	"sp-std/std",
+	"sp-api/std",
     "melo-das-primitives/serde",
 ]
 parallel = [

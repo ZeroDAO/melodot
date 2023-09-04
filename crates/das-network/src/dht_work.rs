@@ -14,21 +14,24 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{channel::mpsc, stream::Fuse, FutureExt, Stream, StreamExt};
 use melo_das_primitives::blob::Blob;
 use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
 use melo_das_primitives::crypto::KZG;
 use melo_erasure_coding::bytes_vec_to_blobs;
-use sc_network::{DhtEvent, KademliaKey};
+use crate::{DhtEvent, KademliaKey};
 use std::sync::Arc;
 
-use crate::{NetworkProvider, Sidercar, SidercarStatus};
+use crate::{NetworkProvider, ServicetoWorkerMsg, Sidercar, SidercarStatus};
 
 pub struct Worker<Client, Network, DhtEventStream> {
 	#[allow(dead_code)]
 	client: Arc<Client>,
 
-	#[allow(dead_code)]
+	/// Channel receiver for messages send by a [`crate::Service`].
+	from_service: Fuse<mpsc::Receiver<ServicetoWorkerMsg>>,
+
+	/// DHT network
 	network: Arc<Network>,
 
 	/// Channel we receive Dht events on.
@@ -40,8 +43,13 @@ where
 	Network: NetworkProvider,
 	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
 {
-	pub fn new(client: Arc<Client>, network: Arc<Network>, dht_event_rx: DhtEventStream) -> Self {
-		Worker { client, network, dht_event_rx }
+	pub(crate) fn new(
+		from_service: mpsc::Receiver<ServicetoWorkerMsg>,
+		client: Arc<Client>,
+		network: Arc<Network>,
+		dht_event_rx: DhtEventStream,
+	) -> Self {
+		Worker { from_service: from_service.fuse(), client, network, dht_event_rx }
 	}
 
 	pub async fn run<FStart>(mut self, start: FStart)
@@ -56,6 +64,9 @@ where
 						Self::handle_dht_event(event).await;
 					}
 				},
+				msg = self.from_service.select_next_some() => {
+					self.process_message_from_service(msg);
+				},
 			}
 		}
 	}
@@ -66,6 +77,7 @@ where
 				Self::handle_dht_value_found_event(v);
 			},
 			DhtEvent::ValueNotFound(key) => Self::handle_dht_value_not_found_event(key),
+			// TODO handle other events
 			_ => {},
 		}
 	}
@@ -106,7 +118,7 @@ where
 			}
 		}
 	}
-	
+
 	fn handle_dht_value_not_found_event(key: KademliaKey) {
 		let maybe_sidercar = Sidercar::from_local(key.as_ref());
 		match maybe_sidercar {
@@ -120,5 +132,12 @@ where
 			None => {},
 		}
 	}
-	
+
+	fn process_message_from_service(&self, msg: ServicetoWorkerMsg) {
+		match msg {
+			ServicetoWorkerMsg::PutValueToDht(key, value) => {
+				self.network.put_value(key, value);
+			},
+		}
+	}
 }

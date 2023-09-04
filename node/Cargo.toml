@@ -18,6 +18,7 @@ name = "melodot-node"
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
 futures = { version = "0.3.21", features = ["thread-pool"]}
+jsonrpsee = { version = "0.16.3", features = ["server"] }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
@@ -57,7 +58,6 @@ frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "
 pallet-transaction-payment = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 # These dependencies are used for the node template's RPCs
-jsonrpsee = { features = ["server"] }
 sc-rpc = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-rpc-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -73,8 +73,10 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate.git", 
 
 # Local Dependencies
 melodot-runtime = { version = "0.0.1", path = "../runtime" }
-sc-network-das = { version = "0.0.1", path = "../crates/network-das" }
+melo-das-network = { version = "0.0.1", path = "../crates/das-network" }
+melo-das-network-protocol = { version = "0.0.1", path = "../crates/das-network/protocol" }
 melo-core-primitives = { version = "0.1.0", path = "../crates/core-primitives" }
+melo-das-rpc = { version = "0.0.1", path = "../crates/das-rpc" }
 
 # CLI-specific dependencies
 try-runtime-cli = { optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
