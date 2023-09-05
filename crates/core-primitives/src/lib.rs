@@ -32,3 +32,6 @@ pub use sidercar::*;
 pub mod localstorage;
 
 pub mod traits;
+
+#[cfg(feature = "std")]
+pub mod testing;
