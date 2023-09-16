@@ -710,10 +710,9 @@ impl frame_system_ext::Config for Runtime {
 impl pallet_melo_store::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type MaxBlobNum = system::MaxBlobNumber;
-	type MaxKeys = consensus::MaxKeys;
-	type ValidatorSet = Historical;
 	type WeightInfo = ();
-	type UnsignedPriority = ();
+	type MeloUnsignedPriority = ();
+	type MaxKeys = consensus::MaxKeys;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

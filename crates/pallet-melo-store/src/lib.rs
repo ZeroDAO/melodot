@@ -17,10 +17,13 @@
 pub mod weights;
 pub use weights::*;
 
+mod mock;
+mod tests;
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::*,
-	traits::{Get, OneSessionHandler, ValidatorSetWithIdentification},
+	traits::{Get, OneSessionHandler},
 	BoundedSlice, WeakBoundedVec,
 };
 use frame_system::{
@@ -32,6 +35,7 @@ use melo_das_primitives::config::BYTES_PER_BLOB;
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_application_crypto::RuntimeAppPublic;
+use sp_core::H256;
 use sp_runtime::{
 	offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
 	traits::AtLeast32BitUnsigned,
@@ -39,8 +43,8 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-use melo_core_primitives::Sidercar;
 use melo_core_primitives::traits::HeaderCommitList;
+use melo_core_primitives::{Sidercar, SidercarMetadata};
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
@@ -104,12 +108,12 @@ where
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use sp_core::H256;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	pub type KZGCommitmentListFor<T> = BoundedVec<KZGCommitment, <T as Config>::MaxBlobNum>;
+	pub type KZGProofListFor<T> = BoundedVec<KZGProof, <T as Config>::MaxBlobNum>;
 
 	#[derive(Clone, Eq, Default, PartialEq, Encode, Decode, MaxEncodedLen, TypeInfo)]
 	#[scale_info(skip_type_params(T))]
@@ -117,6 +121,7 @@ pub mod pallet {
 		pub app_id: u32,
 		pub from: T::AccountId,
 		pub commitments: KZGCommitmentListFor<T>,
+		pub proofs: KZGProofListFor<T>,
 		pub bytes_len: u32,
 		pub data_hash: H256,
 		pub is_available: bool,
@@ -129,8 +134,6 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// Type representing the weight of this pallet
 		type WeightInfo: WeightInfo;
-		/// A type for retrieving the validators supposed to be online in a session.
-		type ValidatorSet: ValidatorSetWithIdentification<Self::AccountId>;
 		/// The identifier type for an authority.
 		type AuthorityId: Member
 			+ Parameter
@@ -146,7 +149,7 @@ pub mod pallet {
 		type MaxBlobNum: Get<u32>;
 
 		#[pallet::constant]
-		type UnsignedPriority: Get<TransactionPriority>;
+		type MeloUnsignedPriority: Get<TransactionPriority>;
 	}
 
 	// Store metadata of AppData
@@ -210,6 +213,13 @@ pub mod pallet {
 			/// Node that submitted the report
 			from: AuthIndex,
 		},
+		/// New app ID has been registered
+		AppIdRegistered {
+			/// New app ID
+			app_id: u32,
+			/// From
+			from: T::AccountId,
+		},
 	}
 
 	// Errors inform users that something went wrong.
@@ -229,12 +239,18 @@ pub mod pallet {
 		DuplicateItemExists,
 		/// The data doesn't exist.
 		DataNotExist,
-		/// Metadata modification is not allowed.
-		CannotModifyMetadata,
 		/// The report has been submitted more than once.
 		DuplicateReportSubmission,
 		/// Exceeds the maximum total votes.
 		ExceedMaxTotalVotes,
+		/// The report is for a block in the future.
+		ReportForFutureBlock,
+		/// The submitted availability data is empty.
+		SubmittedDataIsEmpty,
+		/// The number of commitments does not match the expected blob number.
+		MismatchedCommitmentsCount,
+		/// The number of proofs does not match the expected blob number.
+		MismatchedProofsCount,
 	}
 
 	#[pallet::call]
@@ -248,18 +264,30 @@ pub mod pallet {
 			data_hash: H256,
 			commitments: Vec<KZGCommitment>,
 			proofs: Vec<KZGProof>,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+			ensure!(bytes_len > 0, Error::<T>::SubmittedDataIsEmpty);
 			let blob_num = Blob::blob_count(bytes_len as usize, BYTES_PER_BLOB);
 			ensure!(blob_num <= T::MaxBlobNum::get() as usize, Error::<T>::ExceedMaxBlobLimit);
 
+			// Check if blob_num matches the length of commitments.
+			ensure!(blob_num == commitments.len(), Error::<T>::MismatchedCommitmentsCount);
+			// Check if blob_num matches the length of proofs.
+			ensure!(blob_num == proofs.len(), Error::<T>::MismatchedProofsCount);
+
 			let current_app_id = AppId::<T>::get();
-			ensure!(app_id <= current_app_id + 1, Error::<T>::AppIdError);
+			ensure!(app_id <= current_app_id, Error::<T>::AppIdError);
 
 			let mut commitment_list: BoundedVec<KZGCommitment, T::MaxBlobNum> =
 				BoundedVec::default();
 			commitment_list
 				.try_extend(commitments.iter().cloned())
+				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
+
+			let mut proof_list: BoundedVec<KZGProof, T::MaxBlobNum> =
+				BoundedVec::default();
+			proof_list
+				.try_extend(proofs.iter().cloned())
 				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
 
 			let metadata: BlobMetadata<T> = BlobMetadata {
@@ -268,6 +296,7 @@ pub mod pallet {
 				commitments: commitment_list,
 				bytes_len,
 				data_hash,
+				proofs: proof_list,
 				// Theoretically, the submitted data is likely to be available,
 				// so we initially assume it's available.
 				is_available: true,
@@ -278,13 +307,8 @@ pub mod pallet {
 			let mut metadata_len = 0;
 			Metadata::<T>::try_mutate(current_block_number, |metadata_vec| {
 				metadata_len = metadata_vec.len();
-				metadata_vec.try_push(metadata)
-			})
-			.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
-
-			if app_id == current_app_id + 1 {
-				AppId::<T>::put(app_id);
-			}
+				metadata_vec.try_push(metadata).map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)
+			})?;
 
 			Self::deposit_event(Event::DataReceived {
 				data_hash,
@@ -296,7 +320,7 @@ pub mod pallet {
 				proofs,
 			});
 
-			Ok(().into())
+			Ok(())
 		}
 
 		#[pallet::call_index(1)]
@@ -310,8 +334,13 @@ pub mod pallet {
 			let current_block_number: BlockNumberFor<T> = <frame_system::Pallet<T>>::block_number();
 
 			ensure!(
+				unavailable_data_report.at_block <= current_block_number,
+				Error::<T>::ReportForFutureBlock
+			);
+
+			ensure!(
 				unavailable_data_report.at_block + DELAY_CHECK_THRESHOLD.into()
-					== current_block_number,
+					>= current_block_number,
 				Error::<T>::ExceedUnavailableDataConfirmTime
 			);
 			ensure!(!unavailable_data_report.index_set.is_empty(), Error::<T>::IndexSetIsEmpty);
@@ -319,35 +348,50 @@ pub mod pallet {
 			let mut index_set = unavailable_data_report.index_set;
 			index_set.sort();
 
+			let original_len = index_set.len();
+			index_set.dedup();
+			ensure!(original_len == index_set.len(), Error::<T>::DuplicateItemExists);
+
 			Metadata::<T>::try_mutate(
 				unavailable_data_report.at_block,
 				|metadata_vec| -> DispatchResult {
-					let metadata_vec_mut = metadata_vec;
-					for window in index_set.windows(2) {
-						// Check for duplication
-						ensure!(window[0] != window[1], Error::<T>::DuplicateItemExists);
-						let index = window[0];
-						let metadata = metadata_vec_mut
-							// An error is thrown if the boundary is crossed
-							.get_mut(index as usize)
-							.ok_or(Error::<T>::DataNotExist)?;
+					for &index in &index_set {
+						let metadata =
+							metadata_vec.get_mut(index as usize).ok_or(Error::<T>::DataNotExist)?;
 
-						if metadata.is_available {
-							<Pallet<T>>::handle_vote(
-								unavailable_data_report.at_block,
-								unavailable_data_report.authority_index,
-								metadata,
-							)?;
-						}
+						match metadata.is_available {
+							false => {
+								// If the data is available, we don't need to do anything.
+								Ok(())
+							},
+							true => {
+								// If the data is unavailable, we need to handle the vote.
+								Self::handle_vote(
+									unavailable_data_report.at_block,
+									unavailable_data_report.authority_index,
+									metadata,
+								)
+							},
+						}?;
 					}
-					Self::deposit_event(Event::ReportReceived {
-						at_block: unavailable_data_report.at_block,
-						from: unavailable_data_report.authority_index,
-					});
 					Ok(())
 				},
-			)
-			.map_err(|_| Error::<T>::CannotModifyMetadata.into())
+			)?;
+			Self::deposit_event(Event::ReportReceived {
+				at_block: unavailable_data_report.at_block,
+				from: unavailable_data_report.authority_index,
+			});
+			Ok(())
+		}
+
+		#[pallet::call_index(2)]
+		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		pub fn register_app(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let app_id = AppId::<T>::get() + 1;
+			AppId::<T>::put(app_id);
+			Self::deposit_event(Event::AppIdRegistered { app_id, from: who });
+			Ok(().into())
 		}
 	}
 
@@ -411,7 +455,7 @@ pub mod pallet {
 				}
 
 				ValidTransaction::with_tag_prefix("MeloStore")
-					.priority(T::UnsignedPriority::get())
+					.priority(T::MeloUnsignedPriority::get())
 					.longevity(DELAY_CHECK_THRESHOLD as u64)
 					.propagate(true)
 					.build()
@@ -428,9 +472,14 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.enumerate()
 			.filter_map(|(i, metadata)| {
-				if let Some(sidercar) =
-					Sidercar::from_local(&metadata.data_hash.as_bytes())
-				{
+				let sidercar_metadata = SidercarMetadata {
+					commitments: metadata.commitments.to_vec(),
+					data_len: metadata.bytes_len,
+					blobs_hash: metadata.data_hash,
+					proofs: metadata.proofs.to_vec(),
+				};
+				let id = sidercar_metadata.id();
+				if let Some(sidercar) = Sidercar::from_local(&id) {
 					if sidercar.is_unavailability() {
 						Some(i as u32)
 					} else {
@@ -626,6 +675,13 @@ impl<T: Config> Pallet<T> {
 				.expect("More than the maximum number of keys provided");
 			Keys::<T>::put(bounded_keys);
 		}
+	}
+
+	#[cfg(test)]
+	fn set_keys(keys: Vec<T::AuthorityId>) {
+		let bounded_keys = WeakBoundedVec::<_, T::MaxKeys>::try_from(keys)
+			.expect("More than the maximum number of keys provided");
+		Keys::<T>::put(bounded_keys);
 	}
 }
 

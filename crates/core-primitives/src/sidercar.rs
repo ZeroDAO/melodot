@@ -163,6 +163,10 @@ impl Sidercar {
 	pub fn save_to_local(&self) {
 		save_to_localstorage_with_prefix(&self.id(), &self.encode(), SIDERCAR_PREFIX);
 	}
+
+	pub fn set_not_found(&mut self) {
+		self.status = Some(SidercarStatus::NotFound);
+	}
 }
 
 #[cfg(test)]
