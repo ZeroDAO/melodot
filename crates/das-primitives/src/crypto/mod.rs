@@ -79,6 +79,11 @@ macro_rules! kzg_type_with_size {
 			pub fn size() -> usize {
 				$size
 			}
+
+			#[cfg(feature = "rand")]
+			pub fn rand() -> Self {
+				Self(<$type>::rand())
+			}
 		}
 
 		impl Hash for $name {

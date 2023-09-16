@@ -16,7 +16,7 @@ bench = false
 
 [dependencies]
 rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false}
-kzg = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
+kzg = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false}
 
 derive_more = "0.99.17"
 hex = { version  = "0.4.3", default-features = false, features = ["alloc"] }
@@ -48,6 +48,10 @@ default = [
     "serde",
     "std",
     "parallel",
+    "rand",
+]
+rand = [
+    "rust-kzg-blst/rand",
 ]
 embedded-kzg-settings = []
 parallel = [
