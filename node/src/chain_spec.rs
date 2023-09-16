@@ -238,7 +238,7 @@ fn testnet_genesis(
 			epoch_config: Some(melodot_runtime::GENESIS_EPOCH_CONFIG),
 		},
 		nomination_pools: NominationPoolsConfig {
-			min_create_bond: 10 * DOLLARS,
+			min_create_bond: 100_000 * DOLLARS,
 			#[allow(clippy::identity_op)]
 			min_join_bond: DOLLARS,
 			..Default::default()

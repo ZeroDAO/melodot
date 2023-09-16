@@ -25,11 +25,24 @@ sp-runtime = { version = "7.0.0", default-features = false, git = "https://githu
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 
+# For testing
+rand = { version = "0.8.5", optional = true }
+sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[dev-dependencies]
+rand = "0.8.5"
+serde_json = "1.0.85"
+zstd = { version = "0.12.3", default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-tracing = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
 [features]
 default = ["std"]
 std = [
 	"codec/std",
 	"log/std",
+	"rand",
 	"scale-info/std",
 	"serde",
 	"sp-core/std",
@@ -39,7 +52,17 @@ std = [
 	"sp-std/std",
 	"sp-api/std",
     "melo-das-primitives/serde",
+	"sp-state-machine/std",
+	"sp-tracing/std",
+	"sp-application-crypto/std",
 ]
 parallel = [
     "melo-das-primitives/parallel",
+]
+# Serde support without relying on std features.
+serde = [
+	"dep:serde",
+	"scale-info/serde",
+	"sp-core/serde",
+	"sp-application-crypto/serde",
 ]

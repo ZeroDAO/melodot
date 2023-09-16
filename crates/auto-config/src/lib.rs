@@ -18,7 +18,7 @@
 //! 
 //! ## Example Usage
 //! 
-//! ```rust
+//! ```ignore
 //! use melo_auto_config::auto_config;
 //! 
 //! #[auto_config]
@@ -33,7 +33,7 @@
 //! - `skip_weight`: Skips the generation of `WeightInfo` type
 //! - `include_currency`: Includes the generation of `Currency` type
 //! 
-//! ```rust
+//! ```ignore
 //! #[auto_config(skip_event, include_currency)]
 //! impl pallet_balances::Config for Runtime {
 //!     // ...
