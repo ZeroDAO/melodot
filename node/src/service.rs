@@ -7,7 +7,7 @@ use melo_das_network::{start_tx_pool_listener, TPListenerParams};
 use melo_das_network_protocol::DasDhtService;
 use melodot_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::BlockBackend;
-use sc_consensus_grandpa::SharedVoterState;
+use grandpa::SharedVoterState;
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream};
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
@@ -42,7 +42,7 @@ pub(crate) type FullClient =
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
 type FullGrandpaBlockImport =
-	sc_consensus_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
 pub fn new_partial(
 	config: &Configuration,
@@ -60,10 +60,10 @@ pub fn new_partial(
 			) -> Result<jsonrpsee::RpcModule<()>, sc_service::Error>,
 			(
 				sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
-				sc_consensus_grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
+				grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
 				sc_consensus_babe::BabeLink<Block>,
 			),
-			sc_consensus_grandpa::SharedVoterState,
+			grandpa::SharedVoterState,
 			Option<Telemetry>,
 			Receiver<ServicetoWorkerMsg>,
 		),
@@ -106,7 +106,7 @@ pub fn new_partial(
 		client.clone(),
 	);
 
-	let (grandpa_block_import, grandpa_link) = sc_consensus_grandpa::block_import(
+	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
 		&(client),
 		select_chain.clone(),
@@ -154,10 +154,10 @@ pub fn new_partial(
 
 		let justification_stream = grandpa_link.justification_stream();
 		let shared_authority_set = grandpa_link.shared_authority_set().clone();
-		let shared_voter_state = sc_consensus_grandpa::SharedVoterState::empty();
+		let shared_voter_state = grandpa::SharedVoterState::empty();
 		let shared_voter_state2 = shared_voter_state.clone();
 
-		let finality_proof_provider = sc_consensus_grandpa::FinalityProofProvider::new_for_service(
+		let finality_proof_provider = grandpa::FinalityProofProvider::new_for_service(
 			backend.clone(),
 			Some(shared_authority_set.clone()),
 		);
@@ -222,7 +222,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		other: (rpc_extensions_builder, import_setup, _, mut telemetry, dht_receiver),
 	} = new_partial(&config)?;
 
-	let grandpa_protocol_name = sc_consensus_grandpa::protocol_standard_name(
+	let grandpa_protocol_name = grandpa::protocol_standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
@@ -233,9 +233,9 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	config
 		.network
 		.extra_sets
-		.push(sc_consensus_grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
-	let warp_sync = Arc::new(sc_consensus_grandpa::warp_proof::NetworkProvider::new(
+	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		grandpa_link.shared_authority_set().clone(),
 		Vec::default(),
@@ -340,7 +340,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
 
-		let grandpa_config = sc_consensus_grandpa::Config {
+		let grandpa_config = grandpa::Config {
 			gossip_duration: Duration::from_millis(333),
 			justification_period: 512,
 			name: Some(name),
@@ -357,12 +357,12 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		// and vote data availability than the observer. The observer has not
 		// been tested extensively yet and having most nodes in a network run it
 		// could lead to finality stalls.
-		let grandpa_config = sc_consensus_grandpa::GrandpaParams {
+		let grandpa_config = grandpa::GrandpaParams {
 			config: grandpa_config,
 			link: grandpa_link,
 			network,
 			sync: Arc::new(sync_service),
-			voting_rule: sc_consensus_grandpa::VotingRulesBuilder::default().build(),
+			voting_rule: grandpa::VotingRulesBuilder::default().build(),
 			prometheus_registry,
 			shared_voter_state: SharedVoterState::empty(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
@@ -373,7 +373,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"grandpa-voter",
 			None,
-			sc_consensus_grandpa::run_grandpa_voter(grandpa_config)?,
+			grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}
 

@@ -21,7 +21,6 @@ codec = { package = "parity-scale-codec", version = "3.2.2", default-features = 
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
 melo-auto-config = { version = "0.9.42", default-features = false, path="../crates/auto-config" }
-# parity-scale-codec = { package = "parity-scale-codec", version = "3.3", default-features = false}
 
 # Substrate
 pallet-babe = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -50,6 +49,7 @@ pallet-session = { features = ['historical'], default-features = false, git = "h
 pallet-staking = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 
 frame-election-provider-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -115,6 +115,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
+	"pallet-elections-phragmen/std",
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",
@@ -163,16 +164,21 @@ runtime-benchmarks = [
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
+	"pallet-collective/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
+	"pallet-elections-phragmen/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-nomination-pools-benchmarking",
 	"pallet-scheduler/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
-
+	"pallet-melo-store/runtime-benchmarks",
+	"pallet-staking/runtime-benchmarks",
+	"pallet-im-online/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-try-runtime/try-runtime",
@@ -191,6 +197,7 @@ try-runtime = [
 	"pallet-offences/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
+	"pallet-elections-phragmen/try-runtime",
 	"pallet-democracy/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-scheduler/try-runtime",
@@ -198,4 +205,5 @@ try-runtime = [
 	"pallet-preimage/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-utility/try-runtime",
+	"pallet-staking/try-runtime",
 ]

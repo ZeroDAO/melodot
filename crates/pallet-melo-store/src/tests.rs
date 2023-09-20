@@ -1,3 +1,17 @@
+// Copyright 2023 ZeroDAO
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #![cfg(test)]
 
 use super::*;
@@ -27,8 +41,19 @@ pub fn report_unavailability(
 		index_set,
 		validators_len,
 	};
-	let signature = UintAuthorityId(who.into()).sign(&report.encode()).unwrap();
-	pallet_melo_store::Pallet::<Runtime>::report(RuntimeOrigin::none(), report, signature)
+	let signature = UintAuthorityId((who + 1).into()).sign(&report.encode()).unwrap();
+
+	MeloStore::pre_dispatch(&crate::Call::report {
+		unavailable_data_report: report.clone(),
+		signature: signature.clone(),
+	})
+	.map_err(|e| match e {
+		TransactionValidityError::Invalid(InvalidTransaction::Custom(INVALID_VALIDATORS_LEN)) =>
+			"invalid validators len",
+		e @ _ => <&'static str>::from(e),
+	})?;
+
+	MeloStore::report(RuntimeOrigin::none(), report, signature)
 }
 
 // Utility function to report unavailability
@@ -84,6 +109,13 @@ fn events() -> Vec<Event<Runtime>> {
 	System::reset_events();
 
 	result
+}
+
+fn set_keys() {
+	advance_session();
+	advance_session();
+
+	assert_eq!(Session::validators(), vec![1, 2, 3]);
 }
 
 #[test]
@@ -193,44 +225,140 @@ fn should_emit_event_on_successful_submission() {
 #[test]
 fn should_report_unavailable_data_successfully() {
 	new_test_ext().execute_with(|| {
-		let now = 10;
 
-		System::set_block_number((now).into());
+		set_keys();
+
+		let now = System::block_number();
 
 		// Submit data
 		assert_ok!(submit_init_data());
 
-		System::set_block_number((now + DELAY_CHECK_THRESHOLD).into());
+		System::set_block_number(((now as u32) + DELAY_CHECK_THRESHOLD).into());
 
-		assert_ok!(report_unavailability(1, 10, vec![0], 5,));
+		assert_noop!(
+			report_unavailability(100, now, vec![0], 3,),
+			"Transaction is outdated"
+		);
 
-		assert!(events().contains(&Event::<Runtime>::ReportReceived { at_block: 10, from: 1 }));
+		let authority_index = 1;
+
+		assert_noop!(
+			report_unavailability(authority_index, now, vec![0], 100,),
+			"invalid validators len"
+		);
+
+		assert_ok!(report_unavailability(authority_index, now, vec![0], 3,));
+
+		if let Some(vote) = UnavailableVote::<Runtime>::get(now, 0) {
+			assert!(vote.contains(&authority_index));
+			assert!(vote.len() == 1);
+		} else {
+			assert!(false);
+		}
+
+		assert!(events().contains(&Event::<Runtime>::ReportReceived { at_block: now, from: 1 }));
+
+		let metadata = Metadata::<Runtime>::get(now);
+		assert_eq!(metadata[0].is_available, true);
+
+		let authority_index = 2;
+
+		// Report unavailability again
+		assert_ok!(report_unavailability(authority_index, now, vec![0], 3,));
+
+		if let Some(vote) = UnavailableVote::<Runtime>::get(now, 0) {
+			assert!(vote.contains(&authority_index));
+			assert!(vote.len() == 2);
+		} else {
+			assert!(false);
+		}
+
+		assert!(events().contains(&Event::<Runtime>::ReportReceived { at_block: now, from: 2 }));
+
+		// Check if the metadata's availability status has changed
+		let metadata = Metadata::<Runtime>::get(now);
+		assert_eq!(metadata[0].is_available, false);
+	});
+}
+
+#[test]
+fn should_report_unavailable_data_successfully_with_multiple_app_id_and_data() {
+	new_test_ext().execute_with(|| {
+
+		set_keys();
+		let now = System::block_number();
+
+		for app_id in 1..=10u32 {
+			assert_ok!(MeloStore::register_app(RuntimeOrigin::signed(app_id as u64)));
+
+			for _ in 1..=10 {
+				let bytes_len = 10;
+				let data_hash = H256::random();
+				let (commitments, proofs) = commits_and_proofs(bytes_len, 0);
+
+				assert_ok!(MeloStore::submit_data(
+					RuntimeOrigin::signed(app_id as u64),
+					app_id,
+					bytes_len,
+					data_hash,
+					commitments.clone(),
+					proofs.clone()
+				));
+			}
+		}
+
+		System::set_block_number((now + (DELAY_CHECK_THRESHOLD as u64)).into());
+
+		let mut index_set = vec![];
+		for index in 0..10 * 10 {
+			index_set.push(index);
+		}
+
+		assert_ok!(report_unavailability(1, now, vec![0], 3,));
+
+		assert!(events().contains(&Event::<Runtime>::ReportReceived { at_block: now, from: 1 }));
 	});
 }
 
 #[test]
 fn should_fail_when_reporting_outside_window() {
 	new_test_ext().execute_with(|| {
+		set_keys();
+		let now = System::block_number();
 		System::set_block_number((10 + DELAY_CHECK_THRESHOLD + 1).into()); // Outside the window
 
 		assert_noop!(
-			report_unavailability(1, 10, vec![0, 1], 5,),
+			report_unavailability(1, now, vec![0, 1], 3,),
 			Error::<Runtime>::ExceedUnavailableDataConfirmTime
 		);
 	});
 }
 
 #[test]
+fn should_fail_when_index_set_empty() {
+	new_test_ext().execute_with(|| {
+		set_keys();
+		let now = System::block_number();
+
+		// Submit data
+		assert_ok!(submit_init_data());
+
+		assert_noop!(report_unavailability(1, now, vec![], 3,), Error::<Runtime>::IndexSetIsEmpty);
+	});
+}
+
+#[test]
 fn should_fail_when_reporting_duplicate_indices() {
 	new_test_ext().execute_with(|| {
-		System::set_block_number(10);
+		set_keys();
+		let now = System::block_number();
 
 		// Submit data
 		assert_ok!(submit_init_data());
 
 		assert_noop!(
-			report_unavailability(1, 10, vec![0, 0], 5,),
-			Error::<Runtime>::DuplicateItemExists
+			report_unavailability(1, now, vec![0, 0], 3,),
+			Error::<Runtime>::DuplicateReportSubmission
 		);
 	});
 }
@@ -238,16 +366,15 @@ fn should_fail_when_reporting_duplicate_indices() {
 #[test]
 fn should_fail_when_reporting_nonexistent_data() {
 	new_test_ext().execute_with(|| {
-		let now = 10;
-
-		System::set_block_number((now).into());
+		set_keys();
+		let now = System::block_number();
 
 		// Submit data
 		assert_ok!(submit_init_data());
 
-		System::set_block_number((now + DELAY_CHECK_THRESHOLD).into());
+		System::set_block_number((now + (DELAY_CHECK_THRESHOLD as u64)).into());
 
-		assert_noop!(report_unavailability(1, 10, vec![99999], 5,), Error::<Runtime>::DataNotExist);
+		assert_noop!(report_unavailability(1, now, vec![99999], 3,), Error::<Runtime>::DataNotExist);
 	});
 }
 
@@ -282,15 +409,15 @@ fn should_emit_event_on_successful_registration() {
 #[test]
 fn should_fail_when_reporting_for_future_block() {
 	new_test_ext().execute_with(|| {
-		let now = 10;
-		System::set_block_number(now.into());
+		set_keys();
+		let now = System::block_number();
 
 		// Submit data
 		assert_ok!(submit_init_data());
 
 		// Try to report unavailability for a future block (e.g., now + 5)
 		assert_noop!(
-			report_unavailability(1, now + 5, vec![0], 5),
+			report_unavailability(1, now + 5, vec![0], 3),
 			Error::<Runtime>::ReportForFutureBlock
 		);
 	});
@@ -374,18 +501,20 @@ fn should_fail_with_mismatched_proofs_count() {
 #[test]
 fn should_change_metadata_availability_when_reports_exceed_threshold() {
 	new_test_ext().execute_with(|| {
-		let now = 10;
-		System::set_block_number(now.into());
+
+		set_keys();
+
+		let now = System::block_number();
 
 		// Submit data
 		assert_ok!(submit_init_data());
 
 		// Set a threshold for this test
-		let threshold = 3;
+		let threshold = 2;
 
 		// Report unavailability multiple times to exceed the threshold
-		for i in 1..=threshold {
-			assert_ok!(report_unavailability(i, now, vec![0], 5));
+		for i in 0..threshold {
+			assert_ok!(report_unavailability(i, now, vec![0], 3));
 		}
 
 		// Check if the metadata's availability status has changed
@@ -397,11 +526,10 @@ fn should_change_metadata_availability_when_reports_exceed_threshold() {
 #[test]
 fn should_have_expected_data_when_reported_unavailable() {
 	new_test_ext().execute_with(|| {
-		let now = System::block_number().max(1);
-		advance_session(now);
 
-		// advance_session will increment the block number by 1, so we need to increment it again
-		let now = now + 1;
+		set_keys();
+
+		let now = System::block_number();
 
 		// Submit data
 		let data_hash = H256::random();
@@ -414,7 +542,7 @@ fn should_have_expected_data_when_reported_unavailable() {
 		// Check if the reported data matches the expected data
 		let metadata = Metadata::<Runtime>::get(now);
 		assert_eq!(metadata[0].data_hash, data_hash);
-		assert_eq!(metadata[0].is_available, false);
+		assert_eq!(metadata[0].is_available, true);
 	});
 }
 
@@ -521,7 +649,6 @@ fn should_send_unavailability_report_correctly() {
 		let now = now + (DELAY_CHECK_THRESHOLD as u64) + 10;
 		System::set_block_number(now);
 		let mut res = MeloStore::send_unavailability_report(now).unwrap();
-		// res.next().unwrap().unwrap();
 		assert!(res.next().is_none());
 	});
 }

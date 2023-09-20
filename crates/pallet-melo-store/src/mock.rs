@@ -155,11 +155,6 @@ impl pallet_session::historical::Config for Runtime {
 	type FullIdentificationOf = ConvertInto;
 }
 
-// impl pallet_authorship::Config for Runtime {
-// 	type FindAuthor = ();
-// 	type EventHandler = ();
-// }
-
 parameter_types! {
 	pub static MockCurrentSessionProgress: Option<Option<Permill>> = None;
 }
@@ -231,7 +226,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	result
 }
 
-pub fn advance_session(now: u64) {
+pub fn advance_session() {
+	let now = System::block_number().max(1);
 	System::set_block_number(now + 1);
 	Session::rotate_session();
 	let keys = Session::validators().into_iter().map(UintAuthorityId).collect();

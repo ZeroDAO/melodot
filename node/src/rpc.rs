@@ -14,7 +14,7 @@ use melodot_runtime::{opaque::Block, AccountId, Balance, Index};
 use melodot_runtime::{BlockNumber, Hash};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::BabeWorkerHandle;
-use sc_consensus_grandpa::{
+use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
 use sc_transaction_pool_api::TransactionPool;
