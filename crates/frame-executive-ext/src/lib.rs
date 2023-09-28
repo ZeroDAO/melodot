@@ -623,17 +623,17 @@ where
 			&Default::default(),
 		);
 
-		enter_span! { sp_tracing::Level::TRACE, "validate_transaction" };
+		enter_span! { sp_tracing::Level::DEBUG, "validate_transaction" };
 
-		let encoded_len = within_span! { sp_tracing::Level::TRACE, "using_encoded";
+		let encoded_len = within_span! { sp_tracing::Level::DEBUG, "using_encoded";
 			uxt.using_encoded(|d| d.len())
 		};
 
-		let xt = within_span! { sp_tracing::Level::TRACE, "check";
+		let xt = within_span! { sp_tracing::Level::DEBUG, "check";
 			uxt.check(&Default::default())
 		}?;
 
-		let dispatch_info = within_span! { sp_tracing::Level::TRACE, "dispatch_info";
+		let dispatch_info = within_span! { sp_tracing::Level::DEBUG, "dispatch_info";
 			xt.get_dispatch_info()
 		};
 
@@ -642,7 +642,7 @@ where
 		}
 
 		within_span! {
-			sp_tracing::Level::TRACE, "validate";
+			sp_tracing::Level::DEBUG, "validate";
 			xt.validate::<UnsignedValidator>(source, &dispatch_info, encoded_len)
 		}
 	}

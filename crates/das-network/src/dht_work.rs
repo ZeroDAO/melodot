@@ -13,18 +13,18 @@
 // limitations under the License.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
+use crate::{warn, Arc, Backend, Block, DhtEvent, KademliaKey, OffchainDb};
 use futures::{channel::mpsc, stream::Fuse, FutureExt, Stream, StreamExt};
 use melo_das_primitives::blob::Blob;
 use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
 use melo_das_primitives::crypto::KZG;
 use melo_erasure_coding::bytes_vec_to_blobs;
-use crate::{DhtEvent, KademliaKey};
-use std::sync::Arc;
+
+/// Logging target for the mmr gadget.
+pub const LOG_TARGET: &str = "das-network::dht_work";
 
 use crate::{NetworkProvider, ServicetoWorkerMsg, Sidercar, SidercarStatus};
-
-pub struct Worker<Client, Network, DhtEventStream> {
+pub struct Worker<B: Block, Client, Network, DhtEventStream, BE: Backend<B>> {
 	#[allow(dead_code)]
 	client: Arc<Client>,
 
@@ -36,20 +36,45 @@ pub struct Worker<Client, Network, DhtEventStream> {
 
 	/// Channel we receive Dht events on.
 	dht_event_rx: DhtEventStream,
+
+	///
+	pub backend: Arc<BE>,
+
+	pub offchain_db: OffchainDb<BE::OffchainStorage>,
 }
 
-impl<Client, Network, DhtEventStream> Worker<Client, Network, DhtEventStream>
+impl<B, Client, Network, DhtEventStream, BE> Worker<B, Client, Network, DhtEventStream, BE>
 where
+	B: Block,
 	Network: NetworkProvider,
 	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
+	BE: Backend<B>,
 {
-	pub(crate) fn new(
+	pub(crate) fn try_build(
 		from_service: mpsc::Receiver<ServicetoWorkerMsg>,
 		client: Arc<Client>,
+		backend: Arc<BE>,
 		network: Arc<Network>,
 		dht_event_rx: DhtEventStream,
-	) -> Self {
-		Worker { from_service: from_service.fuse(), client, network, dht_event_rx }
+	) -> Option<Self> {
+		match backend.offchain_storage() {
+			Some(offchain_storage) => Some(Worker {
+				from_service: from_service.fuse(),
+				backend,
+				offchain_db: OffchainDb::new(offchain_storage),
+				client,
+				network,
+				dht_event_rx,
+			}),
+			None => {
+				warn!(
+					target: LOG_TARGET,
+					// TODO
+					"Can't spawn a  for a node without offchain storage."
+				);
+				None
+			},
+		}
 	}
 
 	pub async fn run<FStart>(mut self, start: FStart)
@@ -61,7 +86,7 @@ where
 			futures::select! {
 				event = self.dht_event_rx.next().fuse() => {
 					if let Some(event) = event {
-						Self::handle_dht_event(event).await;
+						self.handle_dht_event(event).await;
 					}
 				},
 				msg = self.from_service.select_next_some() => {
@@ -71,20 +96,21 @@ where
 		}
 	}
 
-	async fn handle_dht_event(event: DhtEvent) {
+	async fn handle_dht_event(&mut self, event: DhtEvent) {
 		match event {
 			DhtEvent::ValueFound(v) => {
-				Self::handle_dht_value_found_event(v);
+				self.handle_dht_value_found_event(v);
 			},
-			DhtEvent::ValueNotFound(key) => Self::handle_dht_value_not_found_event(key),
+			DhtEvent::ValueNotFound(key) => self.handle_dht_value_not_found_event(key),
 			// TODO handle other events
 			_ => {},
 		}
 	}
 
-	fn handle_dht_value_found_event(values: Vec<(KademliaKey, Vec<u8>)>) {
+	fn handle_dht_value_found_event(&mut self, values: Vec<(KademliaKey, Vec<u8>)>) {
 		for (key, value) in values {
-			let maybe_sidercar = Sidercar::from_local(key.as_ref());
+			let maybe_sidercar =
+				Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
 			match maybe_sidercar {
 				Some(sidercar) => {
 					if sidercar.status.is_none() {
@@ -111,7 +137,7 @@ where
 								new_sidercar.status = Some(SidercarStatus::ProofError);
 							}
 						}
-						new_sidercar.save_to_local();
+						new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 					}
 				},
 				None => {},
@@ -119,14 +145,15 @@ where
 		}
 	}
 
-	fn handle_dht_value_not_found_event(key: KademliaKey) {
-		let maybe_sidercar = Sidercar::from_local(key.as_ref());
+	fn handle_dht_value_not_found_event(&mut self, key: KademliaKey) {
+		let maybe_sidercar =
+			Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
 		match maybe_sidercar {
 			Some(sidercar) => {
 				if sidercar.status.is_none() {
 					let mut new_sidercar = sidercar.clone();
 					new_sidercar.status = Some(SidercarStatus::NotFound);
-					new_sidercar.save_to_local();
+					new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 				}
 			},
 			None => {},
@@ -135,8 +162,8 @@ where
 
 	fn process_message_from_service(&self, msg: ServicetoWorkerMsg) {
 		match msg {
-			ServicetoWorkerMsg::PutValueToDht(key, value) => {
-				self.network.put_value(key, value);
+			ServicetoWorkerMsg::PutValueToDht(key, value, sender) => {
+				let _ = sender.send(Some(self.network.put_value(key, value)));
 			},
 		}
 	}

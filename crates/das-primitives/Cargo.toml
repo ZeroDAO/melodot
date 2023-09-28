@@ -1,6 +1,6 @@
 [package]
 name = "melo-das-primitives"
-description = "Core primitives for Melodot"
+description = "Core primitives for data availability sampling used by Melodot."
 license = "Apache-2.0"
 version = "0.1.0"
 authors = ["DKLee <xiuerdwy@gmail.com>"]
@@ -24,7 +24,6 @@ num-traits = { version = "0.2.15", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
 	"derive", "max-encoded-len"
 ] }
-# parity-scale-codec = { version = "3.4.0", default-features = false, features = ["derive", "max-encoded-len"] }
 parking_lot = { version = "0.12.1", optional = true }
 rayon = { version = "1.6.1", optional = true }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }

@@ -14,11 +14,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod weights;
-pub use weights::*;
-
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 mod mock;
 mod tests;
+
+pub mod weights;
+pub use weights::*;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
@@ -49,7 +51,9 @@ use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
 // Threshold for delayed acknowledgement of unavailability
-const DELAY_CHECK_THRESHOLD: u32 = 1;
+pub const DELAY_CHECK_THRESHOLD: u32 = 1;
+// Weight for each blob
+pub const WEIGHT_PER_BLOB: Weight = Weight::from_parts(1024, 0);
 
 pub type AuthIndex = u32;
 
@@ -235,8 +239,6 @@ pub mod pallet {
 		ExceedUnavailableDataConfirmTime,
 		/// The index set is empty.
 		IndexSetIsEmpty,
-		/// A duplicate item exists.
-		DuplicateItemExists,
 		/// The data doesn't exist.
 		DataNotExist,
 		/// The report has been submitted more than once.
@@ -251,12 +253,20 @@ pub mod pallet {
 		MismatchedCommitmentsCount,
 		/// The number of proofs does not match the expected blob number.
 		MismatchedProofsCount,
+		/// Non existent public key.
+		InvalidKey,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		#[pallet::weight(
+			WEIGHT_PER_BLOB
+			.saturating_mul(commitments.len().max(1) as u64)
+			.saturating_add(
+				<T as Config>::WeightInfo::submit_data(proofs.len() as u32)
+			)
+		)]
 		pub fn submit_data(
 			origin: OriginFor<T>,
 			app_id: u32,
@@ -284,8 +294,7 @@ pub mod pallet {
 				.try_extend(commitments.iter().cloned())
 				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
 
-			let mut proof_list: BoundedVec<KZGProof, T::MaxBlobNum> =
-				BoundedVec::default();
+			let mut proof_list: BoundedVec<KZGProof, T::MaxBlobNum> = BoundedVec::default();
 			proof_list
 				.try_extend(proofs.iter().cloned())
 				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
@@ -324,7 +333,10 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(1)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		#[pallet::weight(<T as Config>::WeightInfo::validate_unsigned_and_then_report(
+			unavailable_data_report.validators_len,
+			unavailable_data_report.index_set.len() as u32,
+		))]
 		pub fn report(
 			origin: OriginFor<T>,
 			unavailable_data_report: UnavailableDataReport<BlockNumberFor<T>>,
@@ -343,14 +355,16 @@ pub mod pallet {
 					>= current_block_number,
 				Error::<T>::ExceedUnavailableDataConfirmTime
 			);
+			
 			ensure!(!unavailable_data_report.index_set.is_empty(), Error::<T>::IndexSetIsEmpty);
 
-			let mut index_set = unavailable_data_report.index_set;
-			index_set.sort();
+			let keys = Keys::<T>::get();
+			ensure!(
+				keys.get(unavailable_data_report.authority_index as usize).is_some(),
+				Error::<T>::InvalidKey
+			);
 
-			let original_len = index_set.len();
-			index_set.dedup();
-			ensure!(original_len == index_set.len(), Error::<T>::DuplicateItemExists);
+			let index_set = unavailable_data_report.index_set;
 
 			Metadata::<T>::try_mutate(
 				unavailable_data_report.at_block,
@@ -359,20 +373,12 @@ pub mod pallet {
 						let metadata =
 							metadata_vec.get_mut(index as usize).ok_or(Error::<T>::DataNotExist)?;
 
-						match metadata.is_available {
-							false => {
-								// If the data is available, we don't need to do anything.
-								Ok(())
-							},
-							true => {
-								// If the data is unavailable, we need to handle the vote.
-								Self::handle_vote(
-									unavailable_data_report.at_block,
-									unavailable_data_report.authority_index,
-									metadata,
-								)
-							},
-						}?;
+						Self::handle_vote(
+							unavailable_data_report.at_block,
+							unavailable_data_report.authority_index,
+							index,
+							metadata,
+						)?;
 					}
 					Ok(())
 				},
@@ -385,7 +391,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(<T as Config>::WeightInfo::default())]
+		#[pallet::weight(<T as Config>::WeightInfo::register_app())]
 		pub fn register_app(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let app_id = AppId::<T>::get() + 1;
@@ -432,6 +438,8 @@ pub mod pallet {
 		}
 	}
 
+	pub(crate) const INVALID_VALIDATORS_LEN: u8 = 10;
+
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
@@ -443,8 +451,13 @@ pub mod pallet {
 				let authority_id =
 					match keys.get(unavailable_data_report.authority_index.clone() as usize) {
 						Some(id) => id,
-						None => return InvalidTransaction::BadProof.into(),
+						None => return InvalidTransaction::Stale.into(),
 					};
+
+				let keys = Keys::<T>::get();
+				if keys.len() as u32 != unavailable_data_report.validators_len {
+					return InvalidTransaction::Custom(INVALID_VALIDATORS_LEN).into();
+				}
 
 				let signature_valid = unavailable_data_report.using_encoded(|encoded_report| {
 					authority_id.verify(&encoded_report, signature)
@@ -538,12 +551,9 @@ impl<T: Config> Pallet<T> {
 		index_set: Vec<u32>,
 	) -> OffchainResult<T, ()> {
 		let prepare_unavailable_data_report = || -> OffchainResult<T, Call<T>> {
-			let unavailable_data_report = UnavailableDataReport {
-				at_block,
-				authority_index,
-				index_set,
-				validators_len: Keys::<T>::get().len() as u32,
-			};
+			let validators_len = Keys::<T>::decode_len().unwrap_or_default() as u32;
+			let unavailable_data_report =
+				UnavailableDataReport { at_block, authority_index, index_set, validators_len };
 
 			let signature =
 				key.sign(&unavailable_data_report.encode()).ok_or(OffchainErr::FailedSigning)?;
@@ -627,11 +637,12 @@ impl<T: Config> Pallet<T> {
 	fn handle_vote(
 		at_block: BlockNumberFor<T>,
 		authority_index: AuthIndex,
+		metadata_index: u32,
 		metadata: &mut BlobMetadata<T>,
 	) -> Result<(), DispatchError> {
 		const UNAVAILABILITY_THRESHOLD: Permill = Permill::from_percent(50);
 
-		UnavailableVote::<T>::try_mutate(at_block, metadata.app_id, |maybe_unavailable_vote| {
+		UnavailableVote::<T>::try_mutate(at_block, metadata_index, |maybe_unavailable_vote| {
 			let vote_num = match maybe_unavailable_vote {
 				Some(unavailable_vote) => {
 					// Repeat submission or not

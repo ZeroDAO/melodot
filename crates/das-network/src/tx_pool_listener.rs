@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::{Arc, Backend,OffchainDb,warn};
 use futures::StreamExt;
 use melo_core_primitives::{traits::Extractor, Encode};
 use sc_network::NetworkDHTProvider;
@@ -19,32 +20,48 @@ use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
-use std::sync::Arc;
 
 const LOG_TARGET: &str = "tx_pool_listener";
 
 use crate::{sidercar_kademlia_key, NetworkProvider, Sidercar, SidercarMetadata};
 
 #[derive(Clone)]
-pub struct TPListenerParams<Client, Network, TP> {
+pub struct TPListenerParams<Client, Network, TP, BE> {
 	pub client: Arc<Client>,
 	pub network: Arc<Network>,
 	pub transaction_pool: Arc<TP>,
+	pub backend: Arc<BE>,
 }
 
-pub async fn start_tx_pool_listener<Client, Network, TP, B>(
-	TPListenerParams { client, network, transaction_pool }: TPListenerParams<Client, Network, TP>,
+pub async fn start_tx_pool_listener<Client, Network, TP, B, BE>(
+	TPListenerParams { client, network, transaction_pool, backend }: TPListenerParams<
+		Client,
+		Network,
+		TP,
+		BE,
+	>,
 ) where
 	Network: NetworkProvider + 'static,
 	TP: TransactionPool<Block = B> + 'static,
 	B: BlockT + Send + Sync + 'static,
 	Client: HeaderBackend<B> + ProvideRuntimeApi<B>,
 	Client::Api: Extractor<B>,
+	BE: Backend<B>,
 {
 	tracing::info!(
 		target: LOG_TARGET,
 		"Starting transaction pool listener.",
 	);
+	let mut offchain_db = match backend.offchain_storage() {
+		Some(offchain_storage) => OffchainDb::new(offchain_storage),
+		None => {
+			warn!(
+				target: LOG_TARGET,
+				"Can't spawn a transaction pool listener for a node without offchain storage."
+			);
+			return
+		},
+	};
 	// Obtain the import notification event stream from the transaction pool
 	let mut import_notification_stream = transaction_pool.import_notification_stream();
 
@@ -76,7 +93,7 @@ pub async fn start_tx_pool_listener<Client, Network, TP, B>(
 										network.get_value(&sidercar_kademlia_key(sidercar));
 									};
 
-									match Sidercar::from_local(&metadata.id()) {
+									match Sidercar::from_local_outside::<B, BE>(&metadata.id(), &mut offchain_db) {
 										Some(sidercar) => {
 											if sidercar.status.is_none() {
 												fetch_value_from_network(&sidercar);
@@ -85,7 +102,7 @@ pub async fn start_tx_pool_listener<Client, Network, TP, B>(
 										None => {
 											let sidercar =
 												Sidercar { blobs: None, metadata, status: None };
-											sidercar.save_to_local();
+											sidercar.save_to_local_outside::<B, BE>(&mut offchain_db);
 											fetch_value_from_network(&sidercar);
 										},
 									}

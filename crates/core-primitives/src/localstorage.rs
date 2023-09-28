@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use sp_core::offchain::StorageKind;
 use crate::Vec;
+
+#[cfg(feature = "outside")]
+use sc_client_api::Backend;
+#[cfg(feature = "outside")]
+use sc_offchain::OffchainDb;
+#[cfg(feature = "outside")]
+use sp_core::offchain::DbExternalities;
+#[cfg(feature = "outside")]
+use sp_runtime::traits::Block;
+
+use sp_core::offchain::StorageKind;
 
 pub fn save_to_localstorage_with_prefix(key: &[u8], value: &[u8], prefix: &[u8]) {
 	let mut prefixed_key = prefix.to_vec();
@@ -25,4 +35,27 @@ pub fn get_from_localstorage_with_prefix(key: &[u8], prefix: &[u8]) -> Option<Ve
 	let mut prefixed_key = prefix.to_vec();
 	prefixed_key.extend_from_slice(key);
 	sp_io::offchain::local_storage_get(StorageKind::PERSISTENT, &prefixed_key)
+}
+
+#[cfg(feature = "outside")]
+pub fn save_to_localstorage_with_prefix_outside<B: Block, BE: Backend<B>>(
+	db: &mut OffchainDb<BE::OffchainStorage>,
+	key: &[u8],
+	value: &[u8],
+	prefix: &[u8],
+) {
+	let mut prefixed_key = prefix.to_vec();
+	prefixed_key.extend_from_slice(key);
+	db.local_storage_set(StorageKind::PERSISTENT, &prefixed_key, value);
+}
+
+#[cfg(feature = "outside")]
+pub fn get_from_localstorage_with_prefix_outside<B: Block, BE: Backend<B>>(
+	db: &mut OffchainDb<BE::OffchainStorage>,
+	key: &[u8],
+	prefix: &[u8],
+) -> Option<Vec<u8>> {
+	let mut prefixed_key = prefix.to_vec();
+	prefixed_key.extend_from_slice(key);
+	db.local_storage_get(StorageKind::PERSISTENT, &prefixed_key)
 }

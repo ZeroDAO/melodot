@@ -20,8 +20,6 @@ frame-support = { version = "4.0.0-dev", default-features = false, git = "https:
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 log = { version = "0.4.17", default-features = false }
-env_logger = "0.9"
-
 sp-application-crypto = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -33,17 +31,19 @@ pallet-session = { git = "https://github.com/paritytech/substrate.git", branch =
 sp-staking = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 pallet-authorship = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 pallet-im-online = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
 melo-das-primitives = { version = "0.1.0", path = "../das-primitives" }
+melo-core-primitives = { version = "0.1.0", path = "../core-primitives"}
 
 [features]
 default = ["std"]
 std = [
 	"codec/std",
+	"log/std",
 	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
-	"log/std",
 	"sp-application-crypto/std",
 	"sp-core/std",
 	"sp-io/std",
@@ -56,5 +56,15 @@ std = [
 serde = [
     "melo-das-primitives/serde",
 ]
-runtime-benchmarks = ["frame-benchmarking/runtime-benchmarks"]
-try-runtime = ["frame-support/try-runtime"]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	]
+try-runtime = [
+	"frame-support/try-runtime",
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"sp-runtime/try-runtime",
+	"pallet-session/try-runtime",
+	]

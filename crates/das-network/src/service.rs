@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
 use futures::{
 	channel::{mpsc, oneshot},
 	SinkExt,
 };
+use std::fmt::Debug;
 
 use crate::{KademliaKey, ServicetoWorkerMsg};
 
@@ -40,9 +40,12 @@ impl Service {
 	}
 
 	pub async fn put_value_to_dht(&mut self, key: KademliaKey, value: Vec<u8>) -> Option<()> {
-		let (_, rx) = oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 
-		self.to_worker.send(ServicetoWorkerMsg::PutValueToDht(key, value)).await.ok()?;
+		self.to_worker
+			.send(ServicetoWorkerMsg::PutValueToDht(key, value, tx))
+			.await
+			.ok()?;
 
 		rx.await.ok().flatten()
 	}
