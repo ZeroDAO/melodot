@@ -1,4 +1,5 @@
 {
     "rust-analyzer.server.path": null,
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "commentTranslate.multiLineMerge": true
 }

@@ -51,9 +51,9 @@ use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
 // Threshold for delayed acknowledgement of unavailability
-const DELAY_CHECK_THRESHOLD: u32 = 1;
+pub const DELAY_CHECK_THRESHOLD: u32 = 1;
 // Weight for each blob
-const WEIGHT_PER_BLOB: Weight = Weight::from_parts(1024, 0);
+pub const WEIGHT_PER_BLOB: Weight = Weight::from_parts(1024, 0);
 
 pub type AuthIndex = u32;
 

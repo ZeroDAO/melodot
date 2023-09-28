@@ -39,15 +39,15 @@ use config::{consensus, currency::*, gov, system, time::DAYS};
 
 pub mod voter_bags;
 
-use codec::Decode;
+use codec::{Decode, Encode};
 use melo_auto_config::auto_config;
+pub use node_primitives::{AccountId, Signature};
+pub use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+
 use sp_runtime::{
 	generic, impl_opaque_keys,
-	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, One, OpaqueKeys, Verify,
-	},
-	MultiSignature,
+	traits::{BlakeTwo256, Block as BlockT, One, OpaqueKeys},
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -107,62 +107,30 @@ use melo_das_primitives::{KZGCommitment, KZGProof};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::H256;
+use sp_runtime::generic::Era;
 use sp_runtime::{
 	create_runtime_str,
-	traits::NumberFor,
+	traits::{self, NumberFor},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult,
 };
 use sp_std::vec;
 
-/// An index to a block.
-pub type BlockNumber = u32;
-
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
-
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-/// Balance of an account.
-pub type Balance = u128;
-
-/// Index of a transaction in the chain.
-pub type Index = u32;
-
-/// A hash of some data used by the chain.
-pub type Hash = sp_core::H256;
-
-/// Time type
-pub type Moment = u64;
-
 /// Block header type as expected by this runtime.
 pub type Header = ExtendedHeader<BlockNumber, BlakeTwo256>;
 
-/// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
-/// the specifics of the runtime. They can then be made to be agnostic over specific formats
-/// of data like extrinsics, allowing for them to continue syncing the network through upgrades
-/// to even the core data structures.
-pub mod opaque {
-	use super::*;
+pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 
-	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
+pub type BlockId = generic::BlockId<Block>;
 
-	/// Opaque block header type.
-	pub type Header = ExtendedHeader<BlockNumber, BlakeTwo256>;
-	/// Opaque block type.
-	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-	/// Opaque block identifier type.
-	pub type BlockId = generic::BlockId<Block>;
+pub type SignedBlock = generic::SignedBlock<Block>;
 
-	impl_opaque_keys! {
-		pub struct SessionKeys {
-			pub grandpa: Grandpa,
-			pub babe: Babe,
-			pub im_online: ImOnline,
-			pub authority_discovery: AuthorityDiscovery,
-		}
+impl_opaque_keys! {
+	pub struct SessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -185,7 +153,7 @@ impl frame_system::Config for Runtime {
 	/// The aggregated dispatch type that is available for extrinsics.
 	type RuntimeCall = RuntimeCall;
 	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
-	type Lookup = AccountIdLookup<AccountId, ()>;
+	type Lookup = Indices;
 	/// The index type for storing how many extrinsics an account has signed.
 	type Index = Index;
 	/// The index type for blocks.
@@ -317,8 +285,8 @@ impl pallet_session::Config for Runtime {
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
-	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-	type Keys = opaque::SessionKeys;
+	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type Keys = SessionKeys;
 }
 
 impl pallet_session::historical::Config for Runtime {
@@ -699,6 +667,54 @@ impl pallet_im_online::Config for Runtime {
 	type ValidatorSet = Historical;
 }
 
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
+	RuntimeCall: From<LocalCall>,
+{
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: RuntimeCall,
+		public: <Signature as traits::Verify>::Signer,
+		account: AccountId,
+		nonce: Index,
+	) -> Option<(RuntimeCall, <UncheckedExtrinsic as traits::Extrinsic>::SignaturePayload)> {
+		use sp_runtime::{traits::StaticLookup, SaturatedConversion as _};
+		let tip = 0;
+		// take the biggest period possible.
+		let period =
+			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
+		let current_block = System::block_number()
+			.saturated_into::<u64>()
+			// The `System::block_number` is initialized with `n+1`,
+			// so the actual block number is `n`.
+			.saturating_sub(1);
+		let era = Era::mortal(period, current_block);
+		let extra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
+			frame_system::CheckSpecVersion::<Runtime>::new(),
+			frame_system::CheckTxVersion::<Runtime>::new(),
+			frame_system::CheckGenesis::<Runtime>::new(),
+			frame_system::CheckEra::<Runtime>::from(era),
+			frame_system::CheckNonce::<Runtime>::from(nonce),
+			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+		);
+		let raw_payload = SignedPayload::new(call, extra)
+			.map_err(|e| {
+				log::warn!("Unable to create signed payload: {:?}", e);
+			})
+			.ok()?;
+		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
+		let address = Indices::unlookup(account);
+		let (call, extra, _) = raw_payload.deconstruct();
+		Some((call, (address, signature, extra)))
+	}
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+	type Public = <Signature as traits::Verify>::Signer;
+	type Signature = Signature;
+}
+
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
 	RuntimeCall: From<C>,
@@ -761,6 +777,50 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type MaxCandidates = MaxCandidates;
 }
 
+parameter_types! {
+	pub const AssetDeposit: Balance = 100 * DOLLARS;
+	pub const ApprovalDeposit: Balance = 1 * DOLLARS;
+	pub const StringLimit: u32 = 50;
+	pub const MetadataDepositBase: Balance = 10 * DOLLARS;
+	pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
+}
+
+impl pallet_assets::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Balance = u128;
+	type AssetId = u32;
+	type AssetIdParameter = codec::Compact<u32>;
+	type Currency = Balances;
+	type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+	type ForceOrigin = EnsureRoot<AccountId>;
+	type AssetDeposit = AssetDeposit;
+	type AssetAccountDeposit = ConstU128<DOLLARS>;
+	type MetadataDepositBase = MetadataDepositBase;
+	type MetadataDepositPerByte = MetadataDepositPerByte;
+	type ApprovalDeposit = ApprovalDeposit;
+	type StringLimit = StringLimit;
+	type Freezer = ();
+	type Extra = ();
+	type CallbackHandle = ();
+	type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
+	type RemoveItemsLimit = ConstU32<1000>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
+}
+
+parameter_types! {
+	pub const IndexDeposit: Balance = 1 * DOLLARS;
+}
+
+// #[auto_config()]
+impl pallet_indices::Config for Runtime {
+	type AccountIndex = AccountIndex;
+	type Currency = Balances;
+	type Deposit = IndexDeposit;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_indices::weights::SubstrateWeight<Runtime>;
+}
+
 impl frame_system_ext::Config for Runtime {
 	type CommitList = MeloStore;
 	type ExtendedHeader = Header;
@@ -775,58 +835,57 @@ impl pallet_melo_store::Config for Runtime {
 	type MaxKeys = consensus::MaxKeys;
 }
 
+use sp_runtime::OpaqueExtrinsic;
+/// Block type for the node
+pub type NodeBlock = generic::Block<Header, OpaqueExtrinsic>;
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
 	where
 		Block = Block,
-		NodeBlock = opaque::Block,
+		NodeBlock = NodeBlock,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		// Basic stuff.
-		System: frame_system,
-		Timestamp: pallet_timestamp,
-		Utility: pallet_utility,
+		System: frame_system = 1,
+		SystemExt: frame_system_ext = 2,
+		Utility: pallet_utility = 3,
+		Babe: pallet_babe = 4,
+		Timestamp: pallet_timestamp = 5,
+		Authorship: pallet_authorship = 6,
+		Indices: pallet_indices = 7,
+		Balances: pallet_balances = 8,
+		TransactionPayment: pallet_transaction_payment = 9,
 
-		// Currency.
-		Balances: pallet_balances,
-		TransactionPayment: pallet_transaction_payment,
-
-		// Consensus support.
-		Babe: pallet_babe,
-		Grandpa: pallet_grandpa,
-		Session: pallet_session,
-		Staking: pallet_staking,
-		ImOnline: pallet_im_online,
-		AuthorityDiscovery: pallet_authority_discovery,
-		Offences: pallet_offences,
-		Historical: pallet_session_historical::{Pallet},
-		NominationPools: pallet_nomination_pools,
-		Scheduler: pallet_scheduler,
-		VoterList: pallet_bags_list::<Instance1>,
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase,
-		Elections: pallet_elections_phragmen,
-
-		// Governance support.
-		Sudo: pallet_sudo,
-		TechnicalCommittee: pallet_collective::<Instance2>,
-		TechnicalMembership: pallet_membership::<Instance1>,
-		Council: pallet_collective::<Instance1>,
-		Democracy: pallet_democracy,
-		Treasury: pallet_treasury,
-		Bounties: pallet_bounties,
-		Preimage: pallet_preimage,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 20,
+		Staking: pallet_staking = 21,
+		Session: pallet_session = 22,
+		Democracy: pallet_democracy = 23,
+		Council: pallet_collective::<Instance1> = 24,
+		TechnicalCommittee: pallet_collective::<Instance2> = 25,
+		Elections: pallet_elections_phragmen = 26,
+		TechnicalMembership: pallet_membership::<Instance1> = 27,
+		Grandpa: pallet_grandpa = 28,
+		Treasury: pallet_treasury = 29,
+		Sudo: pallet_sudo = 30,
+		ImOnline: pallet_im_online = 31,
+		AuthorityDiscovery: pallet_authority_discovery = 32,
+		Offences: pallet_offences = 33,
+		Historical: pallet_session_historical::{Pallet} = 34,
+		Scheduler: pallet_scheduler = 35,
+		Preimage: pallet_preimage = 36,
+		Bounties: pallet_bounties = 37,
+		Assets: pallet_assets = 38,
+		VoterList: pallet_bags_list::<Instance1> = 39,
+		NominationPools: pallet_nomination_pools = 40,
 
 		// Melodot.
-		MeloStore: pallet_melo_store,
-		SystemExt: frame_system_ext,
+		MeloStore: pallet_melo_store = 80,
 	}
 );
 
 /// The address format for describing accounts.
-pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
-/// Block type as expected by this runtime.
-pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
 	frame_system::CheckNonZeroSender<Runtime>,
@@ -864,6 +923,7 @@ mod benches {
 		[frame_system, SystemBench::<Runtime>]
 
 		[pallet_babe, Babe]
+		[pallet_indices, Indices]
 		[pallet_timestamp, Timestamp]
 		[pallet_balances, Balances]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
@@ -1059,13 +1119,13 @@ impl_runtime_apis! {
 
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			opaque::SessionKeys::generate(seed)
+			SessionKeys::generate(seed)
 		}
 
 		fn decode_session_keys(
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
-			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
+			SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 	}
 

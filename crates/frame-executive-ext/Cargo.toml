@@ -55,6 +55,6 @@ std = [
 	# For frame-system-ext
 	"frame-system-ext/std",
 	"melo-core-primitives/std",
-	
+	"melo-core-primitives/outside",
 ]
 try-runtime = ["frame-support/try-runtime", "frame-try-runtime/try-runtime", "sp-runtime/try-runtime"]

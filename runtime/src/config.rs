@@ -25,14 +25,11 @@ use frame_support::{
 	PalletId,
 };
 use sp_runtime::{
-	curve::PiecewiseLinear, transaction_validity::TransactionPriority, Perbill,
-	Permill,
+	curve::PiecewiseLinear, transaction_validity::TransactionPriority, Perbill, Permill,
 };
 use static_assertions::const_assert;
 
-use crate::{
-	Balance, BlockLength, BlockNumber, BlockWeights, Moment, RuntimeVersion,
-};
+use crate::{Balance, BlockLength, BlockNumber, BlockWeights, Moment, RuntimeVersion};
 
 pub mod core {
 	use super::*;
@@ -121,7 +118,7 @@ pub mod system {
 		pub MaxBlobNumber: u32 = core::MAX_BLOB_NUMBER;
 		pub RuntimeBlockLength: BlockLength =
 			BlockLength::max_with_normal_ratio(5 * 1024 * 1024, core::NORMAL_DISPATCH_RATIO);
-			
+
 		pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
 		.base_block(BlockExecutionWeight::get())
 		.for_class(DispatchClass::all(), |weights| {

@@ -20,6 +20,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
+log = { version = "0.4.17", default-features = false }
 melo-auto-config = { version = "0.9.42", default-features = false, path="../crates/auto-config" }
 
 # Substrate
@@ -50,6 +51,9 @@ pallet-staking = { default-features = false, git = "https://github.com/paritytec
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-asset-tx-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
+pallet-assets = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42", default-features = false }
 
 frame-election-provider-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -103,6 +107,9 @@ std = [
 	"sp-consensus-babe/std",
 	"pallet-authorship/std",
 	"codec/std",
+	"log/std",
+	"pallet-assets/std",
+	"pallet-indices/std",
 	"scale-info/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
@@ -116,6 +123,7 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"pallet-elections-phragmen/std",
+	"pallet-asset-tx-payment/std",
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",
@@ -161,12 +169,14 @@ runtime-benchmarks = [
 	"frame-system-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
+	"pallet-assets/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-indices/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
 	"pallet-nomination-pools-benchmarking",
@@ -185,9 +195,12 @@ try-runtime = [
 	"frame-executive-ext/try-runtime",
 	"frame-system/try-runtime",
 	"frame-support/try-runtime",
+	"pallet-assets/try-runtime",
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",
+	"pallet-asset-tx-payment/try-runtime",
+	"pallet-indices/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",

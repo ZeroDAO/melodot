@@ -10,13 +10,22 @@ use std::sync::Arc;
 use jsonrpsee::RpcModule;
 use melo_core_primitives::traits::AppDataApi;
 use melo_das_network_protocol::DasDht;
-use melodot_runtime::{opaque::Block, AccountId, Balance, Index};
-use melodot_runtime::{BlockNumber, Hash};
-use sc_client_api::AuxStore;
-use sc_consensus_babe::BabeWorkerHandle;
+pub use node_primitives::Signature;
+
+use melodot_runtime::{
+	AccountId,
+	Balance,
+	BlockNumber,
+	Hash,
+	Index,
+	NodeBlock as Block,
+};
+
 use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
+use sc_client_api::AuxStore;
+use sc_consensus_babe::BabeWorkerHandle;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -90,6 +99,7 @@ where
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: AppDataApi<Block, RuntimeCall>,
+	P: TransactionPool + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,

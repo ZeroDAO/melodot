@@ -25,6 +25,10 @@ sp-runtime = { version = "7.0.0", default-features = false, git = "https://githu
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
 
+# For node
+sc-client-api = {optional = true, default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-offchain = {optional = true, default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
 # For testing
 rand = { version = "0.8.5", optional = true }
 sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -38,7 +42,7 @@ sp-tracing = { git = "https://github.com/paritytech/substrate.git", branch = "po
 substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 [features]
-default = ["std"]
+default = ["std", "outside"]
 std = [
 	"codec/std",
 	"log/std",
@@ -55,6 +59,13 @@ std = [
 	"sp-state-machine/std",
 	"sp-tracing/std",
 	"sp-application-crypto/std",
+	"sc-client-api",
+	"sc-offchain",
+]
+outside = [
+    "melo-das-primitives/serde",
+	"sc-client-api",
+	"sc-offchain",
 ]
 parallel = [
     "melo-das-primitives/parallel",

@@ -1,6 +1,6 @@
 [package]
 name = "frame-system-ext"
-description = "Pallets for Data Availability Storage Logic"
+description = "Extends the frame-system functionality to support custom block headers."
 license = "Apache-2.0"
 version = "4.0.0-dev"
 authors = ["DKLee <xiuerdwy@gmail.com>"]
@@ -21,9 +21,6 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"]}
 serde = { version = "1.0.136", features = ["derive"], optional = true }
 
-# [dev-dependencies]
-
-
 [features]
 default = ["std"]
 std = [
@@ -33,6 +30,7 @@ std = [
 	"scale-info/std",
 	"log/std",
 	"melo-core-primitives/std",
+	"melo-core-primitives/outside",
 	"sp-application-crypto/std",
 	"sp-runtime/std",
 ]

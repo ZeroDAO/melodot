@@ -14,7 +14,7 @@
 
 mod error;
 
-use codec::Decode;
+use codec::{Decode, Encode};
 use jsonrpsee::{
 	core::{async_trait, RpcResult},
 	proc_macros::rpc,
@@ -35,17 +35,18 @@ use std::sync::Arc;
 
 pub use sc_rpc_api::DenyUnsafe;
 
-use error::Error;
+pub use error::Error;
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Eq, PartialEq, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BlobTxSatus<Hash> {
-	tx_hash: Hash,
-	err: Option<String>,
+	pub tx_hash: Hash,
+	pub err: Option<String>,
 }
 
-#[rpc(client, server)]
+#[rpc(client, server, namespace = "das")]
 pub trait DasApi<Hash> {
-	#[method(name = "das_submitBlobTx")]
+	#[method(name = "submitBlobTx")]
 	async fn submit_blob_tx(&self, data: Bytes, extrinsic: Bytes) -> RpcResult<BlobTxSatus<Hash>>;
 }
 
@@ -110,16 +111,18 @@ where
 		let at = generic::BlockId::hash(best_block_hash)
 			as generic::BlockId<<P as sc_transaction_pool_api::TransactionPool>::Block>;
 
-		let tx_hash =
-			self.pool.submit_one(&at, TX_SOURCE, xt).await.map_err(|e| {
-				e.into_pool_error()
-					.map(|e| Error::TransactionPushFailed(Box::new(e)))
-					.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)).into())
-			})?;
+		let tx_hash = self.pool.submit_one(&at, TX_SOURCE, xt).await.map_err(|e| {
+			e.into_pool_error()
+				.map(|e| Error::TransactionPushFailed(Box::new(e)))
+				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)).into())
+		})?;
 
 		let metadata = SidercarMetadata { data_len, blobs_hash: data_hash, commitments, proofs };
 
-		let mut blob_tx_status = BlobTxSatus { tx_hash, err: None };
+		let mut blob_tx_status = BlobTxSatus {
+			tx_hash: tx_hash,
+			err: None,
+		};
 
 		match metadata.verify_bytes(&data) {
 			Ok(true) => {
@@ -130,13 +133,12 @@ where
 					.await
 					.is_some();
 				if !put_res {
-					blob_tx_status.err = Some("Failed to put data to DHT network.".to_string());
+					blob_tx_status.err =
+						Some("Failed to put data to DHT network.".to_string());
 				}
 			},
 			Ok(false) => {
-				blob_tx_status.err = Some(
-					"Data verification failed. Please check your data and try again.".to_string(),
-				);
+				blob_tx_status.err = Some("Data verification failed. Please check your data and try again.".to_string());
 			},
 			Err(e) => {
 				blob_tx_status.err = Some(e);
