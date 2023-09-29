@@ -63,3 +63,79 @@ impl<T: Config> Pallet<T> {
 		ext_header
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate as frame_system_ext;
+	use frame_support::{
+		parameter_types,
+		traits::{ConstU32, ConstU64},
+	};
+	use melo_core_primitives::{testing::CommitListTestWithData, Header as ExtendedHeader};
+	use sp_core::H256;
+	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+
+	parameter_types! {
+		pub const BlockHashCount: u64 = 250;
+	}
+
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
+	type Block = frame_system::mocking::MockBlock<Runtime>;
+
+	pub type Header = ExtendedHeader<u64, BlakeTwo256>;
+
+	// Mock runtime to test the module.
+	frame_support::construct_runtime! {
+		pub struct Runtime where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			SystemExt: frame_system_ext::{Pallet},
+		}
+	}
+
+	impl frame_system::Config for Runtime {
+		type BaseCallFilter = frame_support::traits::Everything;
+		type BlockWeights = ();
+		type BlockLength = ();
+		type DbWeight = ();
+		type RuntimeOrigin = RuntimeOrigin;
+		type Index = u64;
+		type BlockNumber = u64;
+		type RuntimeCall = RuntimeCall;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type RuntimeEvent = RuntimeEvent;
+		type BlockHashCount = ConstU64<250>;
+		type Version = ();
+		type PalletInfo = PalletInfo;
+		type AccountData = ();
+		type OnNewAccount = ();
+		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
+		type SS58Prefix = ();
+		type OnSetCode = ();
+		type MaxConsumers = ConstU32<16>;
+	}
+
+	impl Config for Runtime {
+		type ExtendedHeader = Header; // Mocked or a concrete type can be provided
+		type CommitList = CommitListTestWithData; // Mocked or a concrete type can be provided
+	}
+
+	#[test]
+	fn finalize_works() {
+		let mut ext = sp_io::TestExternalities::new_empty();
+
+		ext.execute_with(|| {
+			let header = SystemExt::finalize();
+			assert_eq!(header.extension, CommitListTestWithData::header_extension());
+		});
+	}
+}

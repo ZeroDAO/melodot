@@ -692,8 +692,8 @@ mod tests {
 	use pallet_transaction_payment::CurrencyAdapter;
 
 	use melo_core_primitives::{
-		testing::{Block, Digest, CommitListTest},
-		Header as ExtendedHeader,
+		testing::{Block, CommitListTestWithData, Digest},
+		Header as ExtendedHeader, HeaderExtension,
 	};
 
 	const TEST_KEY: &[u8] = b":test:key:";
@@ -906,7 +906,7 @@ mod tests {
 	}
 
 	impl frame_system_ext::Config for Runtime {
-		type CommitList = CommitListTest;
+		type CommitList = CommitListTestWithData;
 		type ExtendedHeader = Header;
 	}
 
@@ -984,6 +984,10 @@ mod tests {
 		RuntimeCall::Balances(BalancesCall::transfer_allow_death { dest, value })
 	}
 
+	fn extension_test() -> HeaderExtension {
+		CommitListTestWithData::header_extension()
+	}
+
 	#[test]
 	fn balance_transfer_dispatch_works() {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
@@ -1055,7 +1059,7 @@ mod tests {
 						"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314",
 					),
 					digest: Digest { logs: vec![] },
-					extension: Default::default(),
+					extension: extension_test(),
 				},
 				extrinsics: vec![],
 			});
@@ -1075,7 +1079,7 @@ mod tests {
 						"03170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c111314",
 					),
 					digest: Digest { logs: vec![] },
-					extension: Default::default(),
+					extension: extension_test(),
 				},
 				extrinsics: vec![],
 			});
@@ -1095,7 +1099,7 @@ mod tests {
 					),
 					extrinsics_root: [0u8; 32].into(),
 					digest: Digest { logs: vec![] },
-					extension: Default::default(),
+					extension: extension_test(),
 				},
 				extrinsics: vec![],
 			});

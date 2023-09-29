@@ -2808,6 +2808,8 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-application-crypto",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
 ]
 
@@ -4700,6 +4702,7 @@ dependencies = [
 name = "melo-core-primitives"
 version = "0.1.0"
 dependencies = [
+ "lazy_static",
  "log",
  "melo-das-primitives",
  "melo-erasure-coding",
