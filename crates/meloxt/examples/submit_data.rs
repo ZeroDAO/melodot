@@ -17,6 +17,7 @@ use meloxt::info_msg::*;
 use meloxt::init_logger;
 use meloxt::sidercar_metadata_runtime;
 use meloxt::{melodot, ClientBuilder};
+use subxt_signer::sr25519::dev::{self};
 
 #[tokio::main]
 pub async fn main() {
@@ -29,7 +30,8 @@ pub async fn main() {
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{} submit data", START_EXAMPLE);
-	let client = ClientBuilder::default().build().await?;
+	let mut client = ClientBuilder::default().build().await?;
+	client.set_signer(dev::bob());
 
 	let app_id = 1;
 	let bytes_len = 121; // Exceeding the limit

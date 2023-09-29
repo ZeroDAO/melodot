@@ -30,6 +30,7 @@ sc-client-api = {optional = true, default-features = false, git = "https://githu
 sc-offchain = {optional = true, default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 # For testing
+lazy_static = "1.4"
 rand = { version = "0.8.5", optional = true }
 sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 

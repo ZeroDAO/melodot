@@ -18,10 +18,11 @@ use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as K
 use melo_das_rpc::BlobTxSatus;
 use meloxt::info_msg::*;
 use meloxt::Client;
-use meloxt::{commitments_to_runtime, init_logger, proofs_to_runtime, sidercar_metadata};
+use meloxt::{commitments_to_runtime, wait_for_block, init_logger, proofs_to_runtime, sidercar_metadata};
 use meloxt::{melodot, ClientBuilder};
 use primitive_types::H256;
 use subxt::rpc::rpc_params;
+use subxt::rpc::RpcParams;
 
 // TODO: add to runtime
 const DELAY_CHECK_THRESHOLD: u32 = 1;
@@ -51,79 +52,79 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
+	// Invalid blob
+	submit_invalid_blob(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
+	// Invalid extrinsic
+	submit_invalid_extrinsic(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
+	// Invalid data_hash
+	submit_invalid_data_hash(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
+	// Invalid bytes_len
+	submit_invalid_bytes_len(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
+	// Invalid commitments
+	submit_invalid_commitments(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
+	// Invalid proofs
+	submit_invalid_proofs(
+		&client,
+		commitments_t.clone(),
+		proofs_t.clone(),
+		data_hash,
+		bytes_len,
+		bytes.clone(),
+		app_id,
+	)
+	.await?;
+
 	let (hex_bytes, hex_extrinsic) = create_params(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong blob
-	submit_wrong_blob(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong extrinsic
-	submit_wrong_extrinsic(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong data_hash
-	submit_wrong_data_hash(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong bytes_len
-	submit_wrong_bytes_len(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong commitments
-	submit_wrong_commitments(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Wrong proofs
-	submit_wrong_proofs(
 		&client,
 		commitments_t.clone(),
 		proofs_t.clone(),
@@ -184,7 +185,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	Ok(())
 }
 
-async fn submit_wrong_blob(
+async fn submit_invalid_blob(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -200,19 +201,10 @@ async fn submit_wrong_blob(
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
-	let res: Result<BlobTxSatus<H256>, subxt::Error> =
-		client.api.rpc().request("das_submitBlobTx", params).await;
-
-	if res.is_err() {
-		info!("{}: Submit wrong blob, tx failed", SUCCESS)
-	} else {
-		info!("{}: Submit wrong blob, but tx success", ERROR);
-	}
-
-	Ok(())
+	rpc_err_handler(client, "10005".to_string(), "InvalidBlob".to_string(), &params).await
 }
 
-async fn submit_wrong_extrinsic(
+async fn submit_invalid_extrinsic(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -221,25 +213,16 @@ async fn submit_wrong_extrinsic(
 	bytes: Vec<u8>,
 	app_id: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let (hex_bytes, hex_extrinsic) =
+	let (hex_bytes, _) =
 		create_params(&client, commitments, proofs, data_hash, bytes_len, bytes, app_id).await?;
-
-	let hex_extrinsic = vec![0; hex_extrinsic.len()];
+	
+	let hex_extrinsic = "0x000111122223334444455556666".to_string();
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
-	let res: Result<BlobTxSatus<H256>, subxt::Error> =
-		client.api.rpc().request("das_submitBlobTx", params).await;
-
-	if res.is_err() {
-		info!("{}: Submit wrong extrinsic, tx failed", SUCCESS)
-	} else {
-		info!("{}: Submit wrong extrinsic, but tx success", ERROR);
-	}
-
-	Ok(())
+	rpc_err_handler(client, "10002".to_string(), "InvalidExtrinsic".to_string(), &params).await
 }
 
-async fn submit_wrong_bytes_len(
+async fn submit_invalid_bytes_len(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -254,19 +237,10 @@ async fn submit_wrong_bytes_len(
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
-	let res: Result<BlobTxSatus<H256>, subxt::Error> =
-		client.api.rpc().request("das_submitBlobTx", params).await;
-
-	if res.is_err() {
-		info!("{}: Submit wrong bytes_len, tx failed", SUCCESS)
-	} else {
-		info!("{}: Submit wrong bytes_len, but tx success", ERROR);
-	}
-
-	Ok(())
+	rpc_err_handler(client, "10005".to_string(), "InvalidBytesLen".to_string(), &params).await
 }
 
-async fn submit_wrong_commitments(
+async fn submit_invalid_commitments(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -275,12 +249,12 @@ async fn submit_wrong_commitments(
 	bytes: Vec<u8>,
 	app_id: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let commitment_wrong = KZGCommitmentT::rand();
-	let commitments_wrong =
-		commitments.iter().map(|_| commitment_wrong.clone()).collect::<Vec<_>>();
+	let commitment_invalid = KZGCommitmentT::rand();
+	let commitments_invalid =
+		commitments.iter().map(|_| commitment_invalid.clone()).collect::<Vec<_>>();
 
 	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments_wrong, proofs, data_hash, bytes_len, bytes, app_id)
+		create_params(&client, commitments_invalid, proofs, data_hash, bytes_len, bytes, app_id)
 			.await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
@@ -288,16 +262,17 @@ async fn submit_wrong_commitments(
 	let res: BlobTxSatus<H256> = client.api.rpc().request("das_submitBlobTx", params).await?;
 
 	if let Some(err) = res.err {
-		info!("{}: Submit wrong commitments, tx failed", SUCCESS);
-		debug!("{}: err: {:?}", SUCCESS, err);
+		info!("{}: Submit invalid commitments, tx failed: {:?}", SUCCESS, err);
 	} else {
-		info!("{}: Submit wrong commitments, but tx success", ERROR);
+		info!("{}: Submit invalid commitments, but tx success", ERROR);
 	}
+
+	wait_for_block(&client).await?;
 
 	Ok(())
 }
 
-async fn submit_wrong_data_hash(
+async fn submit_invalid_data_hash(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -306,26 +281,17 @@ async fn submit_wrong_data_hash(
 	bytes: Vec<u8>,
 	app_id: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let data_hash_wrong = H256::random();
+	let data_hash_invalid = H256::random();
 	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs, data_hash_wrong, bytes_len, bytes, app_id)
+		create_params(&client, commitments, proofs, data_hash_invalid, bytes_len, bytes, app_id)
 			.await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
-	let res: BlobTxSatus<H256> = client.api.rpc().request("das_submitBlobTx", params).await?;
-
-	if let Some(err) = res.err {
-		info!("{}: Submit wrong data_hash, tx failed", SUCCESS);
-		debug!("{}: err: {:?}", SUCCESS, err);
-	} else {
-		info!("{}: Submit wrong data_hash, but tx success", ERROR);
-	}
-
-	Ok(())
+	rpc_err_handler(client, "10005".to_string(), "InvalidDataHash".to_string(), &params).await
 }
 
-async fn submit_wrong_proofs(
+async fn submit_invalid_proofs(
 	client: &Client,
 	commitments: Vec<KZGCommitmentT>,
 	proofs: Vec<KZGProofT>,
@@ -334,11 +300,11 @@ async fn submit_wrong_proofs(
 	bytes: Vec<u8>,
 	app_id: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let proof_wrong = KZGProofT::rand();
-	let proofs_wrong = proofs.iter().map(|_| proof_wrong.clone()).collect::<Vec<_>>();
+	let proof_invalid = KZGProofT::rand();
+	let proofs_invalid = proofs.iter().map(|_| proof_invalid.clone()).collect::<Vec<_>>();
 
 	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs_wrong, data_hash, bytes_len, bytes, app_id)
+		create_params(&client, commitments, proofs_invalid, data_hash, bytes_len, bytes, app_id)
 			.await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
@@ -346,11 +312,12 @@ async fn submit_wrong_proofs(
 	let res: BlobTxSatus<H256> = client.api.rpc().request("das_submitBlobTx", params).await?;
 
 	if let Some(err) = res.err {
-		info!("{}: Submit wrong proofs, tx failed", SUCCESS);
-		debug!("{}: err: {:?}", SUCCESS, err);
+		info!("{}: Submit invalid proofs, tx failed: {:?}", SUCCESS, err);
 	} else {
-		info!("{}: Submit wrong proofs, but tx success", ERROR);
+		info!("{}: Submit invalid proofs, but tx success", ERROR);
 	}
+
+	wait_for_block(&client).await?;
 
 	Ok(())
 }
@@ -385,4 +352,29 @@ async fn create_params(
 	let hex_extrinsic = to_hex_string(&extrinsic.encoded());
 
 	Ok((hex_bytes, hex_extrinsic))
+}
+
+async fn rpc_err_handler(
+	client: &Client,
+	code: String,
+	case: String,
+	params: &RpcParams,
+) -> Result<(), Box<dyn std::error::Error>> {
+	let res: Result<BlobTxSatus<H256>, subxt::Error> =
+		client.api.rpc().request("das_submitBlobTx", params.to_owned()).await;
+
+	if res.is_err() {
+		let err = res.unwrap_err().to_string();
+
+		if err.contains(&code) {
+			info!("{}: Submit {}, tx failed with code: {}", SUCCESS, case, code);
+		} else {
+			info!("{}: Submit {}, tx failed, but the code does not match. res: {}", ERROR, case, err);
+			return Err("Failed to submit blob transaction".into());
+		}
+	} else {
+		info!("{}: Submit {}, but tx success", ERROR, case);
+	}
+
+	Ok(())
 }

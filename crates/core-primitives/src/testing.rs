@@ -16,9 +16,11 @@
 // limitations under the License.
 
 //! Testing utilities.
+use crate::HeaderExtension;
 use crate::traits::ExtendedHeader;
 use crate::traits::HeaderCommitList;
 use crate::Header as HeaderT;
+use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
 
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
@@ -44,11 +46,46 @@ use std::{
 	ops::Deref,
 };
 
+lazy_static! {
+	pub static ref TEST_COMMITMENTS: Vec<KZGCommitment> = vec![
+		KZGCommitment::rand(),
+		KZGCommitment::rand(),
+		KZGCommitment::rand(),
+		KZGCommitment::rand(),
+		KZGCommitment::rand(),
+		KZGCommitment::rand(),
+	];
+}
+
 pub struct CommitListTest();
 
 impl HeaderCommitList for CommitListTest {
 	fn last() -> Vec<KZGCommitment> {
 		vec![]
+	}
+}
+
+pub struct CommitListTestWithData();
+
+impl HeaderCommitList for CommitListTestWithData {
+	fn last() -> Vec<KZGCommitment> {
+		TEST_COMMITMENTS.to_vec()
+	}
+}
+
+impl CommitListTestWithData {
+	pub fn commit_bytes() -> Vec<u8> {
+		TEST_COMMITMENTS
+			.iter()
+			.map(|c| c.to_bytes())
+			.flatten()
+			.collect()
+	}
+
+	pub fn header_extension() -> HeaderExtension {
+		HeaderExtension {
+			commitments_bytes: Self::commit_bytes(),
+		}
 	}
 }
 

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::melodot::runtime_types::melo_das_primitives::crypto::{KZGCommitment, KZGProof};
+use crate::Client;
 use melo_core_primitives::SidercarMetadata;
 use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
 
@@ -40,6 +41,14 @@ pub fn commitments_to_runtime(commitments: Vec<KZGCommitmentT>) -> Vec<KZGCommit
 
 pub fn proofs_to_runtime(proofs: Vec<KZGProofT>) -> Vec<KZGProof> {
 	proofs.iter().map(|c| KZGProof { inner: c.to_bytes() }).collect::<Vec<_>>()
+}
+
+pub async fn wait_for_block(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
+    let mut sub = client.api.rpc().subscribe_all_block_headers().await?;
+    sub.next().await;
+	sub.next().await;
+	
+	Ok(())
 }
 
 pub mod info_msg {
