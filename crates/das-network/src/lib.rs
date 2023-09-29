@@ -35,7 +35,7 @@ pub use tx_pool_listener::{start_tx_pool_listener, TPListenerParams};
 pub trait NetworkProvider: NetworkDHTProvider + NetworkStateInfo + NetworkSigner {}
 impl<T> NetworkProvider for T where T: NetworkDHTProvider + NetworkStateInfo + NetworkSigner {}
 
-pub use melo_core_primitives::{Sidercar, SidercarMetadata, SidercarStatus};
+pub use melo_core_primitives::{Sidecar, SidecarMetadata, SidecarStatus};
 use sp_core::H256;
 
 pub fn new_worker<B, Client, Network, DhtEventStream, BE>(
@@ -82,12 +82,12 @@ where
 	Some((worker, service))
 }
 
-pub fn sidercar_kademlia_key(sidercar: &Sidercar) -> KademliaKey {
-	KademliaKey::from(Vec::from(sidercar.id()))
+pub fn sidecar_kademlia_key(sidecar: &Sidecar) -> KademliaKey {
+	KademliaKey::from(Vec::from(sidecar.id()))
 }
 
-pub fn kademlia_key_from_sidercar_id(sidercar_id: &H256) -> KademliaKey {
-	KademliaKey::from(Vec::from(&sidercar_id[..]))
+pub fn kademlia_key_from_sidecar_id(sidecar_id: &H256) -> KademliaKey {
+	KademliaKey::from(Vec::from(&sidecar_id[..]))
 }
 
 /// Message send from the [`Service`] to the [`Worker`].

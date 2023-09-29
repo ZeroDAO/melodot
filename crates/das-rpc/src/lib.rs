@@ -20,8 +20,8 @@ use jsonrpsee::{
 	proc_macros::rpc,
 };
 use melo_core_primitives::traits::AppDataApi;
-use melo_core_primitives::{Sidercar, SidercarMetadata};
-use melo_das_network::kademlia_key_from_sidercar_id;
+use melo_core_primitives::{Sidecar, SidecarMetadata};
+use melo_das_network::kademlia_key_from_sidecar_id;
 use melo_das_network_protocol::DasDht;
 use melodot_runtime::{RuntimeCall, UncheckedExtrinsic};
 
@@ -102,7 +102,7 @@ where
 			.ok_or(Error::InvalidTransactionFormat)?;
 
 		// Validate data_len and data_hash
-		if data_len != (data.len() as u32) || Sidercar::calculate_id(&data)[..] != data_hash[..] {
+		if data_len != (data.len() as u32) || Sidecar::calculate_id(&data)[..] != data_hash[..] {
 			return Err(Error::DataLengthOrHashError.into());
 		}
 
@@ -117,7 +117,7 @@ where
 				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)).into())
 		})?;
 
-		let metadata = SidercarMetadata { data_len, blobs_hash: data_hash, commitments, proofs };
+		let metadata = SidecarMetadata { data_len, blobs_hash: data_hash, commitments, proofs };
 
 		let mut blob_tx_status = BlobTxSatus {
 			tx_hash: tx_hash,
@@ -129,7 +129,7 @@ where
 				// Push data to the DHT network
 				let mut dht_service = self.service.clone();
 				let put_res = dht_service
-					.put_value_to_dht(kademlia_key_from_sidercar_id(&data_hash), data.to_vec())
+					.put_value_to_dht(kademlia_key_from_sidecar_id(&data_hash), data.to_vec())
 					.await
 					.is_some();
 				if !put_res {

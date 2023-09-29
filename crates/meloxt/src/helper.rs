@@ -14,21 +14,21 @@
 
 use crate::melodot::runtime_types::melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 use crate::Client;
-use melo_core_primitives::SidercarMetadata;
+use melo_core_primitives::SidecarMetadata;
 use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
 
 pub use primitive_types::H256;
 
-pub fn sidercar_metadata_runtime(
+pub fn sidecar_metadata_runtime(
 	bytes_len: u32,
 ) -> (Vec<KZGCommitment>, Vec<KZGProof>, H256, Vec<u8>) {
-	let (commits, proofs, blobs_hash, bytes) = sidercar_metadata(bytes_len);
+	let (commits, proofs, blobs_hash, bytes) = sidecar_metadata(bytes_len);
 	(commitments_to_runtime(commits), proofs_to_runtime(proofs), blobs_hash, bytes)
 }
 
-pub fn sidercar_metadata(bytes_len: u32) -> (Vec<KZGCommitmentT>, Vec<KZGProofT>, H256, Vec<u8>) {
+pub fn sidecar_metadata(bytes_len: u32) -> (Vec<KZGCommitmentT>, Vec<KZGProofT>, H256, Vec<u8>) {
 	let bytes = (0..bytes_len).map(|_| rand::random::<u8>()).collect::<Vec<u8>>();
-	let metadata: SidercarMetadata = SidercarMetadata::try_from_app_data(&bytes).unwrap();
+	let metadata: SidecarMetadata = SidecarMetadata::try_from_app_data(&bytes).unwrap();
 	(metadata.commitments, metadata.proofs, metadata.blobs_hash, bytes)
 }
 

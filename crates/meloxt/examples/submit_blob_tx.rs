@@ -18,7 +18,7 @@ use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as K
 use melo_das_rpc::BlobTxSatus;
 use meloxt::info_msg::*;
 use meloxt::Client;
-use meloxt::{commitments_to_runtime, wait_for_block, init_logger, proofs_to_runtime, sidercar_metadata};
+use meloxt::{commitments_to_runtime, wait_for_block, init_logger, proofs_to_runtime, sidecar_metadata};
 use meloxt::{melodot, ClientBuilder};
 use primitive_types::H256;
 use subxt::rpc::rpc_params;
@@ -43,7 +43,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	let app_id = 1;
 	let bytes_len = 123; // Exceeding the limit
-	let (commitments_t, proofs_t, data_hash, bytes) = sidercar_metadata(bytes_len);
+	let (commitments_t, proofs_t, data_hash, bytes) = sidecar_metadata(bytes_len);
 
 	let commitments = commitments_to_runtime(commitments_t.clone());
 

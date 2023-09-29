@@ -23,7 +23,7 @@ use melo_erasure_coding::bytes_vec_to_blobs;
 /// Logging target for the mmr gadget.
 pub const LOG_TARGET: &str = "das-network::dht_work";
 
-use crate::{NetworkProvider, ServicetoWorkerMsg, Sidercar, SidercarStatus};
+use crate::{NetworkProvider, ServicetoWorkerMsg, Sidecar, SidecarStatus};
 pub struct Worker<B: Block, Client, Network, DhtEventStream, BE: Backend<B>> {
 	#[allow(dead_code)]
 	client: Arc<Client>,
@@ -109,35 +109,35 @@ where
 
 	fn handle_dht_value_found_event(&mut self, values: Vec<(KademliaKey, Vec<u8>)>) {
 		for (key, value) in values {
-			let maybe_sidercar =
-				Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-			match maybe_sidercar {
-				Some(sidercar) => {
-					if sidercar.status.is_none() {
-						let data_hash = Sidercar::calculate_id(&value);
-						let mut new_sidercar = sidercar.clone();
-						if data_hash != sidercar.metadata.blobs_hash.as_bytes() {
-							new_sidercar.status = Some(SidercarStatus::ProofError);
+			let maybe_sidecar =
+				Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
+			match maybe_sidecar {
+				Some(sidecar) => {
+					if sidecar.status.is_none() {
+						let data_hash = Sidecar::calculate_id(&value);
+						let mut new_sidecar = sidecar.clone();
+						if data_hash != sidecar.metadata.blobs_hash.as_bytes() {
+							new_sidecar.status = Some(SidecarStatus::ProofError);
 						} else {
 							let kzg = KZG::default_embedded();
 							// TODO bytes to blobs
 							let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
 							let encoding_valid = Blob::verify_batch(
 								&blobs,
-								&sidercar.metadata.commitments,
-								&sidercar.metadata.proofs,
+								&sidecar.metadata.commitments,
+								&sidecar.metadata.proofs,
 								&kzg,
 								FIELD_ELEMENTS_PER_BLOB,
 							)
 							.unwrap();
 							if encoding_valid {
-								new_sidercar.blobs = Some(value.clone());
-								new_sidercar.status = Some(SidercarStatus::Success);
+								new_sidecar.blobs = Some(value.clone());
+								new_sidecar.status = Some(SidecarStatus::Success);
 							} else {
-								new_sidercar.status = Some(SidercarStatus::ProofError);
+								new_sidecar.status = Some(SidecarStatus::ProofError);
 							}
 						}
-						new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+						new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 					}
 				},
 				None => {},
@@ -146,14 +146,14 @@ where
 	}
 
 	fn handle_dht_value_not_found_event(&mut self, key: KademliaKey) {
-		let maybe_sidercar =
-			Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-		match maybe_sidercar {
-			Some(sidercar) => {
-				if sidercar.status.is_none() {
-					let mut new_sidercar = sidercar.clone();
-					new_sidercar.status = Some(SidercarStatus::NotFound);
-					new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+		let maybe_sidecar =
+			Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
+		match maybe_sidecar {
+			Some(sidecar) => {
+				if sidecar.status.is_none() {
+					let mut new_sidecar = sidecar.clone();
+					new_sidecar.status = Some(SidecarStatus::NotFound);
+					new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 				}
 			},
 			None => {},

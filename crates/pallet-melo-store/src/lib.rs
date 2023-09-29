@@ -46,7 +46,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 use melo_core_primitives::traits::HeaderCommitList;
-use melo_core_primitives::{Sidercar, SidercarMetadata};
+use melo_core_primitives::{Sidecar, SidecarMetadata};
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
@@ -485,15 +485,15 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.enumerate()
 			.filter_map(|(i, metadata)| {
-				let sidercar_metadata = SidercarMetadata {
+				let sidecar_metadata = SidecarMetadata {
 					commitments: metadata.commitments.to_vec(),
 					data_len: metadata.bytes_len,
 					blobs_hash: metadata.data_hash,
 					proofs: metadata.proofs.to_vec(),
 				};
-				let id = sidercar_metadata.id();
-				if let Some(sidercar) = Sidercar::from_local(&id) {
-					if sidercar.is_unavailability() {
+				let id = sidecar_metadata.id();
+				if let Some(sidecar) = Sidecar::from_local(&id) {
+					if sidecar.is_unavailability() {
 						Some(i as u32)
 					} else {
 						None

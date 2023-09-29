@@ -23,7 +23,7 @@ use sp_runtime::traits::Block as BlockT;
 
 const LOG_TARGET: &str = "tx_pool_listener";
 
-use crate::{sidercar_kademlia_key, NetworkProvider, Sidercar, SidercarMetadata};
+use crate::{sidecar_kademlia_key, NetworkProvider, Sidecar, SidecarMetadata};
 
 #[derive(Clone)]
 pub struct TPListenerParams<Client, Network, TP, BE> {
@@ -82,28 +82,28 @@ pub async fn start_tx_pool_listener<Client, Network, TP, B, BE>(
 										"New blob transaction found. Hash: {:?}", data_hash,
 									);
 
-									let metadata = SidercarMetadata {
+									let metadata = SidecarMetadata {
 										data_len: bytes_len,
 										blobs_hash: data_hash,
 										commitments,
 										proofs,
 									};
 
-									let fetch_value_from_network = |sidercar: &Sidercar| {
-										network.get_value(&sidercar_kademlia_key(sidercar));
+									let fetch_value_from_network = |sidecar: &Sidecar| {
+										network.get_value(&sidecar_kademlia_key(sidecar));
 									};
 
-									match Sidercar::from_local_outside::<B, BE>(&metadata.id(), &mut offchain_db) {
-										Some(sidercar) => {
-											if sidercar.status.is_none() {
-												fetch_value_from_network(&sidercar);
+									match Sidecar::from_local_outside::<B, BE>(&metadata.id(), &mut offchain_db) {
+										Some(sidecar) => {
+											if sidecar.status.is_none() {
+												fetch_value_from_network(&sidecar);
 											}
 										},
 										None => {
-											let sidercar =
-												Sidercar { blobs: None, metadata, status: None };
-											sidercar.save_to_local_outside::<B, BE>(&mut offchain_db);
-											fetch_value_from_network(&sidercar);
+											let sidecar =
+												Sidecar { blobs: None, metadata, status: None };
+											sidecar.save_to_local_outside::<B, BE>(&mut offchain_db);
+											fetch_value_from_network(&sidecar);
 										},
 									}
 								},
