@@ -49,28 +49,33 @@ use melo_core_primitives::traits::HeaderCommitList;
 use melo_core_primitives::{Sidecar, SidecarMetadata};
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
+// A prefix constant used for the off-chain database.
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
-// Threshold for delayed acknowledgement of unavailability
+// A threshold constant used to determine when to delay the acknowledgment of unavailability.
 pub const DELAY_CHECK_THRESHOLD: u32 = 1;
-// Weight for each blob
+// Weight constant for each blob.
 pub const WEIGHT_PER_BLOB: Weight = Weight::from_parts(1024, 0);
 
+// Typedef for Authorization Index.
 pub type AuthIndex = u32;
 
+// Struct to represent the report status.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 struct ReportStatus<BlockNumber> {
-	/// The block in which the data is reported
+	/// The block number when the data was reported.
 	pub at_block: BlockNumber,
+	/// The block number when the report was sent.
 	pub sent_at: BlockNumber,
 }
 
 impl<BlockNumber: PartialEq + AtLeast32BitUnsigned + Copy> ReportStatus<BlockNumber> {
+	// Check if the report is recent based on given parameters.
 	fn is_recent(&self, at_block: BlockNumber, now: BlockNumber) -> bool {
 		self.at_block == at_block && self.sent_at + DELAY_CHECK_THRESHOLD.into() > now
 	}
 }
 
-/// Error which may occur while executing the off-chain code.
+/// Possible errors that can occur during off-chain execution.
 #[cfg_attr(test, derive(PartialEq))]
 enum OffchainErr<BlockNumber> {
 	WaitingForInclusion(BlockNumber),
@@ -92,20 +97,22 @@ impl<BlockNumber: sp_std::fmt::Debug> sp_std::fmt::Debug for OffchainErr<BlockNu
 	}
 }
 
+// Typedef for results returned by off-chain operations.
 type OffchainResult<T, A> = Result<A, OffchainErr<BlockNumberFor<T>>>;
 
+// Struct to represent a report of unavailable data.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub struct UnavailableDataReport<BlockNumber>
 where
 	BlockNumber: PartialEq + Eq + Decode + Encode,
 {
-	/// Block number at the time report is created..
+	/// Block number at the time report is created.
 	pub at_block: BlockNumber,
-	/// An index of the authority on the list of validators.
+	/// Index of the authority reporting the unavailability.
 	pub authority_index: AuthIndex,
-
+	/// Set of indexes related to the report.
 	pub index_set: Vec<u32>,
-	/// The length of session validator set
+	/// Total length of session validator set.
 	pub validators_len: u32,
 }
 
@@ -119,26 +126,42 @@ pub mod pallet {
 	pub type KZGCommitmentListFor<T> = BoundedVec<KZGCommitment, <T as Config>::MaxBlobNum>;
 	pub type KZGProofListFor<T> = BoundedVec<KZGProof, <T as Config>::MaxBlobNum>;
 
+	/// Represents the metadata of a blob in the system.
 	#[derive(Clone, Eq, Default, PartialEq, Encode, Decode, MaxEncodedLen, TypeInfo)]
 	#[scale_info(skip_type_params(T))]
 	pub struct BlobMetadata<T: Config> {
+		/// Unique identifier for the application that uses this blob.
 		pub app_id: u32,
+
+		/// Account ID of the entity that created or owns this blob.
 		pub from: T::AccountId,
+
+		/// List of KZG commitments associated with this blob.
 		pub commitments: KZGCommitmentListFor<T>,
+
+		/// List of KZG proofs associated with this blob.
 		pub proofs: KZGProofListFor<T>,
+
+		/// Length of the data in bytes that this metadata represents.
 		pub bytes_len: u32,
+
+		/// Hash of the data associated with this blob.
 		pub data_hash: H256,
+
+		/// Flag indicating whether the blob data is available or not.
 		pub is_available: bool,
 	}
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
+	/// Provides configuration parameters for the pallet.
 	#[pallet::config]
 	pub trait Config: SendTransactionTypes<Call<Self>> + frame_system::Config {
-		/// Because this pallet emits events, it depends on the runtime's definition of an event.
+		/// This type represents an event in the runtime, which includes events emitted by this pallet.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		/// Type representing the weight of this pallet
+
+		/// This type represents the computation cost of the pallet's operations.
 		type WeightInfo: WeightInfo;
-		/// The identifier type for an authority.
+
+		/// This type defines the unique identifier for an authority or a trusted node in the network.
 		type AuthorityId: Member
 			+ Parameter
 			+ RuntimeAppPublic
@@ -146,19 +169,20 @@ pub mod pallet {
 			+ MaybeSerializeDeserialize
 			+ MaxEncodedLen;
 
-		/// The maximum number of keys that can be added.
+		/// Defines the upper limit for the number of keys that can be stored.
 		type MaxKeys: Get<u32>;
 
+		/// The maximum number of blobs that can be handled.
 		#[pallet::constant]
 		type MaxBlobNum: Get<u32>;
 
+		/// This defines the priority for unsigned transactions in the Melo context.
 		#[pallet::constant]
 		type MeloUnsignedPriority: Get<TransactionPriority>;
 	}
 
-	// Store metadata of AppData
-	// TODO: We currently don't delete it because, when farmers submit solutions later, if the
-	// data is not deleted, it will first validate the Root and then delete the data.
+	/// Represents metadata associated with the AppData. It's preserved for future verification.
+	/// Deleting data after a certain point may be beneficial for storage and computational efficiency.
 	#[pallet::storage]
 	#[pallet::getter(fn metadata)]
 	pub(super) type Metadata<T: Config> = StorageMap<
@@ -169,15 +193,18 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// Contains the keys for this pallet's use.
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
 	pub(super) type Keys<T: Config> =
 		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::MaxKeys>, ValueQuery>;
 
+	/// Holds the unique identifier for the application using this pallet.
 	#[pallet::storage]
 	#[pallet::getter(fn app_id)]
 	pub(super) type AppId<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// Represents votes regarding the availability of certain data.
 	#[pallet::storage]
 	#[pallet::getter(fn unavailable_vote)]
 	pub(super) type UnavailableVote<T: Config> = StorageDoubleMap<
@@ -189,76 +216,62 @@ pub mod pallet {
 		WeakBoundedVec<AuthIndex, T::MaxBlobNum>,
 	>;
 
+	/// Enumerates all the possible events that can be emitted by this pallet.
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Data has been received
+		/// Indicates that data was successfully received.
 		DataReceived {
-			/// Hash of the data
 			data_hash: H256,
-			/// Length of the data
 			bytes_len: u32,
-			/// Submitter of the data
 			from: T::AccountId,
-			/// App ID of the data
 			app_id: u32,
-			/// Index of the data
 			index: u32,
-			/// Commitments
 			commitments: Vec<KZGCommitment>,
-			/// Proofs
 			proofs: Vec<KZGProof>,
 		},
-
-		/// Report has been received
-		ReportReceived {
-			/// Block number of the report
-			at_block: BlockNumberFor<T>,
-			/// Node that submitted the report
-			from: AuthIndex,
-		},
-		/// New app ID has been registered
-		AppIdRegistered {
-			/// New app ID
-			app_id: u32,
-			/// From
-			from: T::AccountId,
-		},
+		/// Signifies that a report has been submitted.
+		ReportReceived { at_block: BlockNumberFor<T>, from: AuthIndex },
+		/// Denotes the successful registration of a new application ID.
+		AppIdRegistered { app_id: u32, from: T::AccountId },
 	}
 
-	// Errors inform users that something went wrong.
+	/// Enumerates all possible errors that might occur while using this pallet.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Exceeds the maximum limit for the number of Blobs.
+		/// The system has reached its limit for the number of Blobs.
 		ExceedMaxBlobLimit,
-		/// There's an error with the app ID.
+		/// Something's wrong with the given app ID.
 		AppIdError,
-		/// Exceeds the maximum number of Blobs for a single block.
+		/// Too many Blobs were added in a single block.
 		ExceedMaxBlobPerBlock,
-		/// Exceeds the confirmation time for unavailable data.
+		/// The time for confirming unavailable data has passed.
 		ExceedUnavailableDataConfirmTime,
-		/// The index set is empty.
+		/// No indices have been set.
 		IndexSetIsEmpty,
-		/// The data doesn't exist.
+		/// The requested data doesn't exist.
 		DataNotExist,
-		/// The report has been submitted more than once.
+		/// The same report was submitted more than once.
 		DuplicateReportSubmission,
-		/// Exceeds the maximum total votes.
+		/// The total votes have exceeded the allowed maximum.
 		ExceedMaxTotalVotes,
-		/// The report is for a block in the future.
+		/// A report was made for a block that hasn't occurred yet.
 		ReportForFutureBlock,
-		/// The submitted availability data is empty.
+		/// No data was provided in the submission.
 		SubmittedDataIsEmpty,
-		/// The number of commitments does not match the expected blob number.
+		/// The number of provided commitments doesn't match the expected number.
 		MismatchedCommitmentsCount,
-		/// The number of proofs does not match the expected blob number.
+		/// The number of provided proofs doesn't match the expected number.
 		MismatchedProofsCount,
-		/// Non existent public key.
+		/// The provided public key is not valid.
 		InvalidKey,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Submit data for a particular app.
+		/// This call allows a user to submit data, its commitments, and proofs.
+		/// The function ensures various constraints like the length of the data, validity of the app id, and other integrity checks.
 		#[pallet::call_index(0)]
 		#[pallet::weight(
 			WEIGHT_PER_BLOB
@@ -332,6 +345,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Report on the unavailability of certain data.
+		/// Validators can use this function to report any data that they find unavailable.
+		/// The function does checks like making sure the data isn't being reported for a future block,
+		/// the report is within the acceptable delay, and that the reporting key is valid.
 		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::validate_unsigned_and_then_report(
 			unavailable_data_report.validators_len,
@@ -355,7 +372,7 @@ pub mod pallet {
 					>= current_block_number,
 				Error::<T>::ExceedUnavailableDataConfirmTime
 			);
-			
+
 			ensure!(!unavailable_data_report.index_set.is_empty(), Error::<T>::IndexSetIsEmpty);
 
 			let keys = Keys::<T>::get();
@@ -390,6 +407,8 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Register a new app with the system.
+		/// This function allows a user to register a new app and increments the app ID.
 		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::register_app())]
 		pub fn register_app(origin: OriginFor<T>) -> DispatchResult {
@@ -480,6 +499,10 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+	/// Retrieve the list of indexes representing data unavailability at a given block.
+	///
+	/// # Arguments
+	/// * `at_block` - The block number to check for data unavailability.
 	pub fn get_unavailability_data(at_block: BlockNumberFor<T>) -> Vec<u32> {
 		Metadata::<T>::get(at_block)
 			.iter()
@@ -505,6 +528,10 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>()
 	}
 
+	/// Fetch the list of commitments at a given block.
+	///
+	/// # Arguments
+	/// * `at_block` - The block number to fetch commitments from.
 	pub fn get_commitment_list(at_block: BlockNumberFor<T>) -> Vec<KZGCommitment> {
 		Metadata::<T>::get(at_block)
 			.iter()
@@ -513,6 +540,10 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>()
 	}
 
+	/// Assemble and send unavailability reports for any data that is unavailable.
+	///
+	/// # Arguments
+	/// * `now` - The current block number.
 	pub(crate) fn send_unavailability_report(
 		now: BlockNumberFor<T>,
 	) -> OffchainResult<T, impl Iterator<Item = OffchainResult<T, ()>>> {
@@ -543,6 +574,7 @@ impl<T: Config> Pallet<T> {
 		Ok(reports)
 	}
 
+	// Helper method to send a single unavailability report.
 	fn send_single_unavailability_report(
 		authority_index: u32,
 		key: T::AuthorityId,
@@ -579,46 +611,42 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	// Locking mechanism to prevent double reporting by the same authority.
 	fn with_report_lock<R>(
 		authority_index: u32,
 		at_block: BlockNumberFor<T>,
 		now: BlockNumberFor<T>,
 		f: impl FnOnce() -> OffchainResult<T, R>,
 	) -> OffchainResult<T, R> {
-		let key = {
-			let mut key = DB_PREFIX.to_vec();
-			key.extend(authority_index.encode());
-			key
-		};
+		let mut key = DB_PREFIX.to_vec();
+		key.extend(authority_index.encode());
+	
 		let storage = StorageValueRef::persistent(&key);
-		let res = storage.mutate(
+	
+		match storage.mutate(
 			|status: Result<Option<ReportStatus<BlockNumberFor<T>>>, StorageRetrievalError>| {
-				match status {
-					// we are still waiting for inclusion.
-					Ok(Some(status)) if status.is_recent(at_block, now) => {
-						Err(OffchainErr::WaitingForInclusion(status.sent_at))
-					},
-					// attempt to set new status
-					_ => Ok(ReportStatus { at_block, sent_at: now }),
+				if let Ok(Some(status)) = status {
+					if status.is_recent(at_block, now) {
+						return Err(OffchainErr::WaitingForInclusion(status.sent_at));
+					}
 				}
+				Ok(ReportStatus { at_block, sent_at: now })
 			},
-		);
-		if let Err(MutateStorageError::ValueFunctionFailed(err)) = res {
-			return Err(err);
+		) {
+			Err(MutateStorageError::ValueFunctionFailed(err)) => Err(err),
+			res => {
+				let mut new_status = res.map_err(|_| OffchainErr::FailedToAcquireLock)?;
+				let result = f();
+				if result.is_err() {
+					new_status.sent_at = 0u32.into();
+					storage.set(&new_status);
+				}
+				result
+			}
 		}
-
-		let mut new_status = res.map_err(|_| OffchainErr::FailedToAcquireLock)?;
-
-		let res = f();
-
-		if res.is_err() {
-			new_status.sent_at = 0u32.into();
-			storage.set(&new_status);
-		}
-
-		res
 	}
 
+	// Fetch all local authority keys.
 	fn local_authority_keys() -> impl Iterator<Item = (u32, T::AuthorityId)> {
 		let authorities = Keys::<T>::get();
 
@@ -634,6 +662,7 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	// Handle an unavailability vote for a particular piece of data.
 	fn handle_vote(
 		at_block: BlockNumberFor<T>,
 		authority_index: AuthIndex,
@@ -679,6 +708,7 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	// Initialize the authority keys.
 	fn initialize_keys(keys: &[T::AuthorityId]) {
 		if !keys.is_empty() {
 			assert!(Keys::<T>::get().is_empty(), "Keys are already initialized!");
@@ -688,6 +718,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	// Set the authority keys (used for testing purposes).
 	#[cfg(test)]
 	fn set_keys(keys: Vec<T::AuthorityId>) {
 		let bounded_keys = WeakBoundedVec::<_, T::MaxKeys>::try_from(keys)

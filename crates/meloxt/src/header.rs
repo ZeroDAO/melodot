@@ -22,13 +22,19 @@ use melo_core_primitives::HeaderExtension;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 #[serde(rename_all = "camelCase")]
 pub struct MelodotHeader<N: Copy + Into<U256> + TryFrom<U256>, H: Hasher> {
+	/// The parent hash of this block.
 	pub parent_hash: H::Output,
+	/// The block number.
 	#[serde(serialize_with = "serialize_number", deserialize_with = "deserialize_number")]
 	#[codec(compact)]
 	pub number: N,
+	/// The state trie merkle root of this block.
 	pub state_root: H::Output,
+	/// The extrinsics trie merkle root of this block.
 	pub extrinsics_root: H::Output,
+	/// The digest of this block.
 	pub digest: Digest,
+	/// The commitment list of this block.
 	pub extension: HeaderExtension,
 }
 

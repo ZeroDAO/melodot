@@ -18,14 +18,25 @@ use std::fmt::Debug;
 
 pub use melo_das_network::Service as DasDhtService;
 
+/// `DasDht` trait provides an asynchronous interface for interacting with the DHT (Distributed Hash Table).
 #[async_trait]
 pub trait DasDht: Send + Debug + 'static {
-	/// Get the addresses for the given [`AuthorityId`] from the local address cache.
+    /// Asynchronously puts a key-value pair into the DHT.
+    ///
+    /// # Arguments
+    /// 
+    /// * `key` - The key to be inserted into the DHT.
+    /// * `value` - The value associated with the provided key.
+    ///
+    /// # Returns
+    /// 
+    /// An `Option<()>` which is `Some(())` if the operation is successful and `None` otherwise.
 	async fn put_value_to_dht(&mut self, key: KademliaKey, value: Vec<u8>) -> Option<()>;
 }
 
 #[async_trait]
 impl DasDht for DasDhtService {
+    /// Implementation of the `put_value_to_dht` method for `DasDhtService`.
 	async fn put_value_to_dht(&mut self, key: KademliaKey, value: Vec<u8>) -> Option<()> {
 		DasDhtService::put_value_to_dht(self, key, value).await
 	}

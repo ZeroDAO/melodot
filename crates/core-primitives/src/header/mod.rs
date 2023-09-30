@@ -58,7 +58,7 @@ pub struct Header<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> {
 	pub extrinsics_root: Hash::Output,
 	/// A chain-specific digest of data useful for light clients or referencing auxiliary data.
 	pub digest: Digest,
-	///
+	/// Extension data.
 	pub extension: HeaderExtension,
 }
 
@@ -96,7 +96,6 @@ where
 		+ Into<U256>
 		+ TryFrom<U256>
 		+ sp_std::str::FromStr,
-	// + MaybeMallocSizeOf,
 	Hash: HashT,
 	Hash::Output: Default
 		+ sp_std::hash::Hash
@@ -108,7 +107,6 @@ where
 		+ MaybeDisplay
 		+ SimpleBitOps
 		+ Codec,
-	// + MaybeMallocSizeOf,
 {
 	type Number = Number;
 	type Hash = <Hash as HashT>::Output;

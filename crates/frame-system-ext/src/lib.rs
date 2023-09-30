@@ -12,6 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! # Frame System Extension Module
+//! 
+//! This module provides an extension mechanism for the frame system.
+//! It replaces the `finalize()` method in the original `frame_system::Pallet` module, allowing
+//! for the generation of new types of block headers, introducing extended fields.
+//! 
+//! An alternative approach would be to directly modify the frame-system pallet, which would prevent 
+//! modifications to the frame-executive module. However, this would make the frame-system cluttered 
+//! and often require additional type conversions for blocks and block headers. Our modification to 
+//! frame-executive is clear, involving simple type adjustments and the introduction of additional 
+//! block headers and test tools. This ensures compatibility with the Substrate ecosystem.
+//! 
+//! ## Overview
+//! 
+//! The System Extension module introduces an extended block header that includes a commitment list, 
+//! enhancing the capabilities of the traditional block header.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::pallet_prelude::*;
@@ -22,6 +39,9 @@ use sp_runtime::traits;
 
 use melo_core_primitives::traits::{ExtendedHeader, HeaderCommitList};
 
+// Logger target for this module.
+const LOG_TARGET: &str = "runtime::system_ext";
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -29,25 +49,40 @@ pub mod pallet {
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
-	/// Configure the pallet by specifying the parameters and types on which it depends.
+	/// Configuration trait for this pallet.
+	/// 
+	/// This trait allows the definition of the extended block header and the commit list type.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		/// The block header.
+		/// The extended block header.
 		type ExtendedHeader: Parameter
 			+ traits::Header<Number = Self::BlockNumber, Hash = Self::Hash>
 			+ ExtendedHeader<Number = Self::BlockNumber, Hash = Self::Hash>;
 
+		/// The type of the commit list.
 		type CommitList: HeaderCommitList;
 	}
 }
 
 impl<T: Config> Pallet<T> {
-	/// Remove temporary "environment" entries in storage, compute the storage root and return the
-	/// resulting header for this block.
+	/// Finalizes the block creation process.
+	/// 
+	/// This function will:
+	/// - Remove any temporary environmental storage entries.
+	/// - Compute the storage root.
+	/// - Return the resulting extended header for the current block.
+	/// 
+	/// # Returns
+	/// 
+	/// - `T::ExtendedHeader`: The extended block header with a commitment list.
 	pub fn finalize() -> T::ExtendedHeader {
+		// Retrieve the base header from the frame_system pallet.
 		let header = <frame_system::Pallet<T>>::finalize();
+		
+		// Get the last commit list.
 		let commit_list = T::CommitList::last();
 
+		// Construct an extended header.
 		let mut ext_header = T::ExtendedHeader::new_ext(
 			*header.number(),
 			*header.extrinsics_root(),
@@ -57,9 +92,13 @@ impl<T: Config> Pallet<T> {
 			Default::default(),
 		);
 
+		// Set the commitments using the commit list.
 		ext_header.set_commitments(&commit_list);
 
-		// log::trace!(target: LOG_TARGET, "Header {:?}", header);
+		// Log the base header for debugging.
+		log::trace!(target: LOG_TARGET, "Header {:?}", header);
+		
+		// Return the constructed extended header.
 		ext_header
 	}
 }

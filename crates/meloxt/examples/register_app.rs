@@ -25,6 +25,7 @@ pub async fn main() {
 		error!("{}", err);
 	}
 }
+
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{} register app ", START_EXAMPLE);
 	let client = ClientBuilder::default().build().await?;

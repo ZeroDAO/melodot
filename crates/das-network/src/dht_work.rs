@@ -24,22 +24,25 @@ use melo_erasure_coding::bytes_vec_to_blobs;
 pub const LOG_TARGET: &str = "das-network::dht_work";
 
 use crate::{NetworkProvider, ServicetoWorkerMsg, Sidecar, SidecarStatus};
+
+/// Represents the worker responsible for DHT network operations.
 pub struct Worker<B: Block, Client, Network, DhtEventStream, BE: Backend<B>> {
 	#[allow(dead_code)]
 	client: Arc<Client>,
 
-	/// Channel receiver for messages send by a [`crate::Service`].
+	/// Channel receiver for messages sent by the main service.
 	from_service: Fuse<mpsc::Receiver<ServicetoWorkerMsg>>,
 
-	/// DHT network
+	/// DHT network instance.
 	network: Arc<Network>,
 
-	/// Channel we receive Dht events on.
+	/// Channel receiver for DHT events.
 	dht_event_rx: DhtEventStream,
 
-	///
+	/// Backend storage instance.
 	pub backend: Arc<BE>,
 
+	/// Off-chain database instance.
 	pub offchain_db: OffchainDb<BE::OffchainStorage>,
 }
 
@@ -50,6 +53,7 @@ where
 	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
 	BE: Backend<B>,
 {
+	/// Attempts to create a new worker instance.
 	pub(crate) fn try_build(
 		from_service: mpsc::Receiver<ServicetoWorkerMsg>,
 		client: Arc<Client>,
@@ -70,13 +74,14 @@ where
 				warn!(
 					target: LOG_TARGET,
 					// TODO
-					"Can't spawn a  for a node without offchain storage."
+					"Can't spawn a worker for a node without offchain storage."
 				);
 				None
 			},
 		}
 	}
 
+	/// Main loop for the worker, where it listens to events and messages.
 	pub async fn run<FStart>(mut self, start: FStart)
 	where
 		FStart: Fn(),
@@ -96,17 +101,19 @@ where
 		}
 	}
 
+	/// Handles DHT events.
 	async fn handle_dht_event(&mut self, event: DhtEvent) {
 		match event {
 			DhtEvent::ValueFound(v) => {
 				self.handle_dht_value_found_event(v);
 			},
 			DhtEvent::ValueNotFound(key) => self.handle_dht_value_not_found_event(key),
-			// TODO handle other events
+			// TODO: handle other events
 			_ => {},
 		}
 	}
 
+	// Handles the event where a value is found in the DHT.
 	fn handle_dht_value_found_event(&mut self, values: Vec<(KademliaKey, Vec<u8>)>) {
 		for (key, value) in values {
 			let maybe_sidecar =
@@ -145,6 +152,7 @@ where
 		}
 	}
 
+	// Handles the event where a value is not found in the DHT.
 	fn handle_dht_value_not_found_event(&mut self, key: KademliaKey) {
 		let maybe_sidecar =
 			Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
@@ -160,6 +168,7 @@ where
 		}
 	}
 
+	// Processes messages coming from the main service.
 	fn process_message_from_service(&self, msg: ServicetoWorkerMsg) {
 		match msg {
 			ServicetoWorkerMsg::PutValueToDht(key, value, sender) => {

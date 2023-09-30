@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Arc, Backend,OffchainDb,warn};
+use crate::{warn, Arc, Backend, OffchainDb};
 use futures::StreamExt;
 use melo_core_primitives::{traits::Extractor, Encode};
 use sc_network::NetworkDHTProvider;
@@ -21,10 +21,12 @@ use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
 
+// Define a constant for logging with a target string
 const LOG_TARGET: &str = "tx_pool_listener";
 
 use crate::{sidecar_kademlia_key, NetworkProvider, Sidecar, SidecarMetadata};
 
+/// Parameters required for the transaction pool listener.
 #[derive(Clone)]
 pub struct TPListenerParams<Client, Network, TP, BE> {
 	pub client: Arc<Client>,
@@ -33,6 +35,8 @@ pub struct TPListenerParams<Client, Network, TP, BE> {
 	pub backend: Arc<BE>,
 }
 
+/// Main function responsible for starting the transaction pool listener.
+/// It monitors the transaction pool for incoming transactions and processes them accordingly.
 pub async fn start_tx_pool_listener<Client, Network, TP, B, BE>(
 	TPListenerParams { client, network, transaction_pool, backend }: TPListenerParams<
 		Client,
@@ -48,10 +52,14 @@ pub async fn start_tx_pool_listener<Client, Network, TP, B, BE>(
 	Client::Api: Extractor<B>,
 	BE: Backend<B>,
 {
+	// Log the start of the transaction pool listener
 	tracing::info!(
 		target: LOG_TARGET,
 		"Starting transaction pool listener.",
 	);
+
+	// Initialize the off-chain database using the backend's off-chain storage.
+	// If unavailable, log a warning and return without starting the listener.
 	let mut offchain_db = match backend.offchain_storage() {
 		Some(offchain_storage) => OffchainDb::new(offchain_storage),
 		None => {
@@ -59,75 +67,69 @@ pub async fn start_tx_pool_listener<Client, Network, TP, B, BE>(
 				target: LOG_TARGET,
 				"Can't spawn a transaction pool listener for a node without offchain storage."
 			);
-			return
+			return;
 		},
 	};
-	// Obtain the import notification event stream from the transaction pool
+
+	// Get the stream of import notifications from the transaction pool
 	let mut import_notification_stream = transaction_pool.import_notification_stream();
 
-	// Handle the transaction pool import notification event stream
+	// Process each import notification as they arrive in the stream
 	while let Some(notification) = import_notification_stream.next().await {
-		match transaction_pool.ready_transaction(&notification) {
-			Some(transaction) => {
-				// TODO: Can we avoid decoding the extrinsic here?
-				let encoded = transaction.data().encode();
-				let at = client.info().best_hash;
-				match client.runtime_api().extract(at, &encoded) {
-					Ok(res) => match res {
-						Some(data) => {
-							data.into_iter().for_each(
-								|(data_hash, bytes_len, commitments, proofs)| {
-									tracing::debug!(
-										target: LOG_TARGET,
-										"New blob transaction found. Hash: {:?}", data_hash,
-									);
+		if let Some(transaction) = transaction_pool.ready_transaction(&notification) {
+			// Encode the transaction data for processing
+			let encoded = transaction.data().encode();
+			let at = client.info().best_hash;
 
-									let metadata = SidecarMetadata {
-										data_len: bytes_len,
-										blobs_hash: data_hash,
-										commitments,
-										proofs,
-									};
-
-									let fetch_value_from_network = |sidecar: &Sidecar| {
-										network.get_value(&sidecar_kademlia_key(sidecar));
-									};
-
-									match Sidecar::from_local_outside::<B, BE>(&metadata.id(), &mut offchain_db) {
-										Some(sidecar) => {
-											if sidecar.status.is_none() {
-												fetch_value_from_network(&sidecar);
-											}
-										},
-										None => {
-											let sidecar =
-												Sidecar { blobs: None, metadata, status: None };
-											sidecar.save_to_local_outside::<B, BE>(&mut offchain_db);
-											fetch_value_from_network(&sidecar);
-										},
-									}
-								},
-							);
-						},
-						None => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								"Decoding of extrinsic failed. Transaction: {:?}",
-								transaction.hash(),
-							);
-						},
-					},
-					Err(err) => {
+			// Extract relevant information from the encoded transaction data
+			match client.runtime_api().extract(at, &encoded) {
+				Ok(Some(data)) => {
+					for (data_hash, bytes_len, commitments, proofs) in data {
 						tracing::debug!(
 							target: LOG_TARGET,
-							"Failed to extract data from extrinsic. Transaction: {:?}. Error: {:?}",
-							transaction.hash(),
-							err,
+							"New blob transaction found. Hash: {:?}", data_hash,
 						);
-					},
-				};
-			},
-			None => {},
+
+						let metadata = SidecarMetadata {
+							data_len: bytes_len,
+							blobs_hash: data_hash,
+							commitments,
+							proofs,
+						};
+
+						let fetch_value_from_network = |sidecar: &Sidecar| {
+							network.get_value(&sidecar_kademlia_key(sidecar));
+						};
+					
+						match Sidecar::from_local_outside::<B, BE>(&metadata.id(), &mut offchain_db) {
+							Some(sidecar) if sidecar.status.is_none() => {
+								fetch_value_from_network(&sidecar);
+							},
+							None => {
+								let sidecar = Sidecar {
+									blobs: None,
+									metadata: metadata.clone(),
+									status: None,
+								};
+								sidecar.save_to_local_outside::<B, BE>(&mut offchain_db);
+								fetch_value_from_network(&sidecar);
+							},
+							_ => {},
+						}
+					}
+				},
+				Ok(None) => tracing::debug!(
+					target: LOG_TARGET,
+					"Decoding of extrinsic failed. Transaction: {:?}",
+					transaction.hash(),
+				),
+				Err(err) => tracing::debug!(
+					target: LOG_TARGET,
+					"Failed to extract data from extrinsic. Transaction: {:?}. Error: {:?}",
+					transaction.hash(),
+					err,
+				),
+			};
 		}
 	}
 }
