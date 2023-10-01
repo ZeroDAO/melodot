@@ -21,6 +21,7 @@ use subxt::{
 use subxt_signer::sr25519::dev::{self};
 use subxt_signer::sr25519::Keypair;
 
+// Load the runtime metadata from the provided path.
 #[subxt::subxt(runtime_metadata_path = "melodot_metadata.scale")]
 pub mod melodot {}
 
@@ -32,13 +33,17 @@ pub use log::init_logger;
 
 mod helper;
 pub use helper::*;
+
+/// Configuration enum for Melo blockchain.
 pub enum MeloConfig {}
 
+// Define aliases for commonly used types.
 pub type Signature = MultiSignature;
 pub type AccountId = AccountId32;
 pub type AccountIndex = u32;
 pub type Address = MultiAddress<AccountId, AccountIndex>;
 
+// Implement the `Config` trait for `MeloConfig`, mapping Melo-specific types to the substrate types.
 impl Config for MeloConfig {
     type Hash = H256;
     type AccountId = AccountId;
@@ -49,27 +54,32 @@ impl Config for MeloConfig {
     type ExtrinsicParams = <PolkadotConfig as Config>::ExtrinsicParams;
 }
 
+/// Client structure containing the API for blockchain interactions and a signer for transactions.
 pub struct Client {
     pub api: OnlineClient<MeloConfig>,
     pub signer: Keypair,
 }
 
 impl Client {
+    /// Update the signer for the client.
     pub fn set_signer(&mut self, signer: Keypair) {
         self.signer = signer;
     }
 
+    /// Update the API client.
     pub fn set_client(&mut self, api: OnlineClient<MeloConfig>) {
         self.api = api;
     }
 }
 
+/// A builder pattern for creating a `Client` instance.
 pub struct ClientBuilder {
     pub url: String,
     pub signer: Keypair,
 }
 
 impl ClientBuilder {
+    /// Constructor for `ClientBuilder`.
     pub fn new(url: &str, signer: Keypair) -> Self {
         Self {
             url: url.to_string(),
@@ -77,6 +87,7 @@ impl ClientBuilder {
         }
     }
 
+    /// Asynchronously build and return a `Client` instance.
     pub async fn build(&self) -> Result<Client, Box<dyn std::error::Error>> {
         let api = OnlineClient::<MeloConfig>::from_url(&self.url).await?;
         Ok(Client {
@@ -86,6 +97,7 @@ impl ClientBuilder {
     }
 }
 
+// Default implementation for `ClientBuilder`.
 impl Default for ClientBuilder {
     fn default() -> Self {
         Self {

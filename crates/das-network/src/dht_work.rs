@@ -23,23 +23,26 @@ use melo_erasure_coding::bytes_vec_to_blobs;
 /// Logging target for the mmr gadget.
 pub const LOG_TARGET: &str = "das-network::dht_work";
 
-use crate::{NetworkProvider, ServicetoWorkerMsg, Sidercar, SidercarStatus};
+use crate::{NetworkProvider, ServicetoWorkerMsg, Sidecar, SidecarStatus};
+
+/// Represents the worker responsible for DHT network operations.
 pub struct Worker<B: Block, Client, Network, DhtEventStream, BE: Backend<B>> {
 	#[allow(dead_code)]
 	client: Arc<Client>,
 
-	/// Channel receiver for messages send by a [`crate::Service`].
+	/// Channel receiver for messages sent by the main service.
 	from_service: Fuse<mpsc::Receiver<ServicetoWorkerMsg>>,
 
-	/// DHT network
+	/// DHT network instance.
 	network: Arc<Network>,
 
-	/// Channel we receive Dht events on.
+	/// Channel receiver for DHT events.
 	dht_event_rx: DhtEventStream,
 
-	///
+	/// Backend storage instance.
 	pub backend: Arc<BE>,
 
+	/// Off-chain database instance.
 	pub offchain_db: OffchainDb<BE::OffchainStorage>,
 }
 
@@ -50,6 +53,7 @@ where
 	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
 	BE: Backend<B>,
 {
+	/// Attempts to create a new worker instance.
 	pub(crate) fn try_build(
 		from_service: mpsc::Receiver<ServicetoWorkerMsg>,
 		client: Arc<Client>,
@@ -70,13 +74,14 @@ where
 				warn!(
 					target: LOG_TARGET,
 					// TODO
-					"Can't spawn a  for a node without offchain storage."
+					"Can't spawn a worker for a node without offchain storage."
 				);
 				None
 			},
 		}
 	}
 
+	/// Main loop for the worker, where it listens to events and messages.
 	pub async fn run<FStart>(mut self, start: FStart)
 	where
 		FStart: Fn(),
@@ -96,48 +101,50 @@ where
 		}
 	}
 
+	/// Handles DHT events.
 	async fn handle_dht_event(&mut self, event: DhtEvent) {
 		match event {
 			DhtEvent::ValueFound(v) => {
 				self.handle_dht_value_found_event(v);
 			},
 			DhtEvent::ValueNotFound(key) => self.handle_dht_value_not_found_event(key),
-			// TODO handle other events
+			// TODO: handle other events
 			_ => {},
 		}
 	}
 
+	// Handles the event where a value is found in the DHT.
 	fn handle_dht_value_found_event(&mut self, values: Vec<(KademliaKey, Vec<u8>)>) {
 		for (key, value) in values {
-			let maybe_sidercar =
-				Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-			match maybe_sidercar {
-				Some(sidercar) => {
-					if sidercar.status.is_none() {
-						let data_hash = Sidercar::calculate_id(&value);
-						let mut new_sidercar = sidercar.clone();
-						if data_hash != sidercar.metadata.blobs_hash.as_bytes() {
-							new_sidercar.status = Some(SidercarStatus::ProofError);
+			let maybe_sidecar =
+				Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
+			match maybe_sidecar {
+				Some(sidecar) => {
+					if sidecar.status.is_none() {
+						let data_hash = Sidecar::calculate_id(&value);
+						let mut new_sidecar = sidecar.clone();
+						if data_hash != sidecar.metadata.blobs_hash.as_bytes() {
+							new_sidecar.status = Some(SidecarStatus::ProofError);
 						} else {
 							let kzg = KZG::default_embedded();
 							// TODO bytes to blobs
 							let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
 							let encoding_valid = Blob::verify_batch(
 								&blobs,
-								&sidercar.metadata.commitments,
-								&sidercar.metadata.proofs,
+								&sidecar.metadata.commitments,
+								&sidecar.metadata.proofs,
 								&kzg,
 								FIELD_ELEMENTS_PER_BLOB,
 							)
 							.unwrap();
 							if encoding_valid {
-								new_sidercar.blobs = Some(value.clone());
-								new_sidercar.status = Some(SidercarStatus::Success);
+								new_sidecar.blobs = Some(value.clone());
+								new_sidecar.status = Some(SidecarStatus::Success);
 							} else {
-								new_sidercar.status = Some(SidercarStatus::ProofError);
+								new_sidecar.status = Some(SidecarStatus::ProofError);
 							}
 						}
-						new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+						new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 					}
 				},
 				None => {},
@@ -145,21 +152,23 @@ where
 		}
 	}
 
+	// Handles the event where a value is not found in the DHT.
 	fn handle_dht_value_not_found_event(&mut self, key: KademliaKey) {
-		let maybe_sidercar =
-			Sidercar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-		match maybe_sidercar {
-			Some(sidercar) => {
-				if sidercar.status.is_none() {
-					let mut new_sidercar = sidercar.clone();
-					new_sidercar.status = Some(SidercarStatus::NotFound);
-					new_sidercar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+		let maybe_sidecar =
+			Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
+		match maybe_sidecar {
+			Some(sidecar) => {
+				if sidecar.status.is_none() {
+					let mut new_sidecar = sidecar.clone();
+					new_sidecar.status = Some(SidecarStatus::NotFound);
+					new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 				}
 			},
 			None => {},
 		}
 	}
 
+	// Processes messages coming from the main service.
 	fn process_message_from_service(&self, msg: ServicetoWorkerMsg) {
 		match msg {
 			ServicetoWorkerMsg::PutValueToDht(key, value, sender) => {

@@ -15,7 +15,7 @@
 use log::{error, info};
 use meloxt::info_msg::*;
 use meloxt::init_logger;
-use meloxt::sidercar_metadata_runtime;
+use meloxt::sidecar_metadata_runtime;
 use meloxt::{melodot, ClientBuilder};
 use subxt_signer::sr25519::dev::{self};
 
@@ -35,7 +35,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	let app_id = 1;
 	let bytes_len = 121; // Exceeding the limit
-	let (commitments, proofs, data_hash, _) = sidercar_metadata_runtime(bytes_len);
+	let (commitments, proofs, data_hash, _) = sidecar_metadata_runtime(bytes_len);
 
 	let submit_data_tx =
 		melodot::tx()

@@ -16,10 +16,10 @@
 // limitations under the License.
 
 //! Testing utilities.
-use crate::HeaderExtension;
 use crate::traits::ExtendedHeader;
 use crate::traits::HeaderCommitList;
 use crate::Header as HeaderT;
+use crate::HeaderExtension;
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
 
@@ -47,6 +47,7 @@ use std::{
 };
 
 lazy_static! {
+		/// A static reference containing test commitments.
 	pub static ref TEST_COMMITMENTS: Vec<KZGCommitment> = vec![
 		KZGCommitment::rand(),
 		KZGCommitment::rand(),
@@ -57,38 +58,40 @@ lazy_static! {
 	];
 }
 
+/// `CommitListTest` is a mock structure that implements `HeaderCommitList` with no data.
 pub struct CommitListTest();
 
 impl HeaderCommitList for CommitListTest {
+	// Always returns an empty list of `KZGCommitment`.
 	fn last() -> Vec<KZGCommitment> {
 		vec![]
 	}
 }
 
+/// `CommitListTestWithData` is a mock structure that implements `HeaderCommitList` with predefined data.
 pub struct CommitListTestWithData();
 
 impl HeaderCommitList for CommitListTestWithData {
+	// Returns a predefined list of `KZGCommitment` for testing.
 	fn last() -> Vec<KZGCommitment> {
 		TEST_COMMITMENTS.to_vec()
 	}
 }
 
 impl CommitListTestWithData {
+	/// Converts the static `TEST_COMMITMENTS` into bytes.
 	pub fn commit_bytes() -> Vec<u8> {
-		TEST_COMMITMENTS
-			.iter()
-			.map(|c| c.to_bytes())
-			.flatten()
-			.collect()
+		TEST_COMMITMENTS.iter().map(|c| c.to_bytes()).flatten().collect()
 	}
 
+	/// Creates a `HeaderExtension` with the bytes representation of `TEST_COMMITMENTS`.
 	pub fn header_extension() -> HeaderExtension {
-		HeaderExtension {
-			commitments_bytes: Self::commit_bytes(),
-		}
+		HeaderExtension { commitments_bytes: Self::commit_bytes() }
 	}
 }
 
+
+/// From substrate sp_runtime test utils
 /// A dummy type which can be used instead of regular cryptographic primitives.
 ///
 /// 1. Wraps a `u64` `AccountId` and is able to `IdentifyAccount`.
@@ -213,6 +216,7 @@ impl traits::IdentifyAccount for UintAuthorityId {
 	}
 }
 
+/// From substrate sp_runtime test utils
 /// A dummy signature type, to match `UintAuthorityId`.
 #[derive(Eq, PartialEq, Clone, Debug, Hash, Serialize, Deserialize, Encode, Decode, TypeInfo)]
 pub struct TestSignature(pub u64, pub Vec<u8>);
@@ -248,6 +252,7 @@ impl Header {
 	}
 }
 
+/// From substrate sp_runtime test utils
 /// An opaque extrinsic wrapper type.
 #[derive(PartialEq, Eq, Clone, Debug, Encode, Decode)]
 pub struct ExtrinsicWrapper<Xt>(Xt);
@@ -284,6 +289,7 @@ impl<Xt> Deref for ExtrinsicWrapper<Xt> {
 	}
 }
 
+/// From substrate sp_runtime test utils
 /// Testing block
 #[derive(PartialEq, Eq, Clone, Serialize, Debug, Encode, Decode)]
 pub struct Block<Xt> {
@@ -329,6 +335,7 @@ where
 	}
 }
 
+/// From substrate sp_runtime test utils
 /// Test transaction, tuple of (sender, call, signed_extra)
 /// with index only used if sender is some.
 ///

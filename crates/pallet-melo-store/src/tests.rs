@@ -18,7 +18,7 @@ use super::*;
 use crate as pallet_melo_store;
 use crate::mock::*;
 use frame_support::{assert_noop, assert_ok};
-use melo_core_primitives::SidercarMetadata;
+use melo_core_primitives::SidecarMetadata;
 use sp_core::{
 	offchain::{
 		testing::{TestOffchainExt, TestTransactionPoolExt},
@@ -632,13 +632,13 @@ fn should_send_unavailability_report_correctly() {
 			commitments.clone(),
 			proofs.clone(),
 		));
-		let sidercar_metadata =
-			SidercarMetadata { data_len: bytes_len, blobs_hash: data_hash, commitments, proofs };
+		let sidecar_metadata =
+			SidecarMetadata { data_len: bytes_len, blobs_hash: data_hash, commitments, proofs };
 
-		let mut sidercar = Sidercar::new(sidercar_metadata, None);
-		sidercar.set_not_found();
-		sidercar.save_to_local();
-		assert!(sidercar.is_unavailability());
+		let mut sidecar = Sidecar::new(sidecar_metadata, None);
+		sidecar.set_not_found();
+		sidecar.save_to_local();
+		assert!(sidecar.is_unavailability());
 
 		// Test get_unavailability_data
 		let unavailability_data = MeloStore::get_unavailability_data(now);

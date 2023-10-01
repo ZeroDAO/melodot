@@ -25,18 +25,21 @@ use sp_runtime::traits::Block;
 
 use sp_core::offchain::StorageKind;
 
+/// Save a key-value pair to local storage with the provided prefix.
 pub fn save_to_localstorage_with_prefix(key: &[u8], value: &[u8], prefix: &[u8]) {
 	let mut prefixed_key = prefix.to_vec();
 	prefixed_key.extend_from_slice(key);
 	sp_io::offchain::local_storage_set(StorageKind::PERSISTENT, &prefixed_key, value);
 }
 
+/// Retrieve a value from local storage using the provided key and prefix.
 pub fn get_from_localstorage_with_prefix(key: &[u8], prefix: &[u8]) -> Option<Vec<u8>> {
 	let mut prefixed_key = prefix.to_vec();
 	prefixed_key.extend_from_slice(key);
 	sp_io::offchain::local_storage_get(StorageKind::PERSISTENT, &prefixed_key)
 }
 
+/// Save a key-value pair to local storage (usable outside the runtime) with the provided prefix.
 #[cfg(feature = "outside")]
 pub fn save_to_localstorage_with_prefix_outside<B: Block, BE: Backend<B>>(
 	db: &mut OffchainDb<BE::OffchainStorage>,
@@ -49,6 +52,7 @@ pub fn save_to_localstorage_with_prefix_outside<B: Block, BE: Backend<B>>(
 	db.local_storage_set(StorageKind::PERSISTENT, &prefixed_key, value);
 }
 
+/// Retrieve a value from local storage (usable outside the runtime) using the provided key and prefix.
 #[cfg(feature = "outside")]
 pub fn get_from_localstorage_with_prefix_outside<B: Block, BE: Backend<B>>(
 	db: &mut OffchainDb<BE::OffchainStorage>,

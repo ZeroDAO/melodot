@@ -26,8 +26,8 @@ use sp_runtime::generic::Digest;
 pub mod header;
 pub use header::*;
 
-pub mod sidercar;
-pub use sidercar::*;
+pub mod sidecar;
+pub use sidecar::*;
 
 pub mod localstorage;
 
