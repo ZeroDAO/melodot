@@ -416,7 +416,7 @@ pub mod pallet {
 			let app_id = AppId::<T>::get() + 1;
 			AppId::<T>::put(app_id);
 			Self::deposit_event(Event::AppIdRegistered { app_id, from: who });
-			Ok(().into())
+			Ok(())
 		}
 	}
 
@@ -468,7 +468,7 @@ pub mod pallet {
 				let keys = Keys::<T>::get();
 
 				let authority_id =
-					match keys.get(unavailable_data_report.authority_index.clone() as usize) {
+					match keys.get(unavailable_data_report.authority_index as usize) {
 						Some(id) => id,
 						None => return InvalidTransaction::Stale.into(),
 					};
@@ -535,8 +535,7 @@ impl<T: Config> Pallet<T> {
 	pub fn get_commitment_list(at_block: BlockNumberFor<T>) -> Vec<KZGCommitment> {
 		Metadata::<T>::get(at_block)
 			.iter()
-			.map(|metadata| metadata.commitments.clone())
-			.flatten()
+			.flat_map(|metadata| metadata.commitments.clone())
 			.collect::<Vec<_>>()
 	}
 
@@ -548,7 +547,6 @@ impl<T: Config> Pallet<T> {
 		now: BlockNumberFor<T>,
 	) -> OffchainResult<T, impl Iterator<Item = OffchainResult<T, ()>>> {
 		let reports = (0..DELAY_CHECK_THRESHOLD)
-			.into_iter()
 			.filter_map(move |gap| {
 				if T::BlockNumber::from(gap) > now {
 					return None;
@@ -569,7 +567,7 @@ impl<T: Config> Pallet<T> {
 					None
 				}
 			})
-			.flat_map(|it| it);
+			.flatten();
 
 		Ok(reports)
 	}

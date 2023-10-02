@@ -52,6 +52,7 @@ pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 type FullGrandpaBlockImport =
 	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
+#[allow(clippy::type_complexity)]
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
