@@ -72,6 +72,7 @@ pub fn new_service(to_worker: mpsc::Sender<ServicetoWorkerMsg>) -> Service {
 }
 
 /// Conveniently creates both a Worker and Service with the given parameters.
+#[allow(clippy::type_complexity)]
 pub fn new_worker_and_service<B, Client, Network, DhtEventStream, BE>(
 	client: Arc<Client>,
 	network: Arc<Network>,

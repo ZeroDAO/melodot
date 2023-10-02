@@ -63,6 +63,7 @@ pub trait HeaderCommitList {
 
 sp_api::decl_runtime_apis! {
 	/// Extracts the `data` field from some types of extrinsics.
+	#[allow(clippy::ptr_arg, clippy::type_complexity)]
 	pub trait Extractor {
 		fn extract(
 			extrinsic: &Vec<u8>,

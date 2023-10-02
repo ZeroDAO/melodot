@@ -136,7 +136,7 @@ where
 		let tx_hash = self.pool.submit_one(&at, TX_SOURCE, xt).await.map_err(|e| {
 			e.into_pool_error()
 				.map(|e| Error::TransactionPushFailed(Box::new(e)))
-				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)).into())
+				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)))
 		})?;
 
 		let metadata = SidecarMetadata { data_len, blobs_hash: data_hash, commitments, proofs };

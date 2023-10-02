@@ -81,7 +81,7 @@ impl HeaderCommitList for CommitListTestWithData {
 impl CommitListTestWithData {
 	/// Converts the static `TEST_COMMITMENTS` into bytes.
 	pub fn commit_bytes() -> Vec<u8> {
-		TEST_COMMITMENTS.iter().map(|c| c.to_bytes()).flatten().collect()
+		TEST_COMMITMENTS.iter().flat_map(|c| c.to_bytes()).collect()
 	}
 
 	/// Creates a `HeaderExtension` with the bytes representation of `TEST_COMMITMENTS`.

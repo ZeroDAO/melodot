@@ -118,36 +118,33 @@ where
 		for (key, value) in values {
 			let maybe_sidecar =
 				Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-			match maybe_sidecar {
-				Some(sidecar) => {
-					if sidecar.status.is_none() {
-						let data_hash = Sidecar::calculate_id(&value);
-						let mut new_sidecar = sidecar.clone();
-						if data_hash != sidecar.metadata.blobs_hash.as_bytes() {
-							new_sidecar.status = Some(SidecarStatus::ProofError);
+			if let Some(sidecar) = maybe_sidecar {
+				if sidecar.status.is_none() {
+					let data_hash = Sidecar::calculate_id(&value);
+					let mut new_sidecar = sidecar.clone();
+					if data_hash != sidecar.metadata.blobs_hash.as_bytes() {
+						new_sidecar.status = Some(SidecarStatus::ProofError);
+					} else {
+						let kzg = KZG::default_embedded();
+						// TODO bytes to blobs
+						let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
+						let encoding_valid = Blob::verify_batch(
+							&blobs,
+							&sidecar.metadata.commitments,
+							&sidecar.metadata.proofs,
+							&kzg,
+							FIELD_ELEMENTS_PER_BLOB,
+						)
+						.unwrap();
+						if encoding_valid {
+							new_sidecar.blobs = Some(value.clone());
+							new_sidecar.status = Some(SidecarStatus::Success);
 						} else {
-							let kzg = KZG::default_embedded();
-							// TODO bytes to blobs
-							let blobs = bytes_vec_to_blobs(&[value.clone()], 1).unwrap();
-							let encoding_valid = Blob::verify_batch(
-								&blobs,
-								&sidecar.metadata.commitments,
-								&sidecar.metadata.proofs,
-								&kzg,
-								FIELD_ELEMENTS_PER_BLOB,
-							)
-							.unwrap();
-							if encoding_valid {
-								new_sidecar.blobs = Some(value.clone());
-								new_sidecar.status = Some(SidecarStatus::Success);
-							} else {
-								new_sidecar.status = Some(SidecarStatus::ProofError);
-							}
+							new_sidecar.status = Some(SidecarStatus::ProofError);
 						}
-						new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
 					}
-				},
-				None => {},
+					new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+				}
 			}
 		}
 	}
@@ -156,15 +153,12 @@ where
 	fn handle_dht_value_not_found_event(&mut self, key: KademliaKey) {
 		let maybe_sidecar =
 			Sidecar::from_local_outside::<B, BE>(key.as_ref(), &mut self.offchain_db);
-		match maybe_sidecar {
-			Some(sidecar) => {
-				if sidecar.status.is_none() {
-					let mut new_sidecar = sidecar.clone();
-					new_sidecar.status = Some(SidecarStatus::NotFound);
-					new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
-				}
-			},
-			None => {},
+		if let Some(sidecar) = maybe_sidecar {
+			if sidecar.status.is_none() {
+				let mut new_sidecar = sidecar.clone();
+				new_sidecar.status = Some(SidecarStatus::NotFound);
+				new_sidecar.save_to_local_outside::<B, BE>(&mut self.offchain_db)
+			}
 		}
 	}
 
@@ -172,7 +166,10 @@ where
 	fn process_message_from_service(&self, msg: ServicetoWorkerMsg) {
 		match msg {
 			ServicetoWorkerMsg::PutValueToDht(key, value, sender) => {
-				let _ = sender.send(Some(self.network.put_value(key, value)));
+				let _ = sender.send({
+					self.network.put_value(key, value);
+					Some(())
+				});
 			},
 		}
 	}

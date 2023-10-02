@@ -84,7 +84,6 @@ pub fn testnet_genesis(
 			let nominations = initial_authorities
 				.as_slice()
 				.choose_multiple(&mut rng, count)
-				.into_iter()
 				.map(|choice| choice.0.clone())
 				.collect::<Vec<_>>();
 			(x.clone(), x.clone(), STASH, StakerStatus::Nominator(nominations))
@@ -155,7 +154,7 @@ pub fn testnet_genesis(
 		},
 		nomination_pools: NominationPoolsConfig {
 			min_create_bond: 10 * DOLLARS,
-			min_join_bond: 1 * DOLLARS,
+			min_join_bond: DOLLARS,
 			..Default::default()
 		},
 	}

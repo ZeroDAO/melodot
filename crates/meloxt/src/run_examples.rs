@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
 async fn run_example(example: &str) -> Result<()> {
     // Execute the example using cargo. It assumes that the example can be run using the cargo command.
     let status = TokioCommand::new("cargo")
-        .args(&["run", "--release", "--example", example])
+        .args(["run", "--release", "--example", example])
         .status()
         .await?;
 
@@ -63,7 +63,7 @@ async fn fetch_all_examples() -> Result<Vec<String>> {
     // Use tokio's spawn_blocking to run a blocking operation in the context of an asynchronous function.
     let output = tokio::task::spawn_blocking(move || {
         std::process::Command::new("cargo")
-            .args(&["run", "--release", "--example"])
+            .args(["run", "--release", "--example"])
             .stderr(Stdio::piped())
             .output()
     })
