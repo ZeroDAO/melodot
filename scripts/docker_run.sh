@@ -6,11 +6,16 @@ echo "*** Melodot ***"
 
 cd $(dirname ${BASH_SOURCE[0]})/..
 
-docker-compose down --remove-orphans
-
 # Get the arguments passed to the script
 cmd=$1
 crate=$2
+
+if [ "$cmd" != "new" ]; then
+  docker-compose down --remove-orphans
+  docker-compose run --rm --name melodot --service-ports dev $@
+else
+  docker exec -it melodot bash
+fi
 
 # Check if the crate parameter is provided
 if [ -z "$crate" ]; then
