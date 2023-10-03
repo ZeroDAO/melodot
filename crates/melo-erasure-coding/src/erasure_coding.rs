@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(not(feature = "std"), no_std)]
 use kzg::{FFTFr, Fr, PolyRecover, DAS, FFTG1, G1};
-use melo_core_primitives::kzg::BlsScalar;
-use melo_core_primitives::kzg::ReprConvert;
-use melo_core_primitives::polynomial::Polynomial;
+use melo_das_primitives::crypto::BlsScalar;
+use melo_das_primitives::crypto::ReprConvert;
+use melo_das_primitives::polynomial::Polynomial;
 
 use rust_kzg_blst::{
 	types::{fft_settings::FsFFTSettings, fr::FsFr, g1::FsG1, poly::FsPoly},
 	utils::reverse_bit_order,
 };
+
+use crate::{String, Vec};
 
 /// Extends the given `source` slice using the provided `FsFFTSettings`.
 ///
@@ -114,7 +115,7 @@ pub fn recover(fs: &FsFFTSettings, shards: &[Option<BlsScalar>]) -> Result<Vec<B
 }
 
 /// Recovers a polynomial from the given shards using the provided FFT settings.
-/// 
+///
 /// It checks if `shards` contains no `None` values, and if so, directly computes the polynomial using FFT.
 /// This also prevents errors when `shards` contains no `None` values.
 ///

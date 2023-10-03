@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate alloc;
 use kzg::FK20MultiSettings;
-use melo_core_primitives::kzg::{BlsScalar, KZGProof, Position, KZG};
-use melo_core_primitives::polynomial::Polynomial;
-use melo_core_primitives::segment::{Segment, SegmentData};
+use melo_das_primitives::crypto::{BlsScalar, KZGProof, Position, KZG};
+use melo_das_primitives::polynomial::Polynomial;
+use melo_das_primitives::segment::{Segment, SegmentData};
 use rust_kzg_blst::types::fk20_multi_settings::FsFK20MultiSettings;
 
 use crate::erasure_coding::extend_poly;
+use crate::{String, Vec, ToString, vec};
 
 /// Orders a vector of `Segment`s into a row of `SegmentData` using the provided chunk count.
 /// 

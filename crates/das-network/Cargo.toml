@@ -1,0 +1,41 @@
+[package]
+name = "melo-das-network"
+version = "0.0.1"
+description = "Network Core Module in Data Availability."
+license = "Apache-2.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+melo-erasure-coding = { path = "../melo-erasure-coding" }
+melo-das-primitives = { path = "../das-primitives" }
+melo-core-primitives = { path = "../core-primitives" }
+
+async-trait = "0.1.56"
+futures = "0.3.21"
+tracing = "0.1.37"
+log = "0.4"
+
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-network = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+node-primitives = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-blockchain = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-client-api = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-offchain = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[features]
+default = ["std"]
+std = [
+	"frame-system/std",
+	"sp-core/std",
+	"melo-erasure-coding/std",
+	"melo-das-primitives/std",
+]

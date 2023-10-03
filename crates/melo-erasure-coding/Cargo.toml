@@ -6,27 +6,31 @@ version = "0.1.0"
 authors = ["DKLee <xiuerdwy@gmail.com>"]
 edition = "2021"
 
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
 [lib]
 # Necessary for CLI options to work on benches
 bench = false
 
 [dependencies]
-melo-core-primitives = { version = "0.1.0", path = "../../primitives", default-features = false }
-rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
-kzg = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b", default-features = false }
+melo-das-primitives = { default-features = false, version = "0.1.0", path = "../das-primitives"}
+
+rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
+kzg = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
+
 derive_more = "0.99.17"
-itertools = "0.11.0"
 
 [dev-dependencies]
-rust-kzg-blst = { git = "https://github.com/sifraitech/rust-kzg", rev = "b416f2b"}
 criterion = "0.4.0"
 rand = "0.8.5"
+rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false, features = ["rand"] }
 
 [features]
-default = ["std", "parallel"]
+default = ["std","parallel"]
 std = [
     "rust-kzg-blst/std",
     "kzg/std",
-    "melo-core-primitives/std",
+    "melo-das-primitives/std",
 ]
 parallel = ["rust-kzg-blst/parallel"]

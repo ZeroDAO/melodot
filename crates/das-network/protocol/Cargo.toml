@@ -1,0 +1,19 @@
+[package]
+name = "melo-das-network-protocol"
+version = "0.0.1"
+description = ""
+license = "Apache-2.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+melo-das-network = { version = "0.0.1", path = "../" }
+
+async-trait = "0.1.56"
+futures = "0.3.21"
+tracing = "0.1.37"
+
+sc-network = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

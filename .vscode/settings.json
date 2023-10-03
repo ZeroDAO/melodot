@@ -1,5 +1,5 @@
 {
-    "rust-analyzer.linkedProjects": [
-        "./crates/melo-erasure-coding/Cargo.toml"
-    ]
+    "rust-analyzer.server.path": null,
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "commentTranslate.multiLineMerge": true
 }

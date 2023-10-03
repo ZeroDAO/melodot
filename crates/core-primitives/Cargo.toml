@@ -1,0 +1,80 @@
+[package]
+name = "melo-core-primitives"
+description = "Core primitives for Melodot"
+license = "Apache-2.0"
+version = "0.1.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false}
+melo-erasure-coding = { version = "0.1.0", path = "../melo-erasure-coding", default-features = false}
+
+rayon = "1.5.1"
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+serde = { version = "1.0.136", optional = true, features = ["alloc", "derive"] }
+
+sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
+sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
+sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"  }
+
+# For node
+sc-client-api = {optional = true, default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-offchain = {optional = true, default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+# For testing
+lazy_static = "1.4"
+rand = { version = "0.8.5", optional = true }
+sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[dev-dependencies]
+rand = "0.8.5"
+serde_json = "1.0.85"
+zstd = { version = "0.12.3", default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-tracing = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[features]
+default = ["std", "outside"]
+std = [
+	"codec/std",
+	"log/std",
+	"rand",
+	"scale-info/std",
+	"serde",
+	"sp-core/std",
+	"sp-runtime/std",
+	"melo-das-primitives/std",
+	"sp-io/std",
+	"sp-std/std",
+	"sp-api/std",
+    "melo-das-primitives/serde",
+	"sp-state-machine/std",
+	"sp-tracing/std",
+	"sp-application-crypto/std",
+	"sc-client-api",
+	"sc-offchain",
+]
+outside = [
+    "melo-das-primitives/serde",
+	"sc-client-api",
+	"sc-offchain",
+]
+parallel = [
+    "melo-das-primitives/parallel",
+]
+# Serde support without relying on std features.
+serde = [
+	"dep:serde",
+	"scale-info/serde",
+	"sp-core/serde",
+	"sp-application-crypto/serde",
+]

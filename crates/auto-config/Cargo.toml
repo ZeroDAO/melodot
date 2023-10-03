@@ -1,0 +1,17 @@
+[package]
+name = "melo-auto-config"
+description = "A procedural macro for automatically generating pallet configuration code in Substrate."
+license = "Apache-2.0"
+version = "0.9.42"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+repository = "https://github.com/ZeroDAO/melodot"
+keywords = ["substrate", "pallet", "macro", "configuration"]
+readme = "README.md"
+
+[dependencies]
+syn = { version = "1.0", features = ["full", "extra-traits"] }
+quote = "1.0"
+
+[lib]
+proc-macro = true
