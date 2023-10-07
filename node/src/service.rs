@@ -1,7 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 #![warn(unused_extern_crates)]
-use crate::cli::Cli;
 use futures::channel::mpsc::Receiver;
 use futures::prelude::*;
 use grandpa::SharedVoterState;
@@ -12,13 +11,11 @@ use melodot_runtime::{self, NodeBlock as Block, RuntimeApi};
 use sc_client_api::BlockBackend;
 use sc_consensus_babe::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
-use sc_network::{event::Event, NetworkEventStream, NetworkService};
-use sc_network_sync::SyncingService;
+use sc_network::{event::Event, NetworkEventStream};
 use sc_service::{
-	error::Error as ServiceError, Configuration, RpcHandlers, TaskManager, WarpSyncParams,
+	error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_runtime::traits::Block as BlockT;
 use std::{sync::Arc, time::Duration};
 
 use crate::rpc as melo_rpc;
@@ -47,7 +44,6 @@ type FullBackend = sc_service::TFullBackend<Block>;
 pub(crate) type FullClient =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 
 type FullGrandpaBlockImport =
 	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
@@ -218,30 +214,10 @@ pub fn new_partial(
 	})
 }
 
-/// Result of [`new_full_base`].
-pub struct NewFullBase {
-	/// The task manager of the node.
-	pub task_manager: TaskManager,
-	/// The client instance of the node.
-	pub client: Arc<FullClient>,
-	/// The networking service of the node.
-	pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
-	/// The syncing service of the node.
-	pub sync: Arc<SyncingService<Block>>,
-	/// The transaction pool of the node.
-	pub transaction_pool: Arc<TransactionPool>,
-	/// The rpc handlers of the node.
-	pub rpc_handlers: RpcHandlers,
-}
-
 /// Builds a new service for a full client.
-pub fn new_full_base(
+pub fn new_full(
 	mut config: Configuration,
-	with_startup_data: impl FnOnce(
-		&sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
-		&sc_consensus_babe::BabeLink<Block>,
-	),
-) -> Result<NewFullBase, ServiceError> {
+) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -259,8 +235,6 @@ pub fn new_full_base(
 	);
 
 	let (block_import, grandpa_link, babe_link) = import_setup;
-
-	(with_startup_data)(&block_import, &babe_link);
 
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
@@ -328,7 +302,7 @@ pub fn new_full_base(
 		.spawn_essential_handle()
 		.spawn("dht-worker", None, dht_worker.run(|| {}));
 
-	let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
+	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		network: network.clone(),
 		client: client.clone(),
 		keystore: keystore_container.keystore(),
@@ -471,29 +445,5 @@ pub fn new_full_base(
 	}
 
 	network_starter.start_network();
-	Ok(NewFullBase {
-		task_manager,
-		client,
-		network,
-		sync: sync_service,
-		transaction_pool,
-		rpc_handlers,
-	})
-	// Ok(task_manager)
-}
-
-/// Builds a new service for a full client.
-pub fn new_full(config: Configuration, cli: Cli) -> Result<TaskManager, ServiceError> {
-	let database_source = config.database.clone();
-	let task_manager =
-		new_full_base(config, |_, _| ()).map(|NewFullBase { task_manager, .. }| task_manager)?;
-
-	sc_storage_monitor::StorageMonitorService::try_spawn(
-		cli.storage_monitor,
-		database_source,
-		&task_manager.spawn_essential_handle(),
-	)
-	.map_err(|e| ServiceError::Application(e.into()))?;
-
 	Ok(task_manager)
 }
