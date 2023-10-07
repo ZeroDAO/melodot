@@ -46,6 +46,7 @@ impl SubstrateCli for Cli {
 						.into(),
 				)
 			},
+			"overtrue" => Box::new(chain_spec::overtrue_testnet_config()),
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			path => {

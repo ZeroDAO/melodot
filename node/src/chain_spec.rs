@@ -1,6 +1,7 @@
 //! Substrate chain configurations.
 
 use grandpa_primitives::AuthorityId as GrandpaId;
+use hex_literal::hex;
 use melodot_runtime::{
 	config::{consensus::MaxNominations, currency::*},
 	wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Block, CouncilConfig,
@@ -14,7 +15,7 @@ use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{sr25519, Pair, Public};
+use sp_core::{sr25519, Pair, Public, crypto::UncheckedInto};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
@@ -201,6 +202,56 @@ pub fn local_testnet_config() -> ChainSpec {
 		"local_testnet",
 		ChainType::Local,
 		local_testnet_genesis,
+		vec![],
+		None,
+		None,
+		None,
+		None,
+		Default::default(),
+	)
+}
+
+fn overtrue_testnet_genesis() -> GenesisConfig {
+	// ./melodot-node key inspect "$secret"//$j//$i//stash;
+	// ./melodot-node key inspect "$secret"//$j//$i;
+	// ./melodot-node key inspect --scheme ed25519 "$secret"//$j//$i;
+	// ./melodot-node key inspect "$secret"//$j//$i;
+	let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		GrandpaId,
+		BabeId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+	)> = vec![(
+		// 5DhXG4yusZ98m7Tfm3doqvasUD2en6omxtLPXsW2hdS4rCcK
+		hex!["4850a46ca0afedc00ad8239f903fe0348fc7f2dfb6af5100ef85f1d934871b1c"].into(),
+		// 5DoUdqyEZsgwsQ1YprLKDSGupMN1PVjTcgvP9jqHpTt5Mb2j
+		hex!["4cdb4797d1d237f7e7ea5207140a290bd16cc5df23a9dcfe7c6841e4a41a0358"].into(),
+		// 5DueQE9NG2GeRL4VQY5VpbyRweje5J6Wtiyre7vgvX6icMfL
+		hex!["518f9fedc6b65cee2bfbe750e8fd92b24266e1b624c6359730e63081233ebcd3"].unchecked_into(),
+		// 5FCRAaNfM8wuYg6jQBHryeCXZSG68eLvHLdAYA6eWxukrbsG
+		hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].unchecked_into(),
+		// 5FCRAaNfM8wuYg6jQBHryeCXZSG68eLvHLdAYA6eWxukrbsG
+		hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].unchecked_into(),
+		// 5FCRAaNfM8wuYg6jQBHryeCXZSG68eLvHLdAYA6eWxukrbsG
+		hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].unchecked_into(),
+	)
+	];
+	testnet_genesis(
+		initial_authorities,
+		vec![],
+		sr25519_id(ALICE),
+		None,
+	)
+}
+
+pub fn overtrue_testnet_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Overtrue Testnet",
+		"overtrue_testnet",
+		ChainType::Live,
+		overtrue_testnet_genesis,
 		vec![],
 		None,
 		None,
