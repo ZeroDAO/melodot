@@ -12,9 +12,7 @@ use sc_client_api::BlockBackend;
 use sc_consensus_babe::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream};
-use sc_service::{
-	error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams,
-};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use std::{sync::Arc, time::Duration};
 
@@ -215,9 +213,7 @@ pub fn new_partial(
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(
-	mut config: Configuration,
-) -> Result<TaskManager, ServiceError> {
+pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -295,8 +291,14 @@ pub fn new_full(
 		}
 	});
 
-	let dht_worker =
-		new_worker(client.clone(), network.clone(), backend.clone(), dht_receiver, Box::pin(dht_event_stream)).expect("Failed to create DHT worker");
+	let dht_worker = new_worker(
+		client.clone(),
+		network.clone(),
+		backend.clone(),
+		dht_receiver,
+		Box::pin(dht_event_stream),
+	)
+	.expect("Failed to create DHT worker");
 
 	task_manager
 		.spawn_essential_handle()

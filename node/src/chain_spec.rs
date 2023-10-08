@@ -15,15 +15,15 @@ use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{sr25519, Pair, Public, crypto::UncheckedInto};
+use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
 };
 
+pub use helper::*;
 pub use melodot_runtime::GenesisConfig;
 pub use node_primitives::{AccountId, Balance, Signature};
-pub use helper::*;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -60,7 +60,8 @@ pub fn testnet_genesis(
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> GenesisConfig {
 	let default_endowed_accounts = vec![ALICE, BOB, CHARLIE, DAVE, EVE, FERDIE];
-    let mut endowed_accounts = endowed_accounts.unwrap_or_else(|| endow_accounts(&default_endowed_accounts));
+	let mut endowed_accounts =
+		endowed_accounts.unwrap_or_else(|| endow_accounts(&default_endowed_accounts));
 
 	// endow all authorities and nominators.
 	initial_authorities
@@ -162,12 +163,7 @@ pub fn testnet_genesis(
 }
 
 fn development_config_genesis() -> GenesisConfig {
-	testnet_genesis(
-		authority_keys_from_seeds(&[ALICE]),
-		vec![],
-		sr25519_id(ALICE),
-		None,
-	)
+	testnet_genesis(authority_keys_from_seeds(&[ALICE]), vec![], sr25519_id(ALICE), None)
 }
 
 /// Development config (single validator Alice)
@@ -187,12 +183,7 @@ pub fn development_config() -> ChainSpec {
 }
 
 fn local_testnet_genesis() -> GenesisConfig {
-	testnet_genesis(
-		authority_keys_from_seeds(&[ALICE, BOB]),
-		vec![],
-		sr25519_id(ALICE),
-		None,
-	)
+	testnet_genesis(authority_keys_from_seeds(&[ALICE, BOB]), vec![], sr25519_id(ALICE), None)
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
@@ -236,13 +227,13 @@ fn overtrue_testnet_genesis() -> GenesisConfig {
 		hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].unchecked_into(),
 		// 5FCRAaNfM8wuYg6jQBHryeCXZSG68eLvHLdAYA6eWxukrbsG
 		hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].unchecked_into(),
-	)
-	];
+	)];
 	testnet_genesis(
 		initial_authorities,
 		vec![],
-		sr25519_id(ALICE),
-		None,
+		// 5F1NhF2fdsvBwFxAhQga9WjB344ECAJ8hDQJ99p1gWqpuzY1
+		hex!["822a75157ca69ee2ef0c04d9b7c45e5532edc87a4bc642ab531155df665b7266"].into(),
+		Some(vec![hex!["822a75157ca69ee2ef0c04d9b7c45e5532edc87a4bc642ab531155df665b7266"].into()]),
 	)
 }
 
@@ -272,7 +263,7 @@ mod helper {
 	) -> SessionKeys {
 		SessionKeys { grandpa, babe, im_online, authority_discovery }
 	}
-	
+
 	// Constants for default seeds and values
 	pub const ALICE: &str = "Alice";
 	pub const BOB: &str = "Bob";
@@ -280,17 +271,17 @@ mod helper {
 	pub const DAVE: &str = "Dave";
 	pub const EVE: &str = "Eve";
 	pub const FERDIE: &str = "Ferdie";
-	
+
 	pub const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
 	pub const STASH: Balance = ENDOWMENT / 1000;
-	
+
 	/// Generates a public key from a seed.
 	pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
 		TPublic::Pair::from_string(&format!("//{}", seed), None)
 			.expect("static values are valid; qed")
 			.public()
 	}
-	
+
 	/// Generates an account ID from a seed.
 	pub fn account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
 	where
@@ -303,19 +294,20 @@ mod helper {
 	pub fn sr25519_id(key: &str) -> AccountId {
 		account_id_from_seed::<sr25519::Public>(key)
 	}
-	
+
 	/// Endows a list of accounts with the default balance.
 	pub fn endow_accounts(accounts: &[&str]) -> Vec<AccountId> {
-		accounts.iter()
+		accounts
+			.iter()
 			.flat_map(|&x| {
 				vec![
 					account_id_from_seed::<sr25519::Public>(x),
-					account_id_from_seed::<sr25519::Public>(&format!("{}//stash", x))
+					account_id_from_seed::<sr25519::Public>(&format!("{}//stash", x)),
 				]
 			})
 			.collect()
 	}
-	
+
 	/// Helper function to generate stash, controller and session key from seed
 	pub fn authority_keys_from_seed(
 		seed: &str,
@@ -329,7 +321,7 @@ mod helper {
 			get_from_seed::<AuthorityDiscoveryId>(seed),
 		)
 	}
-	
+
 	pub fn authority_keys_from_seeds(
 		seeds: &[&str],
 	) -> Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> {
