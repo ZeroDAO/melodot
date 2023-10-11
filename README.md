@@ -41,7 +41,7 @@ brew install cmake pkg-config openssl git llvm
 Linux
 
 ```bash
-sudo apt install cmake pkg-config libssl-dev git clang libclang-dev
+sudo apt install cmake pkg-config libssl-dev git clang libclang-dev protobuf-compiler
 ```
 
 More：Melodot is based on Substrate, for more information please go to [Substrate](https://docs.substrate.io/install/).
