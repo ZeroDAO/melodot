@@ -16,15 +16,15 @@ bench = false
 [dependencies]
 melo-das-primitives = { default-features = false, version = "0.1.0", path = "../das-primitives"}
 
-rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
-kzg = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false }
+rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg.git", rev = "de872ad", default-features = false }
+kzg = { git = "https://github.com/ZeroDAO/rust-kzg.git", rev = "de872ad", default-features = false }
 
 derive_more = "0.99.17"
 
 [dev-dependencies]
 criterion = "0.4.0"
 rand = "0.8.5"
-rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg", rev = "de872ad", default-features = false, features = ["rand"] }
+rust-kzg-blst = { git = "https://github.com/ZeroDAO/rust-kzg.git", rev = "de872ad", default-features = false, features = ["rand"] }
 
 [features]
 default = ["std","parallel"]

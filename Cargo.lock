@@ -3963,7 +3963,7 @@ dependencies = [
 [[package]]
 name = "kzg"
 version = "0.1.0"
-source = "git+https://github.com/ZeroDAO/rust-kzg?rev=de872ad#de872ad80eeea976473f6498add519387169a18f"
+source = "git+https://github.com/ZeroDAO/rust-kzg.git?rev=de872ad#de872ad80eeea976473f6498add519387169a18f"
 dependencies = [
  "blst",
  "sha2 0.10.7",
@@ -4987,6 +4987,7 @@ dependencies = [
  "serde_json",
  "simple_logger",
  "structopt",
+ "substrate-build-script-utils",
  "subxt",
  "subxt-signer",
  "tokio",
@@ -7289,7 +7290,7 @@ dependencies = [
 [[package]]
 name = "rust-kzg-blst"
 version = "0.1.0"
-source = "git+https://github.com/ZeroDAO/rust-kzg?rev=de872ad#de872ad80eeea976473f6498add519387169a18f"
+source = "git+https://github.com/ZeroDAO/rust-kzg.git?rev=de872ad#de872ad80eeea976473f6498add519387169a18f"
 dependencies = [
  "blst",
  "hex",
