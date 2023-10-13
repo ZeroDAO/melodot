@@ -10,7 +10,6 @@ edition = "2021"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [lib]
-# Necessary for CLI options to work on benches
 bench = false
 
 [dependencies]
