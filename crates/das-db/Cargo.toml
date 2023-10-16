@@ -1,0 +1,33 @@
+[package]
+name = "melo-das-db"
+version = "0.0.1"
+description = ""
+license = "Apache-2.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sc-offchain = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+
+rusqlite = { version = "0.28.0", optional = true, features = ["bundled"] }
+
+[dev-dependencies]
+
+[features]
+default = ["std","outside"]
+std = [
+    "sp-core/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "rusqlite",
+]
+outside = [
+    "sp-core/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "rusqlite",
+]
