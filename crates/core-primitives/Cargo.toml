@@ -12,12 +12,14 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false}
 melo-erasure-coding = { version = "0.1.0", path = "../melo-erasure-coding", default-features = false}
+melo-das-db = { version = "0.0.1", path = "../das-db", default-features = false}
 
 rayon = "1.5.1"
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", optional = true, features = ["alloc", "derive"] }
+rand = { version = "0.8", default-features = false, features = ["alloc"] }
 
 sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -31,11 +33,10 @@ sc-offchain = {optional = true, default-features = false, git = "https://github.
 
 # For testing
 lazy_static = "1.4"
-rand = { version = "0.8.5", optional = true }
 sp-application-crypto = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.8"
 serde_json = "1.0.85"
 zstd = { version = "0.12.3", default-features = false }
 sp-state-machine = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -47,9 +48,9 @@ default = ["std", "outside"]
 std = [
 	"codec/std",
 	"log/std",
-	"rand",
 	"scale-info/std",
 	"serde",
+	"rand/std",
 	"sp-core/std",
 	"sp-runtime/std",
 	"melo-das-primitives/std",
@@ -62,11 +63,13 @@ std = [
 	"sp-application-crypto/std",
 	"sc-client-api",
 	"sc-offchain",
+	"melo-das-db/std",
 ]
 outside = [
     "melo-das-primitives/serde",
 	"sc-client-api",
 	"sc-offchain",
+	# "melo-das-db/outside",
 ]
 parallel = [
     "melo-das-primitives/parallel",

@@ -12,6 +12,7 @@ members = [
     "crates/frame-system-ext",
     "crates/melo-erasure-coding",
     "crates/pallet-melo-store",
+    "crates/das-db",
     "crates/meloxt",
     "runtime",
 ]

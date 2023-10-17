@@ -22,6 +22,7 @@ futures = { version = "0.3.21", features = ["thread-pool"]}
 jsonrpsee = { version = "0.16.3", features = ["server"] }
 array-bytes = "6.1"
 serde = { version = "1.0.163", features = ["derive"] }
+hex-literal = "0.3.1"
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.42" }

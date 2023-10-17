@@ -29,7 +29,7 @@ pub mod header;
 use header::MelodotHeader;
 
 mod log;
-pub use log::init_logger;
+pub use crate::log::init_logger;
 
 mod helper;
 pub use helper::*;

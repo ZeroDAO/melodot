@@ -639,7 +639,7 @@ impl KZG {
 	}
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, From)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, From, Decode, Encode)]
 pub struct Position {
 	pub x: u32,
 	pub y: u32,
