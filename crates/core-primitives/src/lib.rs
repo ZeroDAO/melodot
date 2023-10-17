@@ -30,7 +30,7 @@ pub mod sidecar;
 pub use sidecar::*;
 
 pub mod localstorage;
-
+pub mod confidence;
 pub mod traits;
 
 #[cfg(feature = "std")]

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::traits::DasKv;
+use crate::Vec;
 
 use sp_core::offchain::StorageKind;
 

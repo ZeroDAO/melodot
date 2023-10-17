@@ -13,6 +13,12 @@
 // limitations under the License.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+pub use alloc::{
+	vec::Vec,
+	vec,
+};
+
 pub mod traits;
 #[cfg(feature = "std")]
 pub mod sqlite;

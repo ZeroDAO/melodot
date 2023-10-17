@@ -4548,7 +4548,6 @@ version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29f835d03d717946d28b1d1ed632eb6f0e24a299388ee623d0c23118d3e8a7fa"
 dependencies = [
- "cc",
  "pkg-config",
  "vcpkg",
 ]
@@ -4744,6 +4743,7 @@ version = "0.1.0"
 dependencies = [
  "lazy_static",
  "log",
+ "melo-das-db",
  "melo-das-primitives",
  "melo-erasure-coding",
  "parity-scale-codec",
