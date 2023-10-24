@@ -4867,6 +4867,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "melo-daser"
+version = "0.0.1"
+dependencies = [
+ "melo-core-primitives",
+ "melo-das-network",
+]
+
+[[package]]
 name = "melo-erasure-coding"
 version = "0.1.0"
 dependencies = [

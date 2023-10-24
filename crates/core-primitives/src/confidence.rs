@@ -13,80 +13,80 @@
 // limitations under the License.
 
 extern crate alloc;
+use crate::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use rand::Rng;
 
 use melo_das_db::traits::DasKv;
-use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, Position};
+use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, KZGCommitment, Position, Segment, KZG};
 
 const CHUNK_COUNT: usize = 2 ^ 4;
 const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
 
-/// Confidence trait defines methods related to the confidence of an application.
-pub trait Confidence {
-	/// Returns the confidence value.
-	fn value(&self, base_factor: f64) -> f32;
+#[derive(Debug, Clone, Default, Decode, Encode)]
+pub struct ConfidenceId(Vec<u8>);
 
-	/// Constructs a unique ID.
-	fn id(&self) -> Vec<u8>;
+impl ConfidenceId {
+	pub fn block_confidence(block_hash: Vec<u8>) -> Self {
+		Self(block_hash)
+	}
 
-	/// Fetches `n` random sample positions from the `SAMPLES_PER_BLOB * total_rows` matrix.
-	fn set_sample(&mut self, n: usize);
-
-	/// Checks if the availability exceeds the provided threshold.
-	fn exceeds_threshold(&self, base_factor: f64, threshold: f32) -> bool;
-
-	/// Saves the current instance to the database.
-	fn save(&self, db: &mut impl DasKv);
-
-	/// Retrieves an instance from the database.
-	fn get(id: &[u8], db: &mut impl DasKv) -> Option<Self>
-	where
-		Self: Sized;
-
-	/// Removes the current instance from the database.
-	fn remove(&self, db: &mut impl DasKv);
+	pub fn app_confidence<BlockNum: Decode + Encode + Clone + Sized>(
+		block_num: BlockNum,
+		app_id: Vec<u8>,
+	) -> Self {
+		let mut id = app_id.clone();
+		id.extend_from_slice(&block_num.encode());
+		Self(id)
+	}
 }
 
 #[derive(Debug, Clone, Default, Decode, Encode)]
 pub struct Sample {
-	position: Position,
-	is_availability: bool,
+	pub position: Position,
+	pub is_availability: bool,
 }
 
 impl Sample {
 	pub fn set_success(&mut self) {
 		self.is_availability = true;
 	}
+
+	pub fn key<BlockNum: Decode + Encode + Clone + Sized>(
+		&self,
+		block_num: &BlockNum,
+		app_id: u32,
+	) -> Vec<u8> {
+		let mut key = Vec::new();
+		key.extend_from_slice(&block_num.encode());
+		key.extend_from_slice(&app_id.to_be_bytes());
+		key.extend_from_slice(&self.position.encode());
+		key
+	}
 }
 
 pub const AVAILABILITY_THRESHOLD: f32 = 0.8;
 
 #[derive(Debug, Clone, Decode, Encode, Default)]
-pub struct ConfidenceBase {
-	id: Vec<u8>,
-	total_rows: u32,
-	samples: Vec<Sample>,
+pub struct Confidence {
+	pub samples: Vec<Sample>,
+	pub commitments: Vec<KZGCommitment>,
 }
 
-impl Confidence for ConfidenceBase {
-	fn value(&self, base_factor: f64) -> f32 {
+impl Confidence {
+	pub fn value(&self, base_factor: f64) -> f32 {
 		let success_count = self.samples.iter().filter(|&sample| sample.is_availability).count();
 		calculate_confidence(success_count as u32, base_factor) as f32
 	}
 
-	fn id(&self) -> Vec<u8> {
-		self.id.clone()
-	}
-
-	fn set_sample(&mut self, n: usize) {
+	pub fn set_sample(&mut self, n: usize) {
 		let mut rng = rand::thread_rng();
 		let mut positions = Vec::with_capacity(n);
 
 		while positions.len() < n {
 			let x = rng.gen_range(0..SAMPLES_PER_BLOB) as u32;
-			let y = rng.gen_range(0..self.total_rows);
+			let y = rng.gen_range(0..self.commitments.len() as u32);
 
 			let pos = Position { x, y };
 
@@ -101,65 +101,42 @@ impl Confidence for ConfidenceBase {
 			.collect();
 	}
 
-	fn exceeds_threshold(&self, base_factor: f64, threshold: f32) -> bool {
+	pub fn exceeds_threshold(&self, base_factor: f64, threshold: f32) -> bool {
 		self.value(base_factor) > threshold
 	}
 
-	fn save(&self, db: &mut impl DasKv) {
-		db.set(&self.id(), &self.encode());
+	pub fn save(&self, id: &ConfidenceId, db: &mut impl DasKv) {
+		db.set(&id.0, &self.encode());
 	}
 
-	fn get(id: &[u8], db: &mut impl DasKv) -> Option<Self>
+	pub fn get(id: &ConfidenceId, db: &mut impl DasKv) -> Option<Self>
 	where
 		Self: Sized,
 	{
-		db.get(id).and_then(|encoded_data| Decode::decode(&mut &encoded_data[..]).ok())
+		db.get(&id.0)
+			.and_then(|encoded_data| Decode::decode(&mut &encoded_data[..]).ok())
 	}
 
-	fn remove(&self, db: &mut impl DasKv) {
-		db.remove(&self.id());
+	pub fn remove(&self, id: &ConfidenceId, db: &mut impl DasKv) {
+		db.remove(&id.0);
+	}
+
+	pub fn set_sample_success(&mut self, position: Position) {
+		if let Some(sample) = self.samples.iter_mut().find(|sample| sample.position == position) {
+			sample.set_success();
+		}
+	}
+
+	pub fn verify_sample(&self, position: Position, segment: &Segment) -> Result<bool, String> {
+		let kzg = KZG::default_embedded();
+		if position.y >= self.commitments.len() as u32 {
+			return Ok(false)
+		}
+		let commitment = self.commitments[position.y as usize];
+		segment.checked()?.verify(&kzg, &commitment, CHUNK_COUNT)
 	}
 }
 
 fn calculate_confidence(samples: u32, base_factor: f64) -> f64 {
 	100f64 * (1f64 - base_factor.powi(samples as i32))
-}
-
-pub mod app_confidence {
-	use super::*;
-
-    pub const BASE_FACTOR: f64 = 0.5;
-
-	pub fn id<BlockNum: Decode + Encode + Clone + Sized>(block_num: BlockNum, app_id: Vec<u8>) -> Vec<u8> {
-        let mut id = app_id.clone();
-		id.extend_from_slice(&block_num.encode());
-        id
-	}
-
-	pub fn new_confidence<BlockNum: Decode + Encode + Clone + Sized>(
-		block_num: BlockNum,
-		app_id: Vec<u8>,
-		total_rows: u32,
-	) -> ConfidenceBase {
-		let id = id(block_num.clone(), app_id.clone());
-		ConfidenceBase { id, total_rows, samples: Vec::new() }
-	}
-}
-
-pub mod block_confidence {
-	use super::*;
-
-    pub const BASE_FACTOR: f64 = 0.25;
-
-	pub fn id(block_hash: Vec<u8>) -> Vec<u8> {
-        block_hash
-	}
-
-	pub fn new_confidence(
-        block_hash: Vec<u8>,
-		total_rows: u32,
-	) -> ConfidenceBase {
-		let id = id(block_hash);
-		ConfidenceBase { id, total_rows, samples: Vec::new() }
-	}
 }

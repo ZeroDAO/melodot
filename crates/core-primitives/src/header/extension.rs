@@ -19,7 +19,55 @@ use sp_core::RuntimeDebug;
 
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct AppLookup {
+	#[codec(compact)]
+	pub app_id: u32,
+	#[codec(compact)]
+	pub nonce: u32,
+	#[codec(compact)]
+	pub count: u16,
+}
+
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct HeaderExtension {
 	/// The commitment of the data root.
 	pub commitments_bytes: Vec<u8>,
+	pub app_lookup: Vec<AppLookup>,
+}
+
+impl HeaderExtension {
+	pub fn new(commitments_bytes: Vec<u8>, app_lookup: Vec<AppLookup>) -> Self {
+		Self {
+			commitments_bytes,
+			app_lookup,
+		}
+	}
+
+    pub fn start_at(&self, app_id: u32, nonce: u32) -> Option<u32> {
+        let mut sum = 0u32;
+
+        for lookup in &self.app_lookup {
+            if lookup.app_id == app_id && lookup.nonce == nonce {
+                return Some(sum);
+            }
+            sum += lookup.count as u32;
+        }
+
+        None
+    }
+
+    pub fn get_app_id(&self, at: u32) -> Option<u32> {
+        let mut sum = 0u32;
+        
+        for lookup in &self.app_lookup {
+            sum += lookup.count as u32;
+
+            if at < sum {
+                return Some(lookup.app_id);
+            }
+        }
+
+        None
+    }
 }

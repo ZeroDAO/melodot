@@ -20,7 +20,7 @@ use futures::{
 };
 use libp2p::{
 	futures,
-	kad::{Quorum, Record},
+	kad::{record, Quorum, Record},
 	Multiaddr, PeerId,
 };
 use std::fmt::Debug;
@@ -71,6 +71,17 @@ impl Service {
 		receiver.await.context("Failed receiving bootstrap response")?
 	}
 
+	// 需要接受验证函数并传输到底层，处理节点声誉
+	pub async fn get_value(&self, key: KademliaKey) -> anyhow::Result<Vec<Vec<u8>>> {
+		let records = self.get_kad_record(key).await?;
+		Ok(records.into_iter().map(|r| r.value).collect())
+	}
+
+	pub async fn put_value(&self, key: KademliaKey, value: Vec<u8>) -> anyhow::Result<()> {
+		let record = Record::new(key as record::Key, value);
+		self.put_kad_record(record, Quorum::All).await
+	}
+
 	/// Queries the DHT for a record.
 	pub async fn get_kad_record(&self, key: KademliaKey) -> anyhow::Result<Vec<Record>> {
 		let (sender, receiver) = oneshot::channel();
@@ -87,32 +98,4 @@ impl Service {
 			.await?;
 		receiver.await.context("Failed receiving put record response")?
 	}
-
-	// /// Puts a key-value pair to the DHT (Distributed Hash Table).
-	// /// Sends a message to the worker to perform the DHT insertion and awaits its acknowledgment.
-	// ///
-	// /// # Parameters
-	// /// - `key`: The `KademliaKey` under which the value will be stored in the DHT.
-	// /// - `value`: The actual data to be stored in the DHT.
-	// ///
-	// /// # Returns
-	// /// - An `Option<()>` signaling the success or failure of the operation. The `None` variant
-	// ///   indicates a failure.
-	// pub async fn put_value_to_dht(&mut self, key: KademliaKey, value: Vec<u8>) -> Option<()> {
-	// 	let record = Record::new(key.into(), value);
-	// 	self.put_record(record, Quorum::One).await
-	// }
-
-	// /// Returns a stream of events from the worker.
-	// /// Sends a message to the worker to start streaming events and awaits its acknowledgment.
-	// pub async fn events_stream(&mut self) -> ReceiverStream<BehaviourEvent> {
-	// 	// Create a one-shot channel for immediate communication.
-	// 	let (sender, receiver) = mpsc::channel(1000);
-
-	// 	// Send a request to the worker to start streaming events.
-	// 	self.to_worker.send(Command::Stream(sender)).await.ok()?;
-
-	// 	// Wait for the worker's response.
-	// 	ReceiverStream::new(receiver)
-	// }
 }

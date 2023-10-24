@@ -16,10 +16,10 @@
 // limitations under the License.
 
 //! Testing utilities.
-use crate::traits::ExtendedHeader;
-use crate::traits::HeaderCommitList;
-use crate::Header as HeaderT;
-use crate::HeaderExtension;
+use crate::{
+	traits::{ExtendedHeader, HeaderCommitList},
+	Header as HeaderT, HeaderExtension,
+};
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
 
@@ -68,7 +68,8 @@ impl HeaderCommitList for CommitListTest {
 	}
 }
 
-/// `CommitListTestWithData` is a mock structure that implements `HeaderCommitList` with predefined data.
+/// `CommitListTestWithData` is a mock structure that implements `HeaderCommitList` with predefined
+/// data.
 pub struct CommitListTestWithData();
 
 impl HeaderCommitList for CommitListTestWithData {
@@ -86,10 +87,9 @@ impl CommitListTestWithData {
 
 	/// Creates a `HeaderExtension` with the bytes representation of `TEST_COMMITMENTS`.
 	pub fn header_extension() -> HeaderExtension {
-		HeaderExtension { commitments_bytes: Self::commit_bytes() }
+		HeaderExtension { commitments_bytes: Self::commit_bytes(), app_lookup: Vec::new() }
 	}
 }
-
 
 /// From substrate sp_runtime test utils
 /// A dummy type which can be used instead of regular cryptographic primitives.

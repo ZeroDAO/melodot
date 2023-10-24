@@ -1,0 +1,14 @@
+[package]
+name = "melo-daser"
+version = "0.0.1"
+description = "Network Core Module in Data Availability."
+license = "Apache-2.0"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+melo-core-primitives = { path = "../core-primitives" }
+melo-das-network = { path = "../das-network" }
