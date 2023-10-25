@@ -97,16 +97,14 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{FixedU128, Perbill, Permill};
 
-use melo_core_primitives::Header as ExtendedHeader;
+use melo_core_primitives::{Header as ExtendedHeader, SubmitDataParams};
 
 pub use consensus::GENESIS_EPOCH_CONFIG;
 use static_assertions::const_assert;
 pub use system::BlockHashCount;
 
-use melo_das_primitives::{KZGCommitment, KZGProof};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::H256;
 use sp_runtime::generic::Era;
 use sp_runtime::{
 	create_runtime_str,
@@ -957,19 +955,15 @@ impl_runtime_apis! {
 	impl melo_core_primitives::traits::Extractor<Block> for Runtime {
 		fn extract(
 			extrinsic: &Vec<u8>,
-		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>> {
+		) -> Option<Vec<SubmitDataParams>> {
 			// Decode the unchecked extrinsic
 			let extrinsic = UncheckedExtrinsic::decode(&mut &extrinsic[..]).ok()?;
 
-			fn filter(call: RuntimeCall) -> Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+			fn filter(call: RuntimeCall) -> Vec<SubmitDataParams> {
 				match call {
 					RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
-						app_id: _,
-						bytes_len,
-						data_hash,
-						commitments,
-						proofs,
-					}) => vec![(data_hash, bytes_len, commitments, proofs)],
+						params
+					}) => vec![params],
 					RuntimeCall::Utility(pallet_utility::Call::batch { calls })
 					| RuntimeCall::Utility(pallet_utility::Call::batch_all { calls })
 					| RuntimeCall::Utility(pallet_utility::Call::force_batch { calls }) => process_calls(calls),
@@ -979,7 +973,7 @@ impl_runtime_apis! {
 
 			fn process_calls(
 				calls: Vec<RuntimeCall>,
-			) -> Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+			) -> Vec<SubmitDataParams> {
 				calls.into_iter().flat_map(filter).collect()
 			}
 
@@ -989,15 +983,11 @@ impl_runtime_apis! {
 
 	impl melo_core_primitives::traits::AppDataApi<Block, RuntimeCall> for Runtime {
 
-		fn get_blob_tx_param(function: &RuntimeCall) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)> {
+		fn get_blob_tx_param(function: &RuntimeCall) -> Option<SubmitDataParams> {
 			match function {
 				RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
-					app_id: _,
-					bytes_len,
-					data_hash,
-					commitments,
-					proofs,
-				}) => Some((*data_hash, *bytes_len, commitments.clone(), proofs.clone())),
+					params,
+				}) => Some(params.clone()),
 				_ => None,
 			}
 		}

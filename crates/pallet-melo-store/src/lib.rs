@@ -32,12 +32,10 @@ use frame_system::{
 	offchain::{SendTransactionTypes, SubmitTransaction},
 	pallet_prelude::*,
 };
-use melo_das_primitives::blob::Blob;
-use melo_das_primitives::config::BYTES_PER_BLOB;
+use melo_das_primitives::{blob::Blob, config::BYTES_PER_BLOB};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_application_crypto::RuntimeAppPublic;
-use sp_core::H256;
 use sp_runtime::{
 	offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
 	traits::AtLeast32BitUnsigned,
@@ -45,8 +43,9 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
-use melo_core_primitives::traits::HeaderCommitList;
-use melo_core_primitives::{Sidecar, SidecarMetadata};
+use melo_core_primitives::{
+	extension::AppLookup, traits::HeaderCommitList, Sidecar, SidecarMetadata, SubmitDataParams,
+};
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 // A prefix constant used for the off-chain database.
@@ -145,23 +144,24 @@ pub mod pallet {
 		/// Length of the data in bytes that this metadata represents.
 		pub bytes_len: u32,
 
-		/// Hash of the data associated with this blob.
-		pub data_hash: H256,
-
 		/// Flag indicating whether the blob data is available or not.
 		pub is_available: bool,
+
+		pub nonce: u32,
 	}
 
 	/// Provides configuration parameters for the pallet.
 	#[pallet::config]
 	pub trait Config: SendTransactionTypes<Call<Self>> + frame_system::Config {
-		/// This type represents an event in the runtime, which includes events emitted by this pallet.
+		/// This type represents an event in the runtime, which includes events emitted by this
+		/// pallet.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// This type represents the computation cost of the pallet's operations.
 		type WeightInfo: WeightInfo;
 
-		/// This type defines the unique identifier for an authority or a trusted node in the network.
+		/// This type defines the unique identifier for an authority or a trusted node in the
+		/// network.
 		type AuthorityId: Member
 			+ Parameter
 			+ RuntimeAppPublic
@@ -182,7 +182,8 @@ pub mod pallet {
 	}
 
 	/// Represents metadata associated with the AppData. It's preserved for future verification.
-	/// Deleting data after a certain point may be beneficial for storage and computational efficiency.
+	/// Deleting data after a certain point may be beneficial for storage and computational
+	/// efficiency.
 	#[pallet::storage]
 	#[pallet::getter(fn metadata)]
 	pub(super) type Metadata<T: Config> = StorageMap<
@@ -204,6 +205,10 @@ pub mod pallet {
 	#[pallet::getter(fn app_id)]
 	pub(super) type AppId<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn nonce)]
+	pub(super) type Nonces<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	/// Represents votes regarding the availability of certain data.
 	#[pallet::storage]
 	#[pallet::getter(fn unavailable_vote)]
@@ -222,7 +227,6 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// Indicates that data was successfully received.
 		DataReceived {
-			data_hash: H256,
 			bytes_len: u32,
 			from: T::AccountId,
 			app_id: u32,
@@ -271,57 +275,56 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Submit data for a particular app.
 		/// This call allows a user to submit data, its commitments, and proofs.
-		/// The function ensures various constraints like the length of the data, validity of the app id, and other integrity checks.
+		/// The function ensures various constraints like the length of the data, validity of the
+		/// app id, and other integrity checks.
 		#[pallet::call_index(0)]
 		#[pallet::weight(
 			WEIGHT_PER_BLOB
-			.saturating_mul(commitments.len().max(1) as u64)
+			.saturating_mul(params.commitments.len().max(1) as u64)
 			.saturating_add(
-				<T as Config>::WeightInfo::submit_data(proofs.len() as u32)
+				<T as Config>::WeightInfo::submit_data(params.proofs.len() as u32)
 			)
 		)]
-		pub fn submit_data(
-			origin: OriginFor<T>,
-			app_id: u32,
-			bytes_len: u32,
-			data_hash: H256,
-			commitments: Vec<KZGCommitment>,
-			proofs: Vec<KZGProof>,
-		) -> DispatchResult {
+		pub fn submit_data(origin: OriginFor<T>, params: SubmitDataParams) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(bytes_len > 0, Error::<T>::SubmittedDataIsEmpty);
-			let blob_num = Blob::blob_count(bytes_len as usize, BYTES_PER_BLOB);
+			ensure!(params.check(), Error::<T>::SubmittedDataIsEmpty);
+			// ensure!(params.bytes_len > 0, Error::<T>::SubmittedDataIsEmpty);
+			let blob_num = Blob::blob_count(params.bytes_len as usize, BYTES_PER_BLOB);
 			ensure!(blob_num <= T::MaxBlobNum::get() as usize, Error::<T>::ExceedMaxBlobLimit);
 
-			// Check if blob_num matches the length of commitments.
-			ensure!(blob_num == commitments.len(), Error::<T>::MismatchedCommitmentsCount);
-			// Check if blob_num matches the length of proofs.
-			ensure!(blob_num == proofs.len(), Error::<T>::MismatchedProofsCount);
+			// // Check if blob_num matches the length of commitments.
+			// ensure!(blob_num == commitments.len(), Error::<T>::MismatchedCommitmentsCount);
+			// // Check if blob_num matches the length of proofs.
+			// ensure!(blob_num == proofs.len(), Error::<T>::MismatchedProofsCount);
 
 			let current_app_id = AppId::<T>::get();
-			ensure!(app_id <= current_app_id, Error::<T>::AppIdError);
+			ensure!(params.app_id <= current_app_id, Error::<T>::AppIdError);
+
+			// Check if the nonce is valid.
+			let current_nonce = Nonces::<T>::get();
+			ensure!(params.nonce == current_nonce, Error::<T>::AppIdError);
 
 			let mut commitment_list: BoundedVec<KZGCommitment, T::MaxBlobNum> =
 				BoundedVec::default();
 			commitment_list
-				.try_extend(commitments.iter().cloned())
+				.try_extend(params.commitments.iter().cloned())
 				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
 
 			let mut proof_list: BoundedVec<KZGProof, T::MaxBlobNum> = BoundedVec::default();
 			proof_list
-				.try_extend(proofs.iter().cloned())
+				.try_extend(params.proofs.iter().cloned())
 				.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
 
 			let metadata: BlobMetadata<T> = BlobMetadata {
-				app_id,
+				app_id: params.app_id,
 				from: who.clone(),
 				commitments: commitment_list,
-				bytes_len,
-				data_hash,
+				bytes_len: params.bytes_len,
 				proofs: proof_list,
 				// Theoretically, the submitted data is likely to be available,
 				// so we initially assume it's available.
 				is_available: true,
+				nonce: params.nonce,
 			};
 
 			let current_block_number = <frame_system::Pallet<T>>::block_number();
@@ -332,14 +335,15 @@ pub mod pallet {
 				metadata_vec.try_push(metadata).map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)
 			})?;
 
+			Nonces::<T>::put(params.nonce + 1);
+
 			Self::deposit_event(Event::DataReceived {
-				data_hash,
-				bytes_len,
+				bytes_len: params.bytes_len,
 				from: who,
-				app_id,
+				app_id: params.app_id,
 				index: metadata_len as u32,
-				commitments,
-				proofs,
+				commitments: params.commitments,
+				proofs: params.proofs,
 			});
 
 			Ok(())
@@ -347,8 +351,8 @@ pub mod pallet {
 
 		/// Report on the unavailability of certain data.
 		/// Validators can use this function to report any data that they find unavailable.
-		/// The function does checks like making sure the data isn't being reported for a future block,
-		/// the report is within the acceptable delay, and that the reporting key is valid.
+		/// The function does checks like making sure the data isn't being reported for a future
+		/// block, the report is within the acceptable delay, and that the reporting key is valid.
 		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::validate_unsigned_and_then_report(
 			unavailable_data_report.validators_len,
@@ -368,8 +372,8 @@ pub mod pallet {
 			);
 
 			ensure!(
-				unavailable_data_report.at_block + DELAY_CHECK_THRESHOLD.into()
-					>= current_block_number,
+				unavailable_data_report.at_block + DELAY_CHECK_THRESHOLD.into() >=
+					current_block_number,
 				Error::<T>::ExceedUnavailableDataConfirmTime
 			);
 
@@ -425,7 +429,7 @@ pub mod pallet {
 		fn on_finalize(now: BlockNumberFor<T>) {
 			// Deletion of expired polling data
 			if T::BlockNumber::from(DELAY_CHECK_THRESHOLD + 1) >= now {
-				return;
+				return
 			}
 			let _ = UnavailableVote::<T>::clear_prefix(
 				now - (DELAY_CHECK_THRESHOLD + 1).into(),
@@ -467,15 +471,15 @@ pub mod pallet {
 			if let Call::report { unavailable_data_report, signature } = call {
 				let keys = Keys::<T>::get();
 
-				let authority_id =
-					match keys.get(unavailable_data_report.authority_index as usize) {
-						Some(id) => id,
-						None => return InvalidTransaction::Stale.into(),
-					};
+				let authority_id = match keys.get(unavailable_data_report.authority_index as usize)
+				{
+					Some(id) => id,
+					None => return InvalidTransaction::Stale.into(),
+				};
 
 				let keys = Keys::<T>::get();
 				if keys.len() as u32 != unavailable_data_report.validators_len {
-					return InvalidTransaction::Custom(INVALID_VALIDATORS_LEN).into();
+					return InvalidTransaction::Custom(INVALID_VALIDATORS_LEN).into()
 				}
 
 				let signature_valid = unavailable_data_report.using_encoded(|encoded_report| {
@@ -483,7 +487,7 @@ pub mod pallet {
 				});
 
 				if !signature_valid {
-					return InvalidTransaction::BadProof.into();
+					return InvalidTransaction::BadProof.into()
 				}
 
 				ValidTransaction::with_tag_prefix("MeloStore")
@@ -511,7 +515,6 @@ impl<T: Config> Pallet<T> {
 				let sidecar_metadata = SidecarMetadata {
 					commitments: metadata.commitments.to_vec(),
 					data_len: metadata.bytes_len,
-					blobs_hash: metadata.data_hash,
 					proofs: metadata.proofs.to_vec(),
 				};
 				let id = sidecar_metadata.id();
@@ -528,15 +531,29 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>()
 	}
 
-	/// Fetch the list of commitments at a given block.
+	/// Fetch the list of commitments and app lookups at a given block.
 	///
 	/// # Arguments
 	/// * `at_block` - The block number to fetch commitments from.
-	pub fn get_commitment_list(at_block: BlockNumberFor<T>) -> Vec<KZGCommitment> {
-		Metadata::<T>::get(at_block)
+	pub fn get_commitments_and_app_lookups(
+		at_block: BlockNumberFor<T>,
+	) -> (Vec<KZGCommitment>, Vec<AppLookup>) {
+		let metadatas = Metadata::<T>::get(at_block);
+
+		let mut app_lookups = Vec::with_capacity(metadatas.len());
+		let commitments = metadatas
 			.iter()
-			.flat_map(|metadata| metadata.commitments.clone())
-			.collect::<Vec<_>>()
+			.flat_map(|metadata| {
+				app_lookups.push(AppLookup {
+					app_id: metadata.app_id,
+					nonce: metadata.nonce,
+					count: metadata.commitments.len() as u16,
+				});
+				metadata.commitments.iter().cloned()
+			})
+			.collect::<Vec<_>>();
+
+		(commitments, app_lookups)
 	}
 
 	/// Assemble and send unavailability reports for any data that is unavailable.
@@ -549,7 +566,7 @@ impl<T: Config> Pallet<T> {
 		let reports = (0..DELAY_CHECK_THRESHOLD)
 			.filter_map(move |gap| {
 				if T::BlockNumber::from(gap) > now {
-					return None;
+					return None
 				}
 				let at_block = now - gap.into();
 				let index_set = Self::get_unavailability_data(at_block);
@@ -618,14 +635,14 @@ impl<T: Config> Pallet<T> {
 	) -> OffchainResult<T, R> {
 		let mut key = DB_PREFIX.to_vec();
 		key.extend(authority_index.encode());
-	
+
 		let storage = StorageValueRef::persistent(&key);
-	
+
 		match storage.mutate(
 			|status: Result<Option<ReportStatus<BlockNumberFor<T>>>, StorageRetrievalError>| {
 				if let Ok(Some(status)) = status {
 					if status.is_recent(at_block, now) {
-						return Err(OffchainErr::WaitingForInclusion(status.sent_at));
+						return Err(OffchainErr::WaitingForInclusion(status.sent_at))
 					}
 				}
 				Ok(ReportStatus { at_block, sent_at: now })
@@ -640,7 +657,7 @@ impl<T: Config> Pallet<T> {
 					storage.set(&new_status);
 				}
 				result
-			}
+			},
 		}
 	}
 
@@ -726,12 +743,12 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> HeaderCommitList for Pallet<T> {
-	fn last() -> Vec<KZGCommitment> {
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>) {
 		let now = <frame_system::Pallet<T>>::block_number();
 		if now <= DELAY_CHECK_THRESHOLD.into() {
-			Vec::default()
+			(Vec::default(), Vec::default())
 		} else {
-			Self::get_commitment_list(now - DELAY_CHECK_THRESHOLD.into())
+			Self::get_commitments_and_app_lookups(now - DELAY_CHECK_THRESHOLD.into())
 		}
 	}
 }

@@ -13,16 +13,23 @@
 // limitations under the License.
 
 extern crate alloc;
-use crate::String;
+use crate::{String, KZGCommitment};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+#[cfg(feature = "std")]
 use rand::Rng;
+use sp_arithmetic::{traits::Saturating, Permill};
 
 use melo_das_db::traits::DasKv;
-use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, KZGCommitment, Position, Segment, KZG};
+use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, Position, Segment, KZG};
 
 const CHUNK_COUNT: usize = 2 ^ 4;
 const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
+
+#[cfg(feature = "std")]
+pub trait ConfidenceSample {
+	fn set_sample(&mut self, n: usize);
+}
 
 #[derive(Debug, Clone, Default, Decode, Encode)]
 pub struct ConfidenceId(Vec<u8>);
@@ -75,33 +82,12 @@ pub struct Confidence {
 }
 
 impl Confidence {
-	pub fn value(&self, base_factor: f64) -> f32 {
+	pub fn value(&self, base_factor: Permill) -> Permill {
 		let success_count = self.samples.iter().filter(|&sample| sample.is_availability).count();
-		calculate_confidence(success_count as u32, base_factor) as f32
+		calculate_confidence(success_count as u32, base_factor)
 	}
 
-	pub fn set_sample(&mut self, n: usize) {
-		let mut rng = rand::thread_rng();
-		let mut positions = Vec::with_capacity(n);
-
-		while positions.len() < n {
-			let x = rng.gen_range(0..SAMPLES_PER_BLOB) as u32;
-			let y = rng.gen_range(0..self.commitments.len() as u32);
-
-			let pos = Position { x, y };
-
-			if !positions.contains(&pos) {
-				positions.push(pos);
-			}
-		}
-
-		self.samples = positions
-			.into_iter()
-			.map(|pos| Sample { position: pos, is_availability: false })
-			.collect();
-	}
-
-	pub fn exceeds_threshold(&self, base_factor: f64, threshold: f32) -> bool {
+	pub fn exceeds_threshold(&self, base_factor: Permill, threshold: Permill) -> bool {
 		self.value(base_factor) > threshold
 	}
 
@@ -137,6 +123,36 @@ impl Confidence {
 	}
 }
 
-fn calculate_confidence(samples: u32, base_factor: f64) -> f64 {
-	100f64 * (1f64 - base_factor.powi(samples as i32))
+#[cfg(feature = "std")]
+impl ConfidenceSample for Confidence {
+	fn set_sample(&mut self, n: usize) {
+		let mut rng = rand::thread_rng();
+		let mut positions = Vec::with_capacity(n);
+
+		while positions.len() < n {
+			let x = rng.gen_range(0..SAMPLES_PER_BLOB) as u32;
+			let y = rng.gen_range(0..self.commitments.len() as u32);
+
+			let pos = Position { x, y };
+
+			if !positions.contains(&pos) {
+				positions.push(pos);
+			}
+		}
+
+		self.samples = positions
+			.into_iter()
+			.map(|pos| Sample { position: pos, is_availability: false })
+			.collect();
+	}
+}
+
+// fn calculate_confidence(samples: u32, base_factor: f64) -> f64 {
+// 	100f64 * (1f64 - base_factor.powi(samples as i32))
+// }
+
+fn calculate_confidence(samples: u32, base_factor: Permill) -> Permill {
+	let one = Permill::one();
+	let base_power_sample = base_factor.saturating_pow(samples as usize);
+	one.saturating_sub(base_power_sample)
 }

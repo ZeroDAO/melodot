@@ -25,7 +25,7 @@ use crate::traits::ExtendedHeader;
 use crate::Digest;
 
 pub mod extension;
-pub use extension::HeaderExtension;
+pub use extension::{HeaderExtension, AppLookup};
 
 use melo_das_primitives::KZGCommitment;
 #[cfg(feature = "std")]
@@ -218,13 +218,11 @@ impl<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> ExtendedHeader
 		&self.extension
 	}
 
-	fn set_extension(&mut self, extension: HeaderExtension) {
-		self.extension = extension;
-	}
-
-	fn set_commitments(&mut self, commitment_set: &[KZGCommitment]) {
+	fn set_extension(&mut self, extension_data: &(Vec<KZGCommitment>, Vec<AppLookup>)) {
+		let (commitments, app_lookups) = extension_data;
 		self.extension.commitments_bytes =
-			commitment_set.iter().flat_map(|c| c.to_bytes()).collect::<Vec<u8>>();
+		commitments.iter().flat_map(|c| c.to_bytes()).collect::<Vec<u8>>();
+		self.extension.app_lookup = app_lookups.clone();
 	}
 
 	fn commitments(&self) -> Option<Vec<KZGCommitment>> {

@@ -80,7 +80,7 @@ impl<T: Config> Pallet<T> {
 		let header = <frame_system::Pallet<T>>::finalize();
 		
 		// Get the last commit list.
-		let commit_list = T::CommitList::last();
+		let extension_data = T::CommitList::last();
 
 		// Construct an extended header.
 		let mut ext_header = T::ExtendedHeader::new_ext(
@@ -93,7 +93,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		// Set the commitments using the commit list.
-		ext_header.set_commitments(&commit_list);
+		ext_header.set_extension(&extension_data);
 
 		// Log the base header for debugging.
 		log::trace!(target: LOG_TARGET, "Header {:?}", header);

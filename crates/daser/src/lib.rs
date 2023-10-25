@@ -69,7 +69,7 @@ impl SamplingClient {
 		self.start_sampling(&id, &mut confidence, block_number, app_id, commitments).await
 	}
 
-	async fn start_sampling(
+	async fn sample(
 		&mut self,
 		confidence_id: &ConfidenceId,
 		confidence: &mut Confidence,

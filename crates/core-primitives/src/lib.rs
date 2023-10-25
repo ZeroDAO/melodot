@@ -17,10 +17,12 @@
 extern crate alloc;
 pub use alloc::{
 	string::{String, ToString},
-	vec::Vec,
 	vec,
+	vec::Vec,
 };
 
+pub(crate) use melo_das_primitives::{KZGCommitment, KZGProof};
+use sp_core::RuntimeDebug;
 use sp_runtime::generic::Digest;
 
 pub mod header;
@@ -29,9 +31,36 @@ pub use header::*;
 pub mod sidecar;
 pub use sidecar::*;
 
-pub mod localstorage;
 pub mod confidence;
+pub mod localstorage;
 pub mod traits;
 
 #[cfg(feature = "std")]
 pub mod testing;
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct SubmitDataParams {
+	pub app_id: u32,
+	pub bytes_len: u32,
+	pub nonce: u32,
+	pub commitments: Vec<KZGCommitment>,
+	pub proofs: Vec<KZGProof>,
+}
+
+impl SubmitDataParams {
+	pub fn new(
+		app_id: u32,
+		bytes_len: u32,
+		nonce: u32,
+		commitments: Vec<KZGCommitment>,
+		proofs: Vec<KZGProof>,
+	) -> Self {
+		Self { app_id, bytes_len, nonce, commitments, proofs }
+	}
+
+	pub fn check(&self) -> bool {
+		self.commitments.len() == self.proofs.len() &&
+			self.commitments.len() > 0 &&
+			self.bytes_len > 0
+	}
+}

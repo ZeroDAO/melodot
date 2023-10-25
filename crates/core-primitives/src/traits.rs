@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Digest, HeaderExtension, Vec};
+use crate::{Digest, HeaderExtension, Vec, AppLookup, KZGCommitment, SubmitDataParams};
 use codec::Encode;
-use melo_das_primitives::{KZGCommitment, KZGProof};
-use sp_core::H256;
-
 pub trait ExtendedHeader {
 	/// Header number.
 	type Number;
@@ -38,10 +35,7 @@ pub trait ExtendedHeader {
 	fn extension(&self) -> &HeaderExtension;
 
 	/// Set the header extension.
-	fn set_extension(&mut self, extension: HeaderExtension);
-
-	/// Set the commitment of root.
-	fn set_commitments(&mut self, commitment_set: &[KZGCommitment]);
+	fn set_extension(&mut self, extension_data: &(Vec<KZGCommitment>, Vec<AppLookup>));
 
 	/// Returns the commitments.
 	fn commitments(&self) -> Option<Vec<KZGCommitment>>;
@@ -58,7 +52,7 @@ pub trait HeaderCommitList {
 	///
 	/// Note that they are not related to data availability, but rather to the validator's
 	/// initial confirmation of the probability of availability.
-	fn last() -> Vec<KZGCommitment>;
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>);
 }
 
 sp_api::decl_runtime_apis! {
@@ -68,7 +62,7 @@ sp_api::decl_runtime_apis! {
 		fn extract(
 			extrinsic: &Vec<u8>,
 			// (data_hash, bytes_len, commitments, proofs)
-		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>>;
+		) -> Option<Vec<SubmitDataParams>>;
 	}
 }
 
@@ -77,6 +71,6 @@ sp_api::decl_runtime_apis! {
 	where RuntimeCall: Encode {
 		fn get_blob_tx_param(
 			function: &RuntimeCall,
-		) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>;
+		) -> Option<SubmitDataParams>;
 	}
 }

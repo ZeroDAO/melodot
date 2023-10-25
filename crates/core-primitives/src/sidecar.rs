@@ -56,8 +56,6 @@ pub enum SidecarStatus {
 pub struct SidecarMetadata {
 	/// Length of the data.
 	pub data_len: u32,
-	/// Hash representation of the data.
-	pub blobs_hash: sp_core::H256,
 	/// Commitments related to the data.
 	pub commitments: Vec<KZGCommitment>,
 	/// Proofs confirming the validity of the data.
@@ -89,7 +87,6 @@ impl SidecarMetadata {
 		let kzg = KZG::default_embedded();
 
 		let data_len = bytes.len() as u32;
-		let blobs_hash = Sidecar::calculate_id(bytes);
 
 		let blobs = bytes_to_blobs(bytes, FIELD_ELEMENTS_PER_BLOB)?;
 
@@ -106,7 +103,7 @@ impl SidecarMetadata {
 				.into_iter()
 				.unzip();
 
-			Ok(Self { data_len, blobs_hash: blobs_hash.into(), commitments, proofs })
+			Ok(Self { data_len, commitments, proofs })
 		}
 
 		#[cfg(not(feature = "std"))]
@@ -126,7 +123,7 @@ impl SidecarMetadata {
 				}
 			}
 		
-			Ok(Self { data_len, blobs_hash: blobs_hash.into(), commitments, proofs })
+			Ok(Self { data_len, commitments, proofs })
 		}
 		
 	}
@@ -159,14 +156,6 @@ impl Sidecar {
 	/// Calculates and returns the ID (hash) based on a given blob.
 	pub fn calculate_id(blob: &[u8]) -> [u8; 32] {
 		hashing::blake2_256(blob)
-	}
-
-	/// Checks the hash of the stored blobs against the metadata's blob hash.
-	pub fn check_hash(&self) -> bool {
-		match self.blobs {
-			Some(ref blobs) => self.metadata.blobs_hash[..] == Self::calculate_id(blobs),
-			None => false,
-		}
 	}
 
 	/// Determines if the sidecar status represents an unavailability scenario.
@@ -255,7 +244,6 @@ mod tests {
 	fn test_sidecar_metadata_id() {
 		let metadata = SidecarMetadata {
 			data_len: 42,
-			blobs_hash: H256::from([1u8; 32]),
 			commitments: vec![], // Populate this with real or mocked data
 			proofs: vec![],      // Populate this with real or mocked data
 		};
@@ -268,7 +256,6 @@ mod tests {
 	fn test_sidecar_new() {
 		let metadata = SidecarMetadata {
 			data_len: 42,
-			blobs_hash: H256::from([1u8; 32]),
 			commitments: vec![], // Populate this with real or mocked data
 			proofs: vec![],      // Populate this with real or mocked data
 		};
@@ -285,7 +272,6 @@ mod tests {
 	fn test_sidecar_id() {
 		let metadata = SidecarMetadata {
 			data_len: 42,
-			blobs_hash: H256::from([1u8; 32]),
 			commitments: vec![], // Populate this with real or mocked data
 			proofs: vec![],      // Populate this with real or mocked data
 		};
@@ -294,24 +280,11 @@ mod tests {
 		assert_eq!(sidecar.id(), metadata.id());
 	}
 
-	#[test]
-	fn test_sidecar_check_hash() {
-		let metadata = SidecarMetadata {
-			data_len: 3,
-			blobs_hash: H256::from(hashing::blake2_256(&[1, 2, 3])),
-			commitments: vec![], // Populate this with real or mocked data
-			proofs: vec![],      // Populate this with real or mocked data
-		};
-
-		let sidecar = Sidecar::new(metadata.clone(), Some(vec![1, 2, 3]));
-		assert!(sidecar.check_hash());
-	}
 
 	#[test]
 	fn test_sidecar_is_unavailability() {
 		let metadata = SidecarMetadata {
 			data_len: 3,
-			blobs_hash: H256::from([1u8; 32]),
 			commitments: vec![],
 			proofs: vec![],
 		};

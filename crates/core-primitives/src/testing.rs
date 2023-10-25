@@ -18,7 +18,7 @@
 //! Testing utilities.
 use crate::{
 	traits::{ExtendedHeader, HeaderCommitList},
-	Header as HeaderT, HeaderExtension,
+	Header as HeaderT, HeaderExtension, AppLookup,
 };
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
@@ -63,8 +63,8 @@ pub struct CommitListTest();
 
 impl HeaderCommitList for CommitListTest {
 	// Always returns an empty list of `KZGCommitment`.
-	fn last() -> Vec<KZGCommitment> {
-		vec![]
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>) {
+		(vec![], vec![])
 	}
 }
 
@@ -74,8 +74,8 @@ pub struct CommitListTestWithData();
 
 impl HeaderCommitList for CommitListTestWithData {
 	// Returns a predefined list of `KZGCommitment` for testing.
-	fn last() -> Vec<KZGCommitment> {
-		TEST_COMMITMENTS.to_vec()
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>) {
+		(TEST_COMMITMENTS.to_vec(), vec![])
 	}
 }
 

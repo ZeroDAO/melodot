@@ -17,8 +17,7 @@ use crate::{Decode, Encode, TypeInfo, Vec};
 use serde::{Deserialize, Serialize};
 use sp_core::RuntimeDebug;
 
-#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default, Serialize, Deserialize)]
 pub struct AppLookup {
 	#[codec(compact)]
 	pub app_id: u32,
