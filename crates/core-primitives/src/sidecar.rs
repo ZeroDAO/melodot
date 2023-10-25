@@ -236,7 +236,6 @@ impl Sidecar {
 mod tests {
 	use super::*;
 	use codec::Encode;
-	use sp_core::H256;
 
 	// Mock your `KZGCommitment` and `KZGProof` here if needed
 

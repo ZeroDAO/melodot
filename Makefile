@@ -6,6 +6,18 @@ run-dev:
 build-release:
 	cargo build --release
 
+.PHONY: build-default
+build-default:
+	cargo build --release -p node -p runtime
+
+.PHONY: build-meloxt
+build-meloxt:
+	cargo build --release -p meloxt
+
+.PHONY: build-light
+build-light:
+	cargo build --release -p melodot-light-client
+
 .PHONY: purge-dev
 purge-dev:
 	./target/release/melodot-node purge-chain --dev

@@ -34,6 +34,7 @@ pub use sidecar::*;
 pub mod confidence;
 pub mod localstorage;
 pub mod traits;
+pub mod config;
 
 #[cfg(feature = "std")]
 pub mod testing;

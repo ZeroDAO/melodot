@@ -14,8 +14,10 @@
 
 use crate::{Command, KademliaKey};
 use anyhow::Context;
+use async_trait::async_trait;
 use futures::{
 	channel::{mpsc, oneshot},
+	future::FutureExt,
 	SinkExt,
 };
 use libp2p::{
@@ -23,7 +25,8 @@ use libp2p::{
 	kad::{record, Quorum, Record},
 	Multiaddr, PeerId,
 };
-use std::fmt::Debug;
+use rand::seq::SliceRandom;
+use std::{fmt::Debug, time::Duration};
 
 /// `Service` serves as an intermediary to interact with the Worker, handling requests and
 /// facilitating communication. It mainly operates on the message passing mechanism between service
@@ -99,3 +102,115 @@ impl Service {
 		receiver.await.context("Failed receiving put record response")?
 	}
 }
+
+#[async_trait]
+pub trait DasNetworkDiscovery {
+	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()>;
+	async fn connect_to_bootstrap_node(&self, addr_str: &String, config: &DasNetworkConfig) -> anyhow::Result<()>;
+}
+
+pub struct DasNetworkConfig {
+    pub listen_addr: String,
+    pub listen_port: u16,
+    pub bootstrap_nodes: Vec<String>,
+    pub max_retries: usize,
+    pub retry_delay: Duration,
+    pub bootstrap_timeout: Duration,
+}
+
+impl Default for DasNetworkConfig {
+    fn default() -> Self {
+        DasNetworkConfig {
+            listen_addr: "0.0.0.0".to_string(),
+            listen_port: 4417,
+            bootstrap_nodes: vec![],
+            max_retries: 3,
+            retry_delay: Duration::from_secs(5),
+            bootstrap_timeout: Duration::from_secs(60),
+        }
+    }
+}
+
+#[async_trait]
+impl DasNetworkDiscovery for Service {
+	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()> {
+		let address_string = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port);
+        let listen_address: Multiaddr = address_string.parse().expect("Invalid address format");
+
+		self.start_listening(listen_address).await?;
+		// Shuffle the nodes for randomness, ensuring all nodes don't connect to the same bootstrap
+		// node simultaneously.
+		let mut rng = rand::thread_rng();
+		let mut shuffled_nodes = config.bootstrap_nodes.clone();
+		shuffled_nodes.shuffle(&mut rng);
+
+		// Connect to a limited number of bootstrap nodes, for example, up to 3.
+		for addr in shuffled_nodes.iter().take(3) {
+			self.connect_to_bootstrap_node(addr, config).await?;
+		}
+
+		// Initiate bootstrap with a timeout
+		let bootstrap_fut = self.bootstrap().boxed();
+		let timeout_fut = tokio::time::sleep(config.bootstrap_timeout).boxed();
+		futures::pin_mut!(bootstrap_fut, timeout_fut);
+
+		match futures::future::select(bootstrap_fut, timeout_fut).await {
+			futures::future::Either::Left((Ok(_), _)) => {
+				log::info!("Successfully bootstrapped to the network.");
+				Ok(())
+			},
+			futures::future::Either::Left((Err(e), _)) => {
+				log::error!("Failed to bootstrap to the network. Error: {}", e);
+				Err(e)
+			},
+			futures::future::Either::Right(_) => {
+				log::error!(
+					"Bootstrap to the network timed out after {:?}",
+					config.bootstrap_timeout
+				);
+				Err(anyhow::anyhow!(
+					"Bootstrap to the network timed out after {:?}",
+					config.bootstrap_timeout
+				))
+			},
+		}
+	}
+
+	async fn connect_to_bootstrap_node(&self, addr_str: &String, config: &DasNetworkConfig) -> anyhow::Result<()> {
+		let addr: Multiaddr = addr_str.parse().context("Failed parsing bootstrap node address")?;
+		let peer_id = match addr.iter().last() {
+			Some(libp2p::multiaddr::Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Invalid peer multiaddress."),
+			_ => return Err(anyhow::anyhow!("Failed extracting PeerId from address")),
+		};
+	
+		for i in 0..config.max_retries {
+			match self.add_address(peer_id.clone(), addr.clone()).await {
+				Ok(_) => {
+					log::info!("Successfully connected to bootstrap node: {}", addr_str);
+					break;
+				},
+				Err(e) if i < config.max_retries - 1 => {
+					log::warn!(
+						"Failed to connect to bootstrap node: {}. Retry {}/{} in {:?}",
+						addr_str,
+						i + 1,
+						config.max_retries,
+						config.retry_delay
+					);
+					tokio::time::sleep(config.retry_delay).await;
+				},
+				Err(e) => {
+					log::error!(
+						"Failed to connect to bootstrap node: {} after {} retries. Error: {}",
+						addr_str, config.max_retries, e
+					);
+					return Err(e);
+				}
+			}
+		}
+	
+		Ok(())
+	}
+	
+}
+

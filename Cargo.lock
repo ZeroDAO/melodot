@@ -4794,6 +4794,7 @@ dependencies = [
  "melo-das-primitives",
  "melo-erasure-coding",
  "node-primitives",
+ "rand 0.8.5",
  "sc-client-api",
  "sc-network",
  "sc-offchain",
@@ -4885,6 +4886,16 @@ dependencies = [
  "melo-das-primitives",
  "rand 0.8.5",
  "rust-kzg-blst",
+]
+
+[[package]]
+name = "melodot-light-client"
+version = "0.0.1"
+dependencies = [
+ "clap 4.4.1",
+ "melo-das-db",
+ "melo-das-network",
+ "substrate-build-script-utils",
 ]
 
 [[package]]

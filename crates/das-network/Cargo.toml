@@ -18,6 +18,7 @@ async-trait = "0.1.56"
 futures = "0.3.21"
 tracing = "0.1.37"
 log = "0.4"
+rand = "0.8"
 derive_more = "0.99.17"
 anyhow = "1.0.66"
 libp2p = { version = "0.50.0", features = ["dns", "metrics", "identify", "kad", "macros", "mdns", "mplex", "noise", "ping", "tcp",  "tokio", "yamux", "websocket"] }

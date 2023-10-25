@@ -29,11 +29,11 @@ use libp2p::{
 	metrics::Metrics,
 	noise::NoiseAuthenticated,
 	swarm::{Swarm, SwarmBuilder},
-	tcp::Config as GenTcpConfig,
+	tcp::{tokio::Transport as TokioTcpTransport, Config as GenTcpConfig},
 	yamux::YamuxConfig,
 	Transport,
 };
-use libp2p::tcp::tokio::Transport as TokioTcpTransport;
+use melo_core_primitives::config;
 
 pub use log::warn;
 
@@ -77,14 +77,6 @@ pub fn create(
 		kad_store: MemoryStore::new(local_peer_id.clone()),
 	});
 
-	// Create a SwarmBuilder.
-	let mut swarm_builder =
-		SwarmBuilder::with_tokio_executor(
-			transport,
-			behaviour,
-			local_peer_id.clone(),
-		);
-
 	// Build the swarm.
 	let mut swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
 		// .max_negotiating_inbound_streams(SWARM_MAX_NEGOTIATING_INBOUND_STREAMS)
@@ -92,11 +84,13 @@ pub fn create(
 
 	let (to_worker, from_service) = mpsc::channel(8);
 
-	// Initialize the worker.
-	let worker = worker::DasNetwork::new(swarm, from_service, metrics);
-
-	// Return the service and worker.
 	Ok((service::Service::new(to_worker), worker::DasNetwork::new(swarm, from_service, metrics)))
+}
+
+pub fn default(metrics: Metrics) -> Result<(service::Service, worker::DasNetwork)> {
+	let keypair = identity::Keypair::generate_ed25519();
+
+	create(keypair, config::DAS_NETWORK_VERSION.to_string(), metrics)
 }
 
 fn build_transport(

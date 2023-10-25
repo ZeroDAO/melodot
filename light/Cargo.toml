@@ -1,0 +1,27 @@
+[package]
+name = "melodot-light-client"
+version = "0.0.1"
+description = "Melodot light client"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+repository = "https://github.com/ZeroDAO/melodot"
+keywords = ["substrate"]
+edition = "2021"
+license = "Apache-2.0"
+build = "build.rs"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[bin]]
+name = "melodot-light"
+path = "src/main.rs"
+
+[dependencies]
+melo-das-db = { path = "../crates/das-db" }
+melo-das-network = { path = "../crates/das-network" }
+clap = { version = "4.0.9", features = ["derive"], optional = true }
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[features]
