@@ -12,3 +12,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 melo-core-primitives = { path = "../core-primitives" }
 melo-das-network = { path = "../das-network" }
+melo-das-primitives = { path = "../das-primitives" }
+melo-das-db = { path = "../das-db" }
+melo-erasure-coding = { path = "../melo-erasure-coding" }
+
+log = { version = "0.4.17", default-features = false }
+tracing = "0.1.37"
+tokio = { version = "1.21.2" }
+futures = "0.3.21"
+async-trait = "0.1.56"
+itertools = "0.10.5"
+
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false}
+
+sc-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Digest, HeaderExtension, Vec, AppLookup, KZGCommitment, SubmitDataParams};
+use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SubmitDataParams, Vec};
 use codec::Encode;
 pub trait ExtendedHeader {
 	/// Header number.
@@ -54,6 +54,19 @@ pub trait HeaderCommitList {
 	/// initial confirmation of the probability of availability.
 	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>);
 }
+
+// sp_api::decl_runtime_apis! {
+// 	/// Extracts the `data` field from some types of extrinsics.
+// 	pub trait DaserApi<Number> where
+// 		Number: Encode + Decode,
+// 	{
+// 		fn extract(
+// 			extrinsic: &Vec<u8>,
+// 		) -> Option<Vec<SubmitDataParams>>;
+
+// 		fn sampled_at_last_block() -> Number;
+// 	}
+// }
 
 sp_api::decl_runtime_apis! {
 	/// Extracts the `data` field from some types of extrinsics.

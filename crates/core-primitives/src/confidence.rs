@@ -13,7 +13,7 @@
 // limitations under the License.
 
 extern crate alloc;
-use crate::{String, KZGCommitment};
+use crate::{KZGCommitment, String};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 #[cfg(feature = "std")]
@@ -24,7 +24,8 @@ use melo_das_db::traits::DasKv;
 use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, Position, Segment, KZG};
 
 const CHUNK_COUNT: usize = 2 ^ 4;
-const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
+
+pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
 
 #[cfg(feature = "std")]
 pub trait ConfidenceSample {
@@ -35,17 +36,17 @@ pub trait ConfidenceSample {
 pub struct ConfidenceId(Vec<u8>);
 
 impl ConfidenceId {
-	pub fn block_confidence(block_hash: Vec<u8>) -> Self {
-		Self(block_hash)
+	pub fn block_confidence(block_hash: &[u8]) -> Self {
+		Self(block_hash.into())
 	}
 
-	pub fn app_confidence<BlockNum: Decode + Encode + Clone + Sized>(
-		block_num: BlockNum,
-		app_id: Vec<u8>,
-	) -> Self {
-		let mut id = app_id.clone();
-		id.extend_from_slice(&block_num.encode());
-		Self(id)
+	pub fn app_confidence(app_id: u32, nonce: u32) -> Self {
+		let mut buffer = [0u8; 8];
+
+		buffer[..4].copy_from_slice(&app_id.to_be_bytes());
+		buffer[4..].copy_from_slice(&nonce.to_be_bytes());
+
+		Self(buffer.into())
 	}
 }
 
@@ -60,16 +61,8 @@ impl Sample {
 		self.is_availability = true;
 	}
 
-	pub fn key<BlockNum: Decode + Encode + Clone + Sized>(
-		&self,
-		block_num: &BlockNum,
-		app_id: u32,
-	) -> Vec<u8> {
-		let mut key = Vec::new();
-		key.extend_from_slice(&block_num.encode());
-		key.extend_from_slice(&app_id.to_be_bytes());
-		key.extend_from_slice(&self.position.encode());
-		key
+	pub fn key(&self, app_id: u32, nonce: u32) -> Vec<u8> {
+		sample_key(app_id, nonce, &self.position)
 	}
 }
 
@@ -147,12 +140,23 @@ impl ConfidenceSample for Confidence {
 	}
 }
 
-// fn calculate_confidence(samples: u32, base_factor: f64) -> f64 {
-// 	100f64 * (1f64 - base_factor.powi(samples as i32))
-// }
-
 fn calculate_confidence(samples: u32, base_factor: Permill) -> Permill {
 	let one = Permill::one();
 	let base_power_sample = base_factor.saturating_pow(samples as usize);
 	one.saturating_sub(base_power_sample)
+}
+
+pub fn sample_key(app_id: u32, nonce: u32, position: &Position) -> Vec<u8> {
+	let mut key = Vec::new();
+	key.extend_from_slice(&app_id.to_be_bytes());
+	key.extend_from_slice(&nonce.to_be_bytes());
+	key.extend_from_slice(&position.encode());
+	key
+}
+
+pub fn sample_key_from_block(block_hash: &[u8], position: &Position) -> Vec<u8> {
+	let mut key = Vec::new();
+	key.extend_from_slice(block_hash);
+	key.extend_from_slice(&position.encode());
+	key
 }

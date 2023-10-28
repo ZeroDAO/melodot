@@ -22,6 +22,7 @@ use alloc::{
 	vec,
 	vec::Vec,
 };
+use codec::{Decode, Encode};
 use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
 
@@ -35,7 +36,7 @@ pub struct Segment {
 }
 
 /// This struct represents the data of a segment with a vector of BlsScalar and a KZGProof.
-#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
+#[derive(Decode, Encode, Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct SegmentData {
 	/// The data of the segment.
 	pub data: Vec<BlsScalar>,

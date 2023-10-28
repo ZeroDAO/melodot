@@ -13,3 +13,4 @@
 // limitations under the License.
 
 pub const DAS_NETWORK_VERSION: &str = "0.0.1";
+pub const BLOCK_SAMPLE_LIMIT: u32 = 3;

@@ -17,7 +17,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use futures::{
 	channel::{mpsc, oneshot},
-	future::FutureExt,
+	future::{join_all, FutureExt},
 	SinkExt,
 };
 use libp2p::{
@@ -25,8 +25,9 @@ use libp2p::{
 	kad::{record, Quorum, Record},
 	Multiaddr, PeerId,
 };
-use rand::seq::SliceRandom;
 use std::{fmt::Debug, time::Duration};
+
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng}; // Import SliceRandom
 
 /// `Service` serves as an intermediary to interact with the Worker, handling requests and
 /// facilitating communication. It mainly operates on the message passing mechanism between service
@@ -35,6 +36,7 @@ use std::{fmt::Debug, time::Duration};
 pub struct Service {
 	// Channel sender to send messages to the worker.
 	to_worker: mpsc::Sender<Command>,
+	parallel_limit: usize,
 }
 
 impl Debug for Service {
@@ -46,8 +48,8 @@ impl Debug for Service {
 
 impl Service {
 	/// Constructs a new `Service` instance with a given channel to communicate with the worker.
-	pub(crate) fn new(to_worker: mpsc::Sender<Command>) -> Self {
-		Self { to_worker }
+	pub(crate) fn new(to_worker: mpsc::Sender<Command>, parallel_limit: usize) -> Self {
+		Self { to_worker, parallel_limit }
 	}
 
 	/// Starts listening on the given multi-address.
@@ -85,6 +87,32 @@ impl Service {
 		self.put_kad_record(record, Quorum::All).await
 	}
 
+	pub async fn get_values(&self, keys: &[KademliaKey]) -> anyhow::Result<Vec<Option<Vec<Vec<u8>>>>> {
+		let mut results = Vec::with_capacity(keys.len());
+
+		for chunk in keys.chunks(self.parallel_limit) {
+			let futures = chunk.iter().map(|key| self.get_value(key.clone()));
+			let chunk_results = join_all(futures).await;
+			for res in chunk_results {
+				match res {
+					Ok(v) =>
+						results.push(Some(v)),
+					Err(_) => results.push(None),
+				}
+			}
+		}
+
+		Ok(results)
+	}
+
+	pub async fn put_values(&self, keys_and_values: Vec<(KademliaKey, Vec<u8>)>) -> anyhow::Result<()> {
+		let futures = keys_and_values
+			.into_iter()
+			.map(|(key, value)| self.put_value(key, value));
+		join_all(futures).await;
+		Ok(())
+	}
+
 	/// Queries the DHT for a record.
 	pub async fn get_kad_record(&self, key: KademliaKey) -> anyhow::Result<Vec<Record>> {
 		let (sender, receiver) = oneshot::channel();
@@ -106,41 +134,46 @@ impl Service {
 #[async_trait]
 pub trait DasNetworkDiscovery {
 	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()>;
-	async fn connect_to_bootstrap_node(&self, addr_str: &String, config: &DasNetworkConfig) -> anyhow::Result<()>;
+	async fn connect_to_bootstrap_node(
+		&self,
+		addr_str: &String,
+		config: &DasNetworkConfig,
+	) -> anyhow::Result<()>;
 }
 
 pub struct DasNetworkConfig {
-    pub listen_addr: String,
-    pub listen_port: u16,
-    pub bootstrap_nodes: Vec<String>,
-    pub max_retries: usize,
-    pub retry_delay: Duration,
-    pub bootstrap_timeout: Duration,
+	pub listen_addr: String,
+	pub listen_port: u16,
+	pub bootstrap_nodes: Vec<String>,
+	pub max_retries: usize,
+	pub retry_delay: Duration,
+	pub bootstrap_timeout: Duration,
+	pub parallel_limit: usize,
 }
 
 impl Default for DasNetworkConfig {
-    fn default() -> Self {
-        DasNetworkConfig {
-            listen_addr: "0.0.0.0".to_string(),
-            listen_port: 4417,
-            bootstrap_nodes: vec![],
-            max_retries: 3,
-            retry_delay: Duration::from_secs(5),
-            bootstrap_timeout: Duration::from_secs(60),
-        }
-    }
+	fn default() -> Self {
+		DasNetworkConfig {
+			listen_addr: "0.0.0.0".to_string(),
+			listen_port: 4417,
+			bootstrap_nodes: vec![],
+			max_retries: 3,
+			retry_delay: Duration::from_secs(5),
+			bootstrap_timeout: Duration::from_secs(60),
+			parallel_limit: 10,
+		}
+	}
 }
 
 #[async_trait]
 impl DasNetworkDiscovery for Service {
 	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()> {
 		let address_string = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port);
-        let listen_address: Multiaddr = address_string.parse().expect("Invalid address format");
+		let listen_address: Multiaddr = address_string.parse().expect("Invalid address format");
 
 		self.start_listening(listen_address).await?;
-		// Shuffle the nodes for randomness, ensuring all nodes don't connect to the same bootstrap
-		// node simultaneously.
-		let mut rng = rand::thread_rng();
+
+		let mut rng = StdRng::from_entropy();
 		let mut shuffled_nodes = config.bootstrap_nodes.clone();
 		shuffled_nodes.shuffle(&mut rng);
 
@@ -176,20 +209,25 @@ impl DasNetworkDiscovery for Service {
 		}
 	}
 
-	async fn connect_to_bootstrap_node(&self, addr_str: &String, config: &DasNetworkConfig) -> anyhow::Result<()> {
+	async fn connect_to_bootstrap_node(
+		&self,
+		addr_str: &String,
+		config: &DasNetworkConfig,
+	) -> anyhow::Result<()> {
 		let addr: Multiaddr = addr_str.parse().context("Failed parsing bootstrap node address")?;
 		let peer_id = match addr.iter().last() {
-			Some(libp2p::multiaddr::Protocol::P2p(hash)) => PeerId::from_multihash(hash).expect("Invalid peer multiaddress."),
+			Some(libp2p::multiaddr::Protocol::P2p(hash)) =>
+				PeerId::from_multihash(hash).expect("Invalid peer multiaddress."),
 			_ => return Err(anyhow::anyhow!("Failed extracting PeerId from address")),
 		};
-	
+
 		for i in 0..config.max_retries {
 			match self.add_address(peer_id.clone(), addr.clone()).await {
 				Ok(_) => {
 					log::info!("Successfully connected to bootstrap node: {}", addr_str);
-					break;
+					break
 				},
-				Err(e) if i < config.max_retries - 1 => {
+				Err(_) if i < config.max_retries - 1 => {
 					log::warn!(
 						"Failed to connect to bootstrap node: {}. Retry {}/{} in {:?}",
 						addr_str,
@@ -202,15 +240,15 @@ impl DasNetworkDiscovery for Service {
 				Err(e) => {
 					log::error!(
 						"Failed to connect to bootstrap node: {} after {} retries. Error: {}",
-						addr_str, config.max_retries, e
+						addr_str,
+						config.max_retries,
+						e
 					);
-					return Err(e);
-				}
+					return Err(e)
+				},
 			}
 		}
-	
+
 		Ok(())
 	}
-	
 }
-

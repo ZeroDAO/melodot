@@ -4872,8 +4872,23 @@ dependencies = [
 name = "melo-daser"
 version = "0.0.1"
 dependencies = [
+ "async-trait",
+ "futures",
+ "itertools",
+ "log",
  "melo-core-primitives",
+ "melo-das-db",
  "melo-das-network",
+ "melo-das-primitives",
+ "melo-erasure-coding",
+ "parity-scale-codec 3.6.4",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-transaction-pool-api",
+ "sp-api",
+ "sp-runtime",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4892,10 +4907,18 @@ dependencies = [
 name = "melodot-light-client"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "clap 4.4.1",
+ "melo-core-primitives",
  "melo-das-db",
  "melo-das-network",
+ "melo-daser",
+ "meloxt",
  "substrate-build-script-utils",
+ "subxt",
+ "tokio",
+ "tokio-stream",
+ "tracing",
 ]
 
 [[package]]

@@ -56,14 +56,14 @@ impl HeaderExtension {
         None
     }
 
-    pub fn get_app_id(&self, at: u32) -> Option<u32> {
+    pub fn get_lookup(&self, at: u32) -> Option<&AppLookup> {
         let mut sum = 0u32;
         
         for lookup in &self.app_lookup {
             sum += lookup.count as u32;
 
             if at < sum {
-                return Some(lookup.app_id);
+                return Some(lookup);
             }
         }
 

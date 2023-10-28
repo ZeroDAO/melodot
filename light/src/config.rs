@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::{App, Arg};
+use clap::{Command, Arg};
 use melo_das_network::DasNetworkConfig;
 
 pub enum NetworkConfigType {
@@ -32,14 +32,14 @@ impl Config {
                 rpc_url: "YOUR_DEV_RPC_URL_HERE".to_string(),
                 network_config: DasNetworkConfig {
                     bootstrap_nodes: vec![],
-                    ..DasNetworkConfig::default(),
+                    ..DasNetworkConfig::default()
                 },
             },
             NetworkConfigType::Test => Config {
                 rpc_url: "YOUR_TEST_RPC_URL_HERE".to_string(),
                 network_config: DasNetworkConfig {
                     bootstrap_nodes: vec![],
-                    ..DasNetworkConfig::default(),
+                    ..DasNetworkConfig::default()
                 },
             },
         }
@@ -47,7 +47,7 @@ impl Config {
 }
 
 pub fn parse_args() -> Config {
-    let matches = App::new("Light Node")
+    let matches = Command::new("Light Node")
         .arg(
             Arg::with_name("config")
                 .short("c")

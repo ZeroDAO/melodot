@@ -22,7 +22,7 @@ use tokio_stream::StreamExt;
 use tracing::{error, info};
 
 use daser::SamplingClient;
-use melo_core_primitives::traits::DasKv;
+use melo_core_primitives::{traits::DasKv, Header, ExtendedHeader};
 use melo_das_network::service::Service as DasNetworkService;
 
 pub async fn finalized_headers(
