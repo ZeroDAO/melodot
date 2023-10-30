@@ -14,6 +14,7 @@
 
 use codec::Encode;
 use itertools::Itertools;
+use melo_erasure_coding::bytes_to_segments;
 use std::error::Error;
 
 use crate::{
@@ -23,7 +24,66 @@ use crate::{
 use melo_core_primitives::{traits::ExtendedHeader, Decode};
 use melo_das_network::{KademliaKey, Service as DasNetworkService};
 use melo_das_primitives::KZG;
+use melo_erasure_coding::{
+	extend_col::extend_segments_col as extend,
+	recovery::recovery_order_row_from_segments as recovery,
+};
 use sp_api::HeaderT;
+
+#[async_trait::async_trait]
+pub trait DaserNetworker {
+	async fn put_ext_segments<Header>(
+		&self,
+		segments: &[Segment],
+		header: &Header,
+	) -> Result<(), Box<dyn std::error::Error>>
+	where
+		Header: HeaderT;
+
+	async fn put_app_segments(
+		&self,
+		segments: &[Segment],
+		app_id: u32,
+		nonce: u32,
+	) -> Result<(), Box<dyn std::error::Error>>;
+
+	async fn put_bytes(
+		&self,
+		bytes: &[u8],
+		app_id: u32,
+		nonce: u32,
+	) -> Result<(), Box<dyn std::error::Error>>;
+
+	async fn fetch_segment_data(
+		&self,
+		app_id: u32,
+		nonce: u32,
+		position: &Position,
+		commitment: &KZGCommitment,
+	) -> Option<SegmentData>;
+
+	async fn fetch_sample(
+		&self,
+		app_id: u32,
+		nonce: u32,
+		sample: &Sample,
+		commitment: &KZGCommitment,
+	) -> Option<SegmentData>;
+
+	async fn fetch_block<Header>(
+		&self,
+		header: &Header,
+	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool), Box<dyn Error>>
+	where
+		Header: ExtendedHeader + HeaderT;
+
+	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>, String>;
+
+	fn recovery_order_row_from_segments(
+		&self,
+		segments: &Vec<Option<Segment>>,
+	) -> Result<Vec<Segment>, String>;
+}
 
 pub struct NetworkDas {
 	network: Arc<DasNetworkService>,
@@ -31,7 +91,81 @@ pub struct NetworkDas {
 }
 
 impl NetworkDas {
-	pub async fn put_ext_segments<Header>(
+	pub fn new(network: Arc<DasNetworkService>, kzg: Arc<KZG>) -> Self {
+		NetworkDas { network, kzg }
+	}
+
+	async fn fetch_value(
+		&self,
+		key: &[u8],
+		position: &Position,
+		commitment: &KZGCommitment,
+	) -> Option<SegmentData> {
+		let values = self.network.get_value(KademliaKey::new(&key)).await.ok()?;
+		self.verify_values(&values, commitment, position).map(|segment| segment.content)
+	}
+
+	pub fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>, Box<dyn Error>>
+	where
+		Header: ExtendedHeader + HeaderT,
+	{
+		let keys = header
+			.extension()
+			.app_lookup
+			.iter()
+			.flat_map(|app_lookup| {
+				(0..SAMPLES_PER_BLOB).flat_map(move |x| {
+					(0..app_lookup.count).map(move |y| {
+						let position = Position { x: x as u32, y: y as u32 };
+						let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
+						KademliaKey::new(&key)
+					})
+				})
+			})
+			.collect::<Vec<_>>();
+		Ok(keys)
+	}
+
+	pub fn verify_values(
+		&self,
+		values: &[Vec<u8>],
+		commitment: &KZGCommitment,
+		position: &Position,
+	) -> Option<Segment> {
+		values
+			.iter()
+			.filter_map(|value| {
+				if let Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
+					let segment = Segment { position: position.clone(), content: segment_data };
+					if segment
+						.checked()
+						.unwrap()
+						.verify(&self.kzg, &commitment, segment.size())
+						.is_ok()
+					{
+						return Some(segment)
+					}
+				}
+				None
+			})
+			.next()
+	}
+}
+
+#[async_trait::async_trait]
+impl DaserNetworker for NetworkDas {
+	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>, String> {
+		extend(&self.kzg.get_fs(), segments)
+	}
+
+	fn recovery_order_row_from_segments(
+		&self,
+		segments: &Vec<Option<Segment>>,
+	) -> Result<Vec<Segment>, String> {
+		recovery(segments, &self.kzg)
+	}
+
+	async fn put_ext_segments<Header>(
 		&self,
 		segments: &[Segment],
 		header: &Header,
@@ -54,7 +188,35 @@ impl NetworkDas {
 		Ok(())
 	}
 
-	pub async fn fetch_segment_data(
+	async fn put_app_segments(
+		&self,
+		segments: &[Segment],
+		app_id: u32,
+		nonce: u32,
+	) -> Result<(), Box<dyn std::error::Error>> {
+		let values = segments
+			.iter()
+			.map(|segment| {
+				let key = KademliaKey::new(&sample_key(app_id, nonce, &segment.position));
+				let value = segment.content.encode();
+				(key, value)
+			})
+			.collect::<Vec<_>>();
+		self.network.put_values(values).await?;
+		Ok(())
+	}
+
+	async fn put_bytes(
+		&self,
+		bytes: &[u8],
+		app_id: u32,
+		nonce: u32,
+	) -> Result<(), Box<dyn std::error::Error>> {
+		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, &self.kzg)?;
+		self.put_app_segments(&segments, app_id, nonce).await
+	}
+
+	async fn fetch_segment_data(
 		&self,
 		app_id: u32,
 		nonce: u32,
@@ -65,7 +227,7 @@ impl NetworkDas {
 		self.fetch_value(&key, position, commitment).await
 	}
 
-	pub async fn fetch_sample(
+	async fn fetch_sample(
 		&self,
 		app_id: u32,
 		nonce: u32,
@@ -76,17 +238,7 @@ impl NetworkDas {
 		self.fetch_value(&key, &sample.position, commitment).await
 	}
 
-	async fn fetch_value(
-		&self,
-		key: &[u8],
-		position: &Position,
-		commitment: &KZGCommitment,
-	) -> Option<SegmentData> {
-		let values = self.network.get_value(KademliaKey::new(&key)).await.ok()?;
-		self.verify_values(&values, commitment, position).map(|segment| segment.content)
-	}
-
-	pub async fn fetch_block<Header>(
+	async fn fetch_block<Header>(
 		&self,
 		header: &Header,
 	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool), Box<dyn Error>>
@@ -134,51 +286,5 @@ impl NetworkDas {
 			.collect();
 
 		Ok((all_segments, need_reconstruct, is_availability))
-	}
-
-	fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>, Box<dyn Error>>
-	where
-		Header: ExtendedHeader + HeaderT,
-	{
-		let keys = header
-			.extension()
-			.app_lookup
-			.iter()
-			.flat_map(|app_lookup| {
-				(0..SAMPLES_PER_BLOB).flat_map(move |x| {
-					(0..app_lookup.count).map(move |y| {
-						let position = Position { x: x as u32, y: y as u32 };
-						let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
-						KademliaKey::new(&key)
-					})
-				})
-			})
-			.collect::<Vec<_>>();
-		Ok(keys)
-	}
-
-	fn verify_values(
-		&self,
-		values: &[Vec<u8>],
-		commitment: &KZGCommitment,
-		position: &Position,
-	) -> Option<Segment> {
-		values
-			.iter()
-			.filter_map(|value| {
-				if let Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
-					let segment = Segment { position: position.clone(), content: segment_data };
-					if segment
-						.checked()
-						.unwrap()
-						.verify(&self.kzg, &commitment, segment.size())
-						.is_ok()
-					{
-						return Some(segment)
-					}
-				}
-				None
-			})
-			.next()
 	}
 }

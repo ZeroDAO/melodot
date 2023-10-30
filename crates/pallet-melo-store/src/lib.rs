@@ -44,8 +44,9 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 use melo_core_primitives::{
-	extension::AppLookup, traits::HeaderCommitList, Sidecar, SidecarMetadata, SubmitDataParams,
+	confidence::ConfidenceId, extension::AppLookup, traits::HeaderCommitList, SidecarMetadata,
 };
+use melo_das_db::offchain::OffchainKv;
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
 
 // A prefix constant used for the off-chain database.
@@ -194,6 +195,11 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn is_availability)]
+	pub(super) type IsAvailability<T: Config> =
+		StorageMap<_, Twox64Concat, BlockNumberFor<T>, bool, ValueQuery>;
+
 	/// Contains the keys for this pallet's use.
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
@@ -285,7 +291,7 @@ pub mod pallet {
 				<T as Config>::WeightInfo::submit_data(params.proofs.len() as u32)
 			)
 		)]
-		pub fn submit_data(origin: OriginFor<T>, params: SubmitDataParams) -> DispatchResult {
+		pub fn submit_data(origin: OriginFor<T>, params: SidecarMetadata) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(params.check(), Error::<T>::SubmittedDataIsEmpty);
 			// ensure!(params.bytes_len > 0, Error::<T>::SubmittedDataIsEmpty);
@@ -451,6 +457,7 @@ pub mod pallet {
 						)
 					}
 				}
+			//
 			} else {
 				log::trace!(
 					target: "runtime::melo-store",
@@ -512,20 +519,17 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.enumerate()
 			.filter_map(|(i, metadata)| {
-				let sidecar_metadata = SidecarMetadata {
-					commitments: metadata.commitments.to_vec(),
-					data_len: metadata.bytes_len,
-					proofs: metadata.proofs.to_vec(),
-				};
-				let id = sidecar_metadata.id();
-				if let Some(sidecar) = Sidecar::from_local(&id) {
-					if sidecar.is_unavailability() {
-						Some(i as u32)
-					} else {
-						None
-					}
-				} else {
-					None
+				let mut db = OffchainKv::new(Some(DB_PREFIX));
+				match ConfidenceId::app_confidence(metadata.app_id, metadata.nonce)
+					.get_confidence(&mut db)
+				{
+					Some(confidence) =>
+						if !confidence.is_availability(80, 95) {
+							Some(i as u32)
+						} else {
+							None
+						},
+					None => None,
 				}
 			})
 			.collect::<Vec<_>>()

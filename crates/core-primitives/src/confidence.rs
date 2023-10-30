@@ -48,6 +48,10 @@ impl ConfidenceId {
 
 		Self(buffer.into())
 	}
+
+	pub fn get_confidence(&self, db: &mut impl DasKv) -> Option<Confidence> {
+		Confidence::get(self, db)
+	}
 }
 
 #[derive(Debug, Clone, Default, Decode, Encode)]
@@ -81,6 +85,12 @@ impl Confidence {
 	}
 
 	pub fn exceeds_threshold(&self, base_factor: Permill, threshold: Permill) -> bool {
+		self.value(base_factor) > threshold
+	}
+
+	pub fn is_availability(&self, base_factor: u32, threshold: u32) -> bool {
+		let base_factor = Permill::from_parts(base_factor);
+		let threshold = Permill::from_parts(threshold);
 		self.value(base_factor) > threshold
 	}
 

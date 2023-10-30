@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::{Arc, Confidence, ConfidenceId, KZGCommitment, NetworkDas, SAMPLES_PER_BLOB};
+use crate::{Arc, Confidence, ConfidenceId, DaserNetworker, KZGCommitment, SAMPLES_PER_BLOB};
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
@@ -20,8 +20,11 @@ use sp_api::HeaderT;
 use std::marker::PhantomData;
 
 const LAST_AT_KEY: &[u8] = b"sampled_at_last_block";
-pub struct SamplingClient<Header, DB> {
-	pub network: NetworkDas,
+pub struct SamplingClient<Header, DB, DaserNetwork>
+where
+	DaserNetwork: DaserNetworker + Sync,
+{
+	pub network: DaserNetwork,
 	database: Arc<Mutex<DB>>,
 	_phantom: PhantomData<Header>,
 }
@@ -42,8 +45,11 @@ pub trait Sampling {
 	async fn last_at(&self) -> u32;
 }
 
-impl<Header, DB: melo_das_db::traits::DasKv> SamplingClient<Header, DB> {
-	pub fn new(network: NetworkDas, database: DB) -> Self {
+impl<Header, DB: melo_das_db::traits::DasKv, DaserNetwork: DaserNetworker>
+	SamplingClient<Header, DB, DaserNetwork> where
+	DaserNetwork: DaserNetworker + Sync,
+{
+	pub fn new(network: DaserNetwork, database: DB) -> Self {
 		SamplingClient { network, database: Arc::new(Mutex::new(database)), _phantom: PhantomData }
 	}
 
@@ -99,7 +105,8 @@ impl<Header, DB: melo_das_db::traits::DasKv> SamplingClient<Header, DB> {
 }
 
 #[async_trait::async_trait]
-impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send> Sampling for SamplingClient<H, DB> {
+impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send, D: DaserNetworker + Sync> Sampling for SamplingClient<H, DB, D>
+{
 	async fn last_at(&self) -> u32 {
 		let mut db_guard = self.database.lock().await;
 		db_guard

@@ -25,5 +25,5 @@ pub mod network;
 pub mod tx_pool_handler;
 
 pub use client::{Sampling, SamplingClient};
-pub use network::NetworkDas;
+pub use network::{NetworkDas, DaserNetworker};
 pub use tx_pool_handler::{start_tx_pool_listener, TPListenerParams};

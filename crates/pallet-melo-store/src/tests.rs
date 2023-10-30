@@ -74,7 +74,7 @@ pub fn submit_data(
 	MeloStore::register_app(RuntimeOrigin::signed(1))?;
 	MeloStore::submit_data(
 		RuntimeOrigin::signed(who),
-		SubmitDataParams::new(app_id, bytes_len, nonce, commitments, proofs),
+		SidecarMetadata::new(app_id, bytes_len, nonce, commitments, proofs),
 	)
 }
 
@@ -138,7 +138,7 @@ fn should_fail_when_submitting_data_exceeds_limit() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SubmitDataParams::new(app_id, bytes_len, 0u32, commitments, proofs),
+				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments, proofs),
 			),
 			Error::<Runtime>::ExceedMaxBlobLimit
 		);
@@ -157,7 +157,7 @@ fn should_fail_when_submitting_invalid_app_id() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SubmitDataParams::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::AppIdError
 		);
@@ -257,7 +257,7 @@ fn should_report_unavailable_data_successfully_with_multiple_app_id_and_data() {
 
 				assert_ok!(MeloStore::submit_data(
 					RuntimeOrigin::signed(app_id as u64),
-					SubmitDataParams::new(
+					SidecarMetadata::new(
 						app_id,
 						bytes_len,
 						0u32,
@@ -399,7 +399,7 @@ fn should_fail_when_submitting_empty_data() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SubmitDataParams::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::SubmittedDataIsEmpty
 		);
@@ -418,7 +418,7 @@ fn should_fail_with_mismatched_commitments_count() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SubmitDataParams::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::MismatchedCommitmentsCount
 		);
@@ -440,7 +440,7 @@ fn should_fail_with_mismatched_proofs_count() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SubmitDataParams::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::MismatchedProofsCount
 		);

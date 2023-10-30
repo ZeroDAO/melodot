@@ -12,22 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::localstorage::{get_from_localstorage_with_prefix, save_to_localstorage_with_prefix};
-#[cfg(feature = "outside")]
-use crate::localstorage::{
-	get_from_localstorage_with_prefix_outside, save_to_localstorage_with_prefix_outside,
+use crate::{
+	String, Vec,
+	confidence::ConfidenceId,
 };
-use crate::{String, Vec};
+use crate::TypeInfo;
 use alloc::format;
 use codec::{Decode, Encode};
 use melo_das_primitives::{Blob, KZGCommitment, KZGProof, KZG};
 use melo_erasure_coding::bytes_to_blobs;
-#[cfg(feature = "outside")]
-use sc_client_api::Backend;
-#[cfg(feature = "outside")]
-use sc_offchain::OffchainDb;
-#[cfg(feature = "outside")]
-use sp_runtime::traits::Block;
+use sp_core::RuntimeDebug;
 
 use core::result::Result;
 #[cfg(feature = "std")]
@@ -36,7 +30,7 @@ use sp_io::hashing;
 
 use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
 
-const SIDERCAR_PREFIX: &[u8] = b"sidecar";
+// const SIDERCAR_PREFIX: &[u8] = b"sidecar";
 
 /// Represents the possible statuses of the sidecar, including failures and success cases.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
@@ -51,18 +45,37 @@ pub enum SidecarStatus {
 }
 
 /// Contains essential metadata for the sidecar, such as data length, hash, commitments, and proofs.
-#[derive(Encode, Debug, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct SidecarMetadata {
-	/// Length of the data.
-	pub data_len: u32,
-	/// Commitments related to the data.
+	pub app_id: u32,
+	pub bytes_len: u32,
+	pub nonce: u32,
 	pub commitments: Vec<KZGCommitment>,
-	/// Proofs confirming the validity of the data.
 	pub proofs: Vec<KZGProof>,
 }
 
 impl SidecarMetadata {
+	pub fn new(
+		app_id: u32,
+		bytes_len: u32,
+		nonce: u32,
+		commitments: Vec<KZGCommitment>,
+		proofs: Vec<KZGProof>,
+	) -> Self {
+		Self { app_id, bytes_len, nonce, commitments, proofs }
+	}
+
+	pub fn check(&self) -> bool {
+		self.commitments.len() == self.proofs.len() &&
+			self.commitments.len() > 0 &&
+			self.bytes_len > 0
+	}
+
+	pub fn confidence_id(&self) -> ConfidenceId {
+		ConfidenceId::app_confidence(self.app_id, self.nonce)
+	}
+
 	/// Calculates and returns the ID (hash) of the metadata.
 	pub fn id(&self) -> [u8; 32] {
 		hashing::blake2_256(&self.encode())
@@ -83,7 +96,7 @@ impl SidecarMetadata {
 	}
 
 	/// Attempts to generate a `SidecarMetadata` instance from given application data bytes.
-	pub fn try_from_app_data(bytes: &[u8]) -> Result<Self, String> {
+	pub fn try_from_app_data(bytes: &[u8], app_id: u32, nonce: u32) -> Result<Self, String> {
 		let kzg = KZG::default_embedded();
 
 		let data_len = bytes.len() as u32;
@@ -103,16 +116,16 @@ impl SidecarMetadata {
 				.into_iter()
 				.unzip();
 
-			Ok(Self { data_len, commitments, proofs })
+			Ok(Self { app_id, bytes_len: data_len, nonce, commitments, proofs })
 		}
 
 		#[cfg(not(feature = "std"))]
 		{
 			let blob_count = blobs.len();
-		
+
 			let mut commitments = Vec::with_capacity(blob_count);
 			let mut proofs = Vec::with_capacity(blob_count);
-		
+
 			for blob in &blobs {
 				match blob.commit_and_proof(&kzg, FIELD_ELEMENTS_PER_BLOB) {
 					Ok((commitment, proof)) => {
@@ -122,29 +135,27 @@ impl SidecarMetadata {
 					Err(e) => return Err(format!("Failed to commit and proof: {}", e)),
 				}
 			}
-		
-			Ok(Self { data_len, commitments, proofs })
+
+			Ok(Self { app_id, bytes_len: data_len, nonce, commitments, proofs })
 		}
-		
 	}
 }
 
 /// Represents a sidecar, encapsulating its metadata, potential data, and its current status.
 #[derive(Encode, Decode, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Sidecar {
 	/// Metadata associated with the sidecar.
 	pub metadata: SidecarMetadata,
-	/// Data blob associated with the sidecar, if any.
-	pub blobs: Option<Vec<u8>>,
-	/// Current status of the sidecar; `None` means an unhandled edge case, so data errors shouldn't be reported.
+	/// Current status of the sidecar; `None` means an unhandled edge case, so data errors
+	/// shouldn't be reported.
 	pub status: Option<SidecarStatus>,
 }
 
 impl Sidecar {
 	/// Constructs a new sidecar instance with the provided metadata and data.
-	pub fn new(metadata: SidecarMetadata, blobs: Option<Vec<u8>>) -> Self {
-		Self { metadata, blobs, status: None }
+	pub fn new(metadata: SidecarMetadata) -> Self {
+		Self { metadata, status: None }
 	}
 
 	/// Calculates and returns the ID (hash) of the sidecar based on its metadata.
@@ -166,131 +177,5 @@ impl Sidecar {
 	/// Sets the status of the sidecar to 'NotFound'.
 	pub fn set_not_found(&mut self) {
 		self.status = Some(SidecarStatus::NotFound);
-	}
-
-	/// Retrieves a sidecar instance from local storage based on a given key.
-	///
-	/// # Parameters
-	///
-	/// * `key`: Byte slice that represents the key used to store the sidecar.
-	///
-	/// # Returns
-	///
-	/// An `Option` that contains a `Sidecar` if found, otherwise `None`.
-	pub fn from_local(key: &[u8]) -> Option<Self> {
-		let maybe_sidecar = get_from_localstorage_with_prefix(key, SIDERCAR_PREFIX);
-		match maybe_sidecar {
-			Some(data) => Sidecar::decode(&mut &data[..]).ok(),
-			None => None,
-		}
-	}
-
-	/// Saves the sidecar instance to local storage.
-	pub fn save_to_local(&self) {
-		save_to_localstorage_with_prefix(&self.id(), &self.encode(), SIDERCAR_PREFIX);
-	}
-
-	#[cfg(feature = "outside")]
-	/// Retrieves a sidecar instance from an external local storage based on a given key and database reference.
-	///
-	/// # Parameters
-	///
-	/// * `key`: Byte slice that represents the key used to store the sidecar.
-	/// * `db`: Mutable reference to the offchain database.
-	///
-	/// # Returns
-	///
-	/// An `Option` that contains a `Sidecar` if found, otherwise `None`.
-	pub fn from_local_outside<B: Block, BE: Backend<B>>(
-		key: &[u8],
-		db: &mut OffchainDb<BE::OffchainStorage>,
-	) -> Option<Sidecar> {
-		let maybe_sidecar =
-			get_from_localstorage_with_prefix_outside::<B, BE>(db, key, SIDERCAR_PREFIX);
-		match maybe_sidecar {
-			Some(data) => Sidecar::decode(&mut &data[..]).ok(),
-			None => None,
-		}
-	}
-
-	#[cfg(feature = "outside")]
-	/// Saves the sidecar instance to an external local storage using a given database reference.
-	///
-	/// # Parameters
-	///
-	/// * `db`: Mutable reference to the offchain database.
-	pub fn save_to_local_outside<B: Block, BE: Backend<B>>(
-		&self,
-		db: &mut OffchainDb<BE::OffchainStorage>,
-	) {
-		save_to_localstorage_with_prefix_outside::<B, BE>(
-			db,
-			&self.id(),
-			&self.encode(),
-			SIDERCAR_PREFIX,
-		);
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use codec::Encode;
-
-	// Mock your `KZGCommitment` and `KZGProof` here if needed
-
-	#[test]
-	fn test_sidecar_metadata_id() {
-		let metadata = SidecarMetadata {
-			data_len: 42,
-			commitments: vec![], // Populate this with real or mocked data
-			proofs: vec![],      // Populate this with real or mocked data
-		};
-
-		let id = metadata.id();
-		assert_eq!(id, hashing::blake2_256(&metadata.encode()));
-	}
-
-	#[test]
-	fn test_sidecar_new() {
-		let metadata = SidecarMetadata {
-			data_len: 42,
-			commitments: vec![], // Populate this with real or mocked data
-			proofs: vec![],      // Populate this with real or mocked data
-		};
-
-		let blobs = Some(vec![1, 2, 3]);
-		let sidecar = Sidecar::new(metadata.clone(), blobs.clone());
-
-		assert_eq!(sidecar.metadata, metadata);
-		assert_eq!(sidecar.blobs, blobs);
-		assert_eq!(sidecar.status, None);
-	}
-
-	#[test]
-	fn test_sidecar_id() {
-		let metadata = SidecarMetadata {
-			data_len: 42,
-			commitments: vec![], // Populate this with real or mocked data
-			proofs: vec![],      // Populate this with real or mocked data
-		};
-
-		let sidecar = Sidecar::new(metadata.clone(), None);
-		assert_eq!(sidecar.id(), metadata.id());
-	}
-
-
-	#[test]
-	fn test_sidecar_is_unavailability() {
-		let metadata = SidecarMetadata {
-			data_len: 3,
-			commitments: vec![],
-			proofs: vec![],
-		};
-
-		let mut sidecar = Sidecar::new(metadata, None);
-		sidecar.status = Some(SidecarStatus::NotFound);
-
-		assert!(sidecar.is_unavailability());
 	}
 }

@@ -20,10 +20,9 @@ use jsonrpsee::{
 	proc_macros::rpc,
 };
 use melo_core_primitives::traits::AppDataApi;
-use melo_core_primitives::{Sidecar, SidecarMetadata};
-use melo_das_network::kademlia_key_from_sidecar_id;
 use melo_das_network_protocol::DasDht;
 use melodot_runtime::{RuntimeCall, UncheckedExtrinsic};
+use melo_daser::DaserNetworker;
 
 use sc_transaction_pool_api::{error::IntoPoolError, TransactionPool, TransactionSource};
 use serde::{Deserialize, Serialize};
@@ -57,33 +56,37 @@ pub trait DasApi<Hash> {
 
 /// Main structure representing the Das system.
 /// Holds client connection, transaction pool, and DHT network service.
-pub struct Das<P: TransactionPool, Client, DDS, B> {
+pub struct Das<P: TransactionPool, Client, DDS, B, D> {
 	/// Client interface for interacting with the blockchain.
 	client: Arc<Client>,
 	/// Pool for managing and processing transactions.
 	pool: Arc<P>,
 	/// Service for interacting with the DHT network.
 	pub service: DDS,
+	/// S
+	das_network: Arc<D>,
+	/// Marker for the block type.
 	_marker: std::marker::PhantomData<B>,
 }
 
-impl<P: TransactionPool, Client, DDS, B> Das<P, Client, DDS, B> {
+impl<P: TransactionPool, Client, DDS, B, D> Das<P, Client, DDS, B, D> {
 	/// Constructor: Creates a new instance of Das.
-	pub fn new(client: Arc<Client>, pool: Arc<P>, service: DDS) -> Self {
-		Self { client, pool, service, _marker: Default::default() }
+	pub fn new(client: Arc<Client>, pool: Arc<P>, service: DDS, das_network: Arc<D>) -> Self {
+		Self { client, pool, service, das_network, _marker: Default::default() }
 	}
 }
 
 const TX_SOURCE: TransactionSource = TransactionSource::External;
 
 #[async_trait]
-impl<P, C, DDS, Block> DasApiServer<P::Hash> for Das<P, C, DDS, Block>
+impl<P, C, DDS, Block, D> DasApiServer<P::Hash> for Das<P, C, DDS, Block, D>
 where
 	Block: BlockT,
 	P: TransactionPool<Block = Block> + 'static,
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + 'static + Sync + Send,
 	C::Api: AppDataApi<Block, RuntimeCall>,
 	DDS: DasDht + Sync + Send + 'static + Clone,
+	D: DaserNetworker + Sync + Send + 'static + Clone,
 {
 	/// Submits a blob transaction to the transaction pool.
 	/// The transaction undergoes validation and then gets executed by the runtime.
@@ -116,7 +119,7 @@ where
 		let at = self.client.info().best_hash;
 
 		// Get blob_tx_param and validate
-		let (data_hash, data_len, commitments, proofs) = self
+		let metadata = self
 			.client
 			.runtime_api()
 			.get_blob_tx_param(at, &ext.function)
@@ -124,7 +127,7 @@ where
 			.ok_or(Error::InvalidTransactionFormat)?;
 
 		// Validate the length and hash of the data.
-		if data_len != (data.len() as u32) || Sidecar::calculate_id(&data)[..] != data_hash[..] {
+		if !metadata.check() {
 			return Err(Error::DataLengthOrHashError.into());
 		}
 
@@ -139,20 +142,16 @@ where
 				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)))
 		})?;
 
-		let metadata = SidecarMetadata { data_len, blobs_hash: data_hash, commitments, proofs };
-
 		let mut blob_tx_status = BlobTxSatus { tx_hash, err: None };
 
 		match metadata.verify_bytes(&data) {
 			Ok(true) => {
 				// On successful data verification, push data to DHT network.
-				let mut dht_service = self.service.clone();
-				let put_res = dht_service
-					.put_value_to_dht(kademlia_key_from_sidecar_id(&data_hash), data.to_vec())
-					.await
-					.is_some();
-				if !put_res {
-					blob_tx_status.err = Some("Failed to put data to DHT network.".to_string());
+				let put_res = self.das_network
+					.put_bytes(&data, metadata.app_id, metadata.nonce).await;
+
+				if let Err(e) = put_res {
+					blob_tx_status.err = Some(e.to_string());
 				}
 			},
 			Ok(false) => {

@@ -97,7 +97,7 @@ use pallet_transaction_payment::{ConstFeeMultiplier, CurrencyAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{FixedU128, Perbill, Permill};
 
-use melo_core_primitives::{Header as ExtendedHeader, SubmitDataParams};
+use melo_core_primitives::{Header as ExtendedHeader, SidecarMetadata};
 
 pub use consensus::GENESIS_EPOCH_CONFIG;
 use static_assertions::const_assert;
@@ -955,11 +955,11 @@ impl_runtime_apis! {
 	impl melo_core_primitives::traits::Extractor<Block> for Runtime {
 		fn extract(
 			extrinsic: &Vec<u8>,
-		) -> Option<Vec<SubmitDataParams>> {
+		) -> Option<Vec<SidecarMetadata>> {
 			// Decode the unchecked extrinsic
 			let extrinsic = UncheckedExtrinsic::decode(&mut &extrinsic[..]).ok()?;
 
-			fn filter(call: RuntimeCall) -> Vec<SubmitDataParams> {
+			fn filter(call: RuntimeCall) -> Vec<SidecarMetadata> {
 				match call {
 					RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
 						params
@@ -973,7 +973,7 @@ impl_runtime_apis! {
 
 			fn process_calls(
 				calls: Vec<RuntimeCall>,
-			) -> Vec<SubmitDataParams> {
+			) -> Vec<SidecarMetadata> {
 				calls.into_iter().flat_map(filter).collect()
 			}
 
@@ -983,7 +983,7 @@ impl_runtime_apis! {
 
 	impl melo_core_primitives::traits::AppDataApi<Block, RuntimeCall> for Runtime {
 
-		fn get_blob_tx_param(function: &RuntimeCall) -> Option<SubmitDataParams> {
+		fn get_blob_tx_param(function: &RuntimeCall) -> Option<SidecarMetadata> {
 			match function {
 				RuntimeCall::MeloStore(pallet_melo_store::Call::submit_data {
 					params,

@@ -14,7 +14,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use melo_das_primitives::{blob::Blob, crypto::SCALAR_SAFE_BYTES};
+use melo_das_primitives::{blob::Blob, crypto::SCALAR_SAFE_BYTES, KZG};
 
 #[cfg(test)]
 mod tests;
@@ -22,17 +22,18 @@ mod tests;
 extern crate alloc;
 pub use alloc::{
 	string::{String, ToString},
-	vec::Vec,
 	vec,
+	vec::Vec,
 };
+use segment::poly_to_segment_vec;
 
 pub mod erasure_coding;
 pub mod extend_col;
 pub mod recovery;
 pub mod segment;
 
-/// Converts a vector of byte vectors `bytes_vec` into a vector of `Blob`s, where each `Blob` contains
-/// `field_elements_per_blob` field elements.
+/// Converts a vector of byte vectors `bytes_vec` into a vector of `Blob`s, where each `Blob`
+/// contains `field_elements_per_blob` field elements.
 ///
 /// # Arguments
 ///
@@ -41,7 +42,8 @@ pub mod segment;
 ///
 /// # Returns
 ///
-/// * `Result<Vec<Blob>, String>` - A vector of `Blob`s, or an error message if the conversion fails.
+/// * `Result<Vec<Blob>, String>` - A vector of `Blob`s, or an error message if the conversion
+///   fails.
 ///
 /// # Errors
 ///
@@ -61,7 +63,7 @@ pub fn bytes_vec_to_blobs(
 	field_elements_per_blob: usize,
 ) -> Result<Vec<Blob>, String> {
 	if bytes_vec.iter().any(|bytes| bytes.is_empty()) {
-		return Err("bytes_vec should not contain empty bytes; qed".to_string());
+		return Err("bytes_vec should not contain empty bytes; qed".to_string())
 	}
 
 	let bytes_per_blob = get_bytes_per_blob(field_elements_per_blob)?;
@@ -82,16 +84,17 @@ pub fn bytes_vec_to_blobs(
 
 /// Converts a `bytes` into a vector of `Blob`s, where each `Blob` contains
 /// `field_elements_per_blob` field elements.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `bytes` - A vector of bytes to convert.
 /// * `field_elements_per_blob` - The number of field elements to include in each `Blob`.
-/// 
+///
 /// # Returns
-/// 
-/// * `Result<Vec<Blob>, String>` - A vector of `Blob`s, or an error message if the conversion fails.
-/// 
+///
+/// * `Result<Vec<Blob>, String>` - A vector of `Blob`s, or an error message if the conversion
+///   fails.
+///
 /// # Errors
 ///
 /// Returns an error message if:
@@ -106,14 +109,11 @@ pub fn bytes_vec_to_blobs(
 /// are padded with zeroes. When using this function, the final recovered data should be determined
 /// based on the length of the original data.
 // TODO: test
-pub fn bytes_to_blobs(
-	bytes: &[u8],
-	field_elements_per_blob: usize,
-) -> Result<Vec<Blob>, String> {
-    if bytes.is_empty() {
-		return Err("bytes should not contain empty bytes; qed".to_string());
+pub fn bytes_to_blobs(bytes: &[u8], field_elements_per_blob: usize) -> Result<Vec<Blob>, String> {
+	if bytes.is_empty() {
+		return Err("bytes should not contain empty bytes; qed".to_string())
 	}
-    let bytes_per_blob = get_bytes_per_blob(field_elements_per_blob)?;
+	let bytes_per_blob = get_bytes_per_blob(field_elements_per_blob)?;
 	let blobs = bytes
 		.chunks(bytes_per_blob)
 		.map(|chunk| {
@@ -121,16 +121,39 @@ pub fn bytes_to_blobs(
 				.expect("Failed to convert bytes to Blob; qed")
 		})
 		.collect();
-    Ok(blobs)
+	Ok(blobs)
+}
+
+pub fn bytes_to_segments(
+	bytes: &[u8],
+	field_elements_per_blob: usize,
+	kzg: &KZG,
+) -> Result<Vec<melo_das_primitives::Segment>, String> {
+	if bytes.is_empty() {
+		return Err("bytes should not contain empty bytes; qed".to_string())
+	}
+	let bytes_per_blob = get_bytes_per_blob(field_elements_per_blob)?;
+	let segments = bytes
+		.chunks(bytes_per_blob)
+		.enumerate()
+		.flat_map(|(y, chunk)| {
+			let ploy = Blob::try_from_bytes_pad(chunk, bytes_per_blob)
+				.expect("Failed to convert bytes to Blob; qed")
+				.to_poly();
+			poly_to_segment_vec(&ploy, kzg, y, field_elements_per_blob)
+				.expect("Failed to convert bytes to Blob; qed")
+		})
+		.collect::<Vec<_>>();
+	Ok(segments)
 }
 
 fn get_bytes_per_blob(field_elements_per_blob: usize) -> Result<usize, String> {
-    let bytes_per_blob = SCALAR_SAFE_BYTES * field_elements_per_blob;
-    if !field_elements_per_blob.is_power_of_two() {
-		return Err("field_elements_per_blob should be a power of 2; qed".to_string());
+	let bytes_per_blob = SCALAR_SAFE_BYTES * field_elements_per_blob;
+	if !field_elements_per_blob.is_power_of_two() {
+		return Err("field_elements_per_blob should be a power of 2; qed".to_string())
 	}
 	if field_elements_per_blob == 0 {
-		return Err("field_elements_per_blob should be greater than 0; qed".to_string());
+		return Err("field_elements_per_blob should be greater than 0; qed".to_string())
 	}
-    Ok(bytes_per_blob)
+	Ok(bytes_per_blob)
 }

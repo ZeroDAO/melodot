@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SubmitDataParams, Vec};
+use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
 use codec::Encode;
 pub trait ExtendedHeader {
 	/// Header number.
@@ -75,7 +75,7 @@ sp_api::decl_runtime_apis! {
 		fn extract(
 			extrinsic: &Vec<u8>,
 			// (data_hash, bytes_len, commitments, proofs)
-		) -> Option<Vec<SubmitDataParams>>;
+		) -> Option<Vec<SidecarMetadata>>;
 	}
 }
 
@@ -84,6 +84,6 @@ sp_api::decl_runtime_apis! {
 	where RuntimeCall: Encode {
 		fn get_blob_tx_param(
 			function: &RuntimeCall,
-		) -> Option<SubmitDataParams>;
+		) -> Option<SidecarMetadata>;
 	}
 }
