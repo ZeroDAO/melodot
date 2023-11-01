@@ -13,4 +13,7 @@
 // limitations under the License.
 
 pub const DAS_NETWORK_VERSION: &str = "0.0.1";
+/// The maximum number of blocks that can be processed in a single call to `process_blocks`.
 pub const BLOCK_SAMPLE_LIMIT: u32 = 3;
+/// 允许提交不可用性区块的最长间隔区块数量
+pub const MAX_UNAVAILABLE_BLOCK_INTERVAL: u32 = 3;

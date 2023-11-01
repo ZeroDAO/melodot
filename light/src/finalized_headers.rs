@@ -15,55 +15,56 @@
 use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
-use meloxt::{MelodotHeader, MeloConfig};
+use meloxt::{MeloConfig, MelodotHeader as Header};
 use subxt::OnlineClient;
 use tokio::sync::mpsc::Sender;
 use tokio_stream::StreamExt;
 use tracing::{error, info};
 
-use daser::SamplingClient;
-use melo_core_primitives::{traits::DasKv, Header, ExtendedHeader};
-use melo_das_network::service::Service as DasNetworkService;
+use melo_core_primitives::traits::HeaderWithCommitment;
+use melo_das_db::{sqlite::SqliteDasDb, traits::DasKv};
+// use melo_das_network::{DasNetworkServiceWrapper, DasNetworkOperations}; // 假设这是正确的导入
+use melo_daser::{DasNetworkOperations, DasNetworkServiceWrapper, Sampling, SamplingClient};
 
-pub async fn finalized_headers(
-    rpc_client: OnlineClient<MeloConfig>,
-    message_tx: Sender<(Header, Instant)>,
-    error_sender: Sender<anyhow::Error>,
-    network: DasNetworkService,
-    database: Box<dyn DasKv>,
+pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
+	rpc_client: OnlineClient<MeloConfig>,
+	message_tx: Sender<(Header, Instant)>,
+	error_sender: Sender<anyhow::Error>,
+	network: DasNetworkServiceWrapper, // 更新类型为 DasNetworkServiceWrapper
+	database: SqliteDasDb,
 ) {
-    let mut client = SamplingClient::new(network, database);
+	let mut client: SamplingClient<H, SqliteDasDb, DasNetworkServiceWrapper> =
+		SamplingClient::new(network, database);
+	let mut new_heads_sub = match rpc_client.blocks().subscribe_finalized().await {
+		Ok(subscription) => subscription,
+		Err(e) => {
+			error!("Failed to subscribe to finalized blocks: {:?}", e);
+			return
+		},
+	};
 
-    async fn subscribe_and_process(
-        rpc_client: OnlineClient<MeloConfig>,
-        message_tx: Sender<(Header, Instant)>,
-        client: &mut SamplingClient,
-    ) -> Result<()> {
-        let mut new_heads_sub = rpc_client.blocks().subscribe_finalized().await?;
+	while let Some(message) = new_heads_sub.next().await {
+		let received_at = Instant::now();
+		if let Ok(block) = message {
+			let header = block.header().clone();
+			info!(header.number, "Received finalized block header");
+			let message = (header.clone(), received_at);
+			if let Err(error) = message_tx.send(message).await.context("Send failed") {
+				error!("Fail to process finalized block header: {error}");
+			}
 
-        while let Some(message) = new_heads_sub.next().await {
-            let received_at = Instant::now();
-            if let Ok(block) = message {
-                let header = block.header().clone();
-                info!(header.number, "Received finalized block header");
-                let message = (header.clone(), received_at);
-                if let Err(error) = message_tx.send(message).await.context("Send failed") {
-                    error!("Fail to process finalized block header: {error}");
-                }
+			match client.sample_block::<Header>(&header.into()).await {
+				Ok(_) => {}, // 如果成功，这里可以添加相应的处理逻辑
+				Err(e) => {
+					error!("Sampling error: {:?}", e);
+				},
+			}
+		}
+	}
 
-                // Sample the finalized header with the SamplingClient
-                if let Err(e) = client.sample_block(&header).await {
-                    error!("Sampling error: {:?}", e);
-                }
-            }
-        }
-        Err(anyhow!("Finalized blocks subscription disconnected"))
-    }
-
-    if let Err(error) = subscribe_and_process(rpc_client, message_tx, &mut client).await {
-        error!("{error}");
-        if let Err(error) = error_sender.send(error).await {
-            error!("Cannot send error to error channel: {error}");
-        }
-    }
+	if let Err(error) =
+		error_sender.send(anyhow!("Finalized blocks subscription disconnected")).await
+	{
+		error!("Cannot send error to error channel: {error}");
+	}
 }

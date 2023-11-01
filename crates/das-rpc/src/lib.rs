@@ -20,9 +20,8 @@ use jsonrpsee::{
 	proc_macros::rpc,
 };
 use melo_core_primitives::traits::AppDataApi;
-use melo_das_network_protocol::DasDht;
 use melodot_runtime::{RuntimeCall, UncheckedExtrinsic};
-use melo_daser::DaserNetworker;
+use melo_daser::DasNetworkOperations;
 
 use sc_transaction_pool_api::{error::IntoPoolError, TransactionPool, TransactionSource};
 use serde::{Deserialize, Serialize};
@@ -56,37 +55,34 @@ pub trait DasApi<Hash> {
 
 /// Main structure representing the Das system.
 /// Holds client connection, transaction pool, and DHT network service.
-pub struct Das<P: TransactionPool, Client, DDS, B, D> {
+pub struct Das<P: TransactionPool, Client, B, D> {
 	/// Client interface for interacting with the blockchain.
 	client: Arc<Client>,
 	/// Pool for managing and processing transactions.
 	pool: Arc<P>,
-	/// Service for interacting with the DHT network.
-	pub service: DDS,
 	/// S
 	das_network: Arc<D>,
 	/// Marker for the block type.
 	_marker: std::marker::PhantomData<B>,
 }
 
-impl<P: TransactionPool, Client, DDS, B, D> Das<P, Client, DDS, B, D> {
+impl<P: TransactionPool, Client, B, D> Das<P, Client, B, D> {
 	/// Constructor: Creates a new instance of Das.
-	pub fn new(client: Arc<Client>, pool: Arc<P>, service: DDS, das_network: Arc<D>) -> Self {
-		Self { client, pool, service, das_network, _marker: Default::default() }
+	pub fn new(client: Arc<Client>, pool: Arc<P>, das_network: Arc<D>) -> Self {
+		Self { client, pool, das_network, _marker: Default::default() }
 	}
 }
 
 const TX_SOURCE: TransactionSource = TransactionSource::External;
 
 #[async_trait]
-impl<P, C, DDS, Block, D> DasApiServer<P::Hash> for Das<P, C, DDS, Block, D>
+impl<P, C, Block, D> DasApiServer<P::Hash> for Das<P, C, Block, D>
 where
 	Block: BlockT,
 	P: TransactionPool<Block = Block> + 'static,
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + 'static + Sync + Send,
 	C::Api: AppDataApi<Block, RuntimeCall>,
-	DDS: DasDht + Sync + Send + 'static + Clone,
-	D: DaserNetworker + Sync + Send + 'static + Clone,
+	D: DasNetworkOperations + Sync + Send + 'static + Clone,
 {
 	/// Submits a blob transaction to the transaction pool.
 	/// The transaction undergoes validation and then gets executed by the runtime.

@@ -4794,6 +4794,7 @@ dependencies = [
  "melo-das-primitives",
  "melo-erasure-coding",
  "node-primitives",
+ "prometheus-client",
  "rand 0.8.5",
  "sc-client-api",
  "sc-network",
@@ -4873,6 +4874,7 @@ dependencies = [
 name = "melo-daser"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "async-trait",
  "futures",
  "itertools",
@@ -4887,6 +4889,7 @@ dependencies = [
  "sc-consensus",
  "sc-transaction-pool-api",
  "sp-api",
+ "sp-consensus",
  "sp-runtime",
  "tokio",
  "tracing",
@@ -4913,6 +4916,7 @@ dependencies = [
  "melo-core-primitives",
  "melo-das-db",
  "melo-das-network",
+ "melo-das-primitives",
  "melo-daser",
  "meloxt",
  "substrate-build-script-utils",
@@ -4920,6 +4924,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4936,9 +4941,12 @@ dependencies = [
  "hex-literal",
  "jsonrpsee",
  "melo-core-primitives",
+ "melo-das-db",
  "melo-das-network",
  "melo-das-network-protocol",
+ "melo-das-primitives",
  "melo-das-rpc",
+ "melo-daser",
  "melodot-runtime",
  "mmr-rpc",
  "node-primitives",
@@ -5081,6 +5089,7 @@ dependencies = [
  "serde",
  "serde_json",
  "simple_logger",
+ "sp-runtime",
  "structopt",
  "substrate-build-script-utils",
  "subxt",

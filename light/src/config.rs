@@ -12,9 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use clap::{Command, Arg};
+use clap::Parser;
 use melo_das_network::DasNetworkConfig;
 
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub struct Cli {
+    /// Specify which network configuration to use
+    #[clap(short, long, value_enum, default_value_t = NetworkConfigType::Dev)]
+    config: NetworkConfigType,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
 pub enum NetworkConfigType {
     Dev,
     Test,
@@ -47,23 +56,7 @@ impl Config {
 }
 
 pub fn parse_args() -> Config {
-    let matches = Command::new("Light Node")
-        .arg(
-            Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .value_name("TYPE")
-                .possible_values(&["dev", "test"])
-                .default_value("dev")
-                .help("Specify which network configuration to use"),
-        )
-        .get_matches();
+    let cli = Cli::parse();
 
-    let config_type = match matches.value_of("config").unwrap() {
-        "dev" => NetworkConfigType::Dev,
-        "test" => NetworkConfigType::Test,
-        _ => panic!("Unknown config type"),
-    };
-
-    Config::from_config_type(config_type)
+    Config::from_config_type(cli.config)
 }

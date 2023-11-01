@@ -11,18 +11,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::{Arc, Confidence, ConfidenceId, DaserNetworker, KZGCommitment, SAMPLES_PER_BLOB};
+use crate::{
+	Arc, Confidence, ConfidenceId, DasNetworkOperations, KZGCommitment, Ok, Result,
+	SAMPLES_PER_BLOB, Context, anyhow, DasKv
+};
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
-use melo_core_primitives::{confidence::ConfidenceSample, traits::ExtendedHeader};
-use sp_api::HeaderT;
+use melo_core_primitives::{confidence::ConfidenceSample, traits::HeaderWithCommitment};
+// use sp_api::HeaderT;
 use std::marker::PhantomData;
 
 const LAST_AT_KEY: &[u8] = b"sampled_at_last_block";
 pub struct SamplingClient<Header, DB, DaserNetwork>
 where
-	DaserNetwork: DaserNetworker + Sync,
+	DaserNetwork: DasNetworkOperations + Sync,
 {
 	pub network: DaserNetwork,
 	database: Arc<Mutex<DB>>,
@@ -36,18 +39,19 @@ pub trait Sampling {
 		app_id: u32,
 		nonce: u32,
 		commitments: &Vec<KZGCommitment>,
-	) -> Result<(), Box<dyn std::error::Error>>;
+	) -> Result<()>;
 
-	async fn sample_block<Header>(&self, header: &Header) -> Result<(), Box<dyn std::error::Error>>
+	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
 	where
-		Header: ExtendedHeader + HeaderT;
+		Header: HeaderWithCommitment + Sync;
 
 	async fn last_at(&self) -> u32;
 }
 
-impl<Header, DB: melo_das_db::traits::DasKv, DaserNetwork: DaserNetworker>
-	SamplingClient<Header, DB, DaserNetwork> where
-	DaserNetwork: DaserNetworker + Sync,
+impl<Header, DB: DasKv, DaserNetwork: DasNetworkOperations>
+	SamplingClient<Header, DB, DaserNetwork>
+where
+	DaserNetwork: DasNetworkOperations + Sync,
 {
 	pub fn new(network: DaserNetwork, database: DB) -> Self {
 		SamplingClient { network, database: Arc::new(Mutex::new(database)), _phantom: PhantomData }
@@ -59,12 +63,9 @@ impl<Header, DB: melo_das_db::traits::DasKv, DaserNetwork: DaserNetworker>
 		confidence: &mut Confidence,
 		app: &[(u32, u32)],
 		commitments: &[KZGCommitment],
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<()> {
 		if confidence.samples.len() != app.len() || commitments.len() != app.len() {
-			return Err(Box::new(std::io::Error::new(
-				std::io::ErrorKind::InvalidData,
-				"Invalid sample length",
-			)))
+			return Err(anyhow!("nvalid sample length"));
 		}
 
 		for ((sample, (app_id, nonce)), commitment) in
@@ -89,7 +90,7 @@ impl<Header, DB: melo_das_db::traits::DasKv, DaserNetwork: DaserNetworker>
 		let mut db_guard = self.database.lock().await;
 		let should_update = match db_guard.get(LAST_AT_KEY) {
 			Some(bytes) =>
-				if let Ok(current_last) = Number::decode(&mut &bytes[..]) {
+				if let core::result::Result::Ok(current_last) = Number::decode(&mut &bytes[..]) {
 					last > current_last
 				} else {
 					true
@@ -105,7 +106,8 @@ impl<Header, DB: melo_das_db::traits::DasKv, DaserNetwork: DaserNetworker>
 }
 
 #[async_trait::async_trait]
-impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send, D: DaserNetworker + Sync> Sampling for SamplingClient<H, DB, D>
+impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations + Sync> Sampling
+	for SamplingClient<H, DB, D>
 {
 	async fn last_at(&self) -> u32 {
 		let mut db_guard = self.database.lock().await;
@@ -121,7 +123,7 @@ impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send, D: DaserNetworker + Sync
 		app_id: u32,
 		nonce: u32,
 		commitments: &Vec<KZGCommitment>,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<()> {
 		let id = ConfidenceId::app_confidence(app_id, nonce);
 
 		let mut confidence = Confidence { samples: Vec::new(), commitments: commitments.clone() };
@@ -133,35 +135,25 @@ impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send, D: DaserNetworker + Sync
 		self.sample(&id, &mut confidence, &apps, &commitments).await
 	}
 
-	async fn sample_block<Header>(&self, header: &Header) -> Result<(), Box<dyn std::error::Error>>
+	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
 	where
-		Header: ExtendedHeader + HeaderT,
+		Header: HeaderWithCommitment + Sync,
 	{
-		let id = ConfidenceId::block_confidence(header.hash().as_ref());
-		let commitments = header.commitments().ok_or_else(|| {
-			Box::new(std::io::Error::new(
-				std::io::ErrorKind::NotFound,
-				"Commitments not found in the header",
-			)) as Box<dyn std::error::Error>
-		})?;
+		let id = ConfidenceId::block_confidence(&header.hash().encode());
+		let commitments = header.commitments().context("Commitments not found in the header")?;
 
 		let mut confidence = Confidence { samples: Vec::new(), commitments: Vec::new() };
 
 		confidence.set_sample(SAMPLES_PER_BLOB);
 
-		let apps: Result<Vec<(u32, u32)>, Box<dyn std::error::Error>> = confidence
+		let apps: Result<Vec<(u32, u32)>> = confidence
 			.samples
 			.iter()
 			.map(|sample| {
 				header
 					.extension()
 					.get_lookup(sample.position.y)
-					.ok_or_else(|| {
-						Box::new(std::io::Error::new(
-							std::io::ErrorKind::InvalidData,
-							"AppLookup not found for given sample position",
-						)) as Box<dyn std::error::Error>
-					})
+					.context("AppLookup not found for given sample position")
 					.map(|app_lookup| (app_lookup.app_id, app_lookup.nonce))
 			})
 			.collect();
@@ -171,7 +163,7 @@ impl<H: HeaderT, DB: melo_das_db::traits::DasKv + Send, D: DaserNetworker + Sync
 		self.sample(&id, &mut confidence, &apps, &commitments).await?;
 
 		let at = header.number();
-		self.set_last_at::<<Header as HeaderT>::Number>(*at).await;
+		self.set_last_at::<<Header as HeaderWithCommitment>::Number>(*at).await;
 		Ok(())
 	}
 }

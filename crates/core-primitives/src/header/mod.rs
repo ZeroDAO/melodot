@@ -21,11 +21,13 @@ use crate::Vec;
 pub use codec::{Codec, Decode, Encode};
 pub use scale_info::TypeInfo;
 
-use crate::traits::ExtendedHeader;
-use crate::Digest;
+use crate::{
+	traits::{ExtendedHeader, HeaderWithCommitment},
+	Digest,
+};
 
 pub mod extension;
-pub use extension::{HeaderExtension, AppLookup};
+pub use extension::{AppLookup, HeaderExtension};
 
 use melo_das_primitives::KZGCommitment;
 #[cfg(feature = "std")]
@@ -221,7 +223,7 @@ impl<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> ExtendedHeader
 	fn set_extension(&mut self, extension_data: &(Vec<KZGCommitment>, Vec<AppLookup>)) {
 		let (commitments, app_lookups) = extension_data;
 		self.extension.commitments_bytes =
-		commitments.iter().flat_map(|c| c.to_bytes()).collect::<Vec<u8>>();
+			commitments.iter().flat_map(|c| c.to_bytes()).collect::<Vec<u8>>();
 		self.extension.app_lookup = app_lookups.clone();
 	}
 
@@ -242,5 +244,56 @@ impl<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> ExtendedHeader
 
 	fn col_num(&self) -> Option<u32> {
 		(self.extension.commitments_bytes.len() / KZGCommitment::size()).try_into().ok()
+	}
+}
+
+impl<Number, Hash> HeaderWithCommitment for Header<Number, Hash>
+where
+	Number: Member
+		+ sp_std::hash::Hash
+		+ Copy
+		+ MaybeDisplay
+		+ AtLeast32BitUnsigned
+		+ Codec
+		+ Into<U256>
+		+ TryFrom<U256>
+		+ PartialOrd,
+	Hash: HashT,
+	Hash::Output:
+		Default + sp_std::hash::Hash + Copy + Member + MaybeDisplay + SimpleBitOps + Codec,
+{
+	type Number = Number;
+	type Hash = <Hash as HashT>::Output;
+	type Hashing = Hash;
+
+	fn extension(&self) -> &HeaderExtension {
+		&self.extension
+	}
+
+	fn commitments(&self) -> Option<Vec<KZGCommitment>> {
+		let result: Result<Vec<KZGCommitment>, _> = self
+			.extension
+			.commitments_bytes
+			.chunks(KZGCommitment::size())
+			.map(|c| Decode::decode(&mut &c[..]))
+			.collect();
+
+		result.ok()
+	}
+
+	fn commitments_bytes(&self) -> &[u8] {
+		&self.extension.commitments_bytes
+	}
+
+	fn col_num(&self) -> Option<u32> {
+		(self.extension.commitments_bytes.len() / KZGCommitment::size()).try_into().ok()
+	}
+
+	fn number(&self) -> &Self::Number {
+		&self.number
+	}
+
+	fn hash(&self) -> Hash::Output {
+		Hash::hash_of(self)
 	}
 }

@@ -19,11 +19,12 @@ pub use melo_core_primitives::{
 pub use melo_das_db::traits::DasKv;
 pub use melo_das_primitives::{KZGCommitment, Position, Segment, SegmentData};
 pub use std::sync::Arc;
+pub use anyhow::{Ok, Result, Context, anyhow};
 
 pub mod client;
 pub mod network;
 pub mod tx_pool_handler;
 
 pub use client::{Sampling, SamplingClient};
-pub use network::{NetworkDas, DaserNetworker};
+pub use network::{DasNetworkServiceWrapper, DasNetworkOperations};
 pub use tx_pool_handler::{start_tx_pool_listener, TPListenerParams};

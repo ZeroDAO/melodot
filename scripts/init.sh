@@ -1,14 +1,36 @@
-#!/usr/bin/env bash
-# This script is meant to be run on Unix/Linux based systems
-set -e
+#!/bin/bash
 
-echo "*** Initializing WASM build environment"
+install_debian() {
+    sudo apt-get update
+    sudo apt-get install -y libsqlite3-dev
+}
 
-if [ -z $CI_PROJECT_NAME ] ; then
-   rustup update nightly
-   rustup update stable
+install_redhat() {
+    sudo yum install -y sqlite-devel
+}
+
+install_arch() {
+    sudo pacman -Sy sqlite
+}
+
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    case $ID in
+        ubuntu|debian)
+            install_debian
+            ;;
+        fedora|centos|rhel)
+            install_redhat
+            ;;
+        arch|manjaro)
+            install_arch
+            ;;
+        *)
+            echo "Unsupported operating system: $ID"
+            exit 1
+            ;;
+    esac
+else
+    echo "Cannot determine the operating system."
+    exit 1
 fi
-
-rustup default
-
-rustup target add wasm32-unknown-unknown --toolchain nightly

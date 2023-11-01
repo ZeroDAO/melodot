@@ -24,6 +24,7 @@ use melo_das_db::traits::DasKv;
 use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, Position, Segment, KZG};
 
 const CHUNK_COUNT: usize = 2 ^ 4;
+const LATEST_PROCESSED_BLOCK_KEY: &[u8] = b"latestprocessedblock";
 
 pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
 
@@ -51,6 +52,34 @@ impl ConfidenceId {
 
 	pub fn get_confidence(&self, db: &mut impl DasKv) -> Option<Confidence> {
 		Confidence::get(self, db)
+	}
+}
+
+pub struct ConfidenceManager<DB>
+where
+	DB: DasKv,
+{
+	db: DB,
+}
+
+impl<DB> ConfidenceManager<DB>
+where
+	DB: DasKv,
+{
+	pub fn new(db: DB) -> Self {
+		Self { db }
+	}
+
+	pub fn get_last_processed_block(&mut self) -> Option<u32> {
+		self.db.get(LATEST_PROCESSED_BLOCK_KEY).map(|data| {
+			let mut buffer = [0u8; 4];
+			buffer.copy_from_slice(&data);
+			u32::from_be_bytes(buffer)
+		})
+	}
+
+	pub fn set_last_processed_block(&mut self, block_num: u32) {
+		self.db.set(LATEST_PROCESSED_BLOCK_KEY, &block_num.to_be_bytes());
 	}
 }
 
@@ -89,8 +118,8 @@ impl Confidence {
 	}
 
 	pub fn is_availability(&self, base_factor: u32, threshold: u32) -> bool {
-		let base_factor = Permill::from_parts(base_factor);
-		let threshold = Permill::from_parts(threshold);
+		let base_factor = Permill::from_percent(base_factor);
+		let threshold = Permill::from_percent(threshold);
 		self.value(base_factor) > threshold
 	}
 

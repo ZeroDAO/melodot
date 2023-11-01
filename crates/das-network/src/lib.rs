@@ -33,6 +33,7 @@ use libp2p::{
 	yamux::YamuxConfig,
 	Transport,
 };
+use prometheus_client::registry::Registry;
 use melo_core_primitives::config;
 
 pub use log::warn;
@@ -45,7 +46,7 @@ pub use std::sync::Arc;
 use std::time::Duration;
 
 pub use behaviour::{Behavior, BehaviorConfig, BehaviourEvent};
-pub use service::{DasNetworkConfig, Service};
+pub use service::{DasNetworkConfig, Service, DasNetworkDiscovery};
 pub use shared::Command;
 pub use worker::DasNetwork;
 
@@ -88,10 +89,12 @@ pub fn create(
 	))
 }
 
-pub fn default(metrics: Metrics) -> Result<(service::Service, worker::DasNetwork)> {
-	let keypair = identity::Keypair::generate_ed25519();
+pub fn default() -> Result<(service::Service, worker::DasNetwork)> {
+    let keypair = identity::Keypair::generate_ed25519();
+	let mut metric_registry = Registry::default();
+	let libp2p_metrics = Metrics::new(&mut metric_registry);
 
-	create(keypair, config::DAS_NETWORK_VERSION.to_string(), metrics, DasNetworkConfig::default())
+    create(keypair, config::DAS_NETWORK_VERSION.to_string(), libp2p_metrics, DasNetworkConfig::default())
 }
 
 fn build_transport(

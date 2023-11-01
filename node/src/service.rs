@@ -1,13 +1,16 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 #![warn(unused_extern_crates)]
-use futures::channel::mpsc::Receiver;
 use futures::prelude::*;
 use grandpa::SharedVoterState;
-use melo_das_network::{new_service, new_worker, new_workgroup, ServicetoWorkerMsg};
-use melo_das_network::{start_tx_pool_listener, TPListenerParams};
-use melo_das_network_protocol::DasDhtService;
-use melodot_runtime::{self, NodeBlock as Block, RuntimeApi};
+use melo_das_db::offchain::OffchainKv;
+use melo_das_network::{default as create_das_network, DasNetwork};
+use melo_das_primitives::KZG;
+use melo_daser::{
+	start_tx_pool_listener, DasNetworkOperations, DasNetworkServiceWrapper, SamplingClient,
+	TPListenerParams,
+};
+use melodot_runtime::{self, Header, NodeBlock as Block, RuntimeApi};
 use sc_client_api::BlockBackend;
 use sc_consensus_babe::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
@@ -68,7 +71,8 @@ pub fn new_partial(
 			),
 			grandpa::SharedVoterState,
 			Option<Telemetry>,
-			Receiver<ServicetoWorkerMsg>,
+			SamplingClient<Header, OffchainKv, DasNetworkServiceWrapper>,
+			DasNetwork,
 		),
 	>,
 	ServiceError,
@@ -150,7 +154,16 @@ pub fn new_partial(
 
 	let import_setup = (babe_block_import, grandpa_link, babe_link);
 
-	let (dht_sender, dht_receiver) = new_workgroup();
+	let (das_network_service, das_networker) =
+		create_das_network().map_err(|e| sc_service::Error::from(e.to_string()))?;
+
+	let db = OffchainKv::default();
+	let kzg = KZG::default_embedded();
+
+	let das_network_warpper = DasNetworkServiceWrapper::new(das_network_service.into(), kzg.into());
+
+	let das_client: SamplingClient<Header, OffchainKv, DasNetworkServiceWrapper> =
+		SamplingClient::new(das_network_warpper.clone(), db);
 
 	let (rpc_extensions_builder, rpc_setup) = {
 		let (_, grandpa_link, _) = &import_setup;
@@ -171,7 +184,7 @@ pub fn new_partial(
 		let keystore = keystore_container.keystore();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		let dht_service = new_service(dht_sender.clone()) as DasDhtService;
+		// let dht_service = new_service(dht_sender.clone()) as DasDhtService;
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = melo_rpc::FullDeps {
@@ -191,7 +204,7 @@ pub fn new_partial(
 					subscription_executor,
 					finality_provider: finality_proof_provider.clone(),
 				},
-				dht_service: dht_service.clone(),
+				das_network: das_network_warpper.clone().into(),
 			};
 
 			melo_rpc::create_full(deps).map_err(Into::into)
@@ -208,7 +221,14 @@ pub fn new_partial(
 		import_queue,
 		keystore_container,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, telemetry, dht_receiver),
+		other: (
+			rpc_extensions_builder,
+			import_setup,
+			rpc_setup,
+			telemetry,
+			das_client,
+			das_networker,
+		),
 	})
 }
 
@@ -222,7 +242,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		import_queue,
 		keystore_container,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, _, mut telemetry, dht_receiver),
+		other: (rpc_extensions_builder, import_setup, _, mut telemetry, das_client, das_networker),
 	} = new_partial(&config)?;
 
 	let grandpa_protocol_name = grandpa::protocol_standard_name(
@@ -274,35 +294,20 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	task_manager.spawn_essential_handle().spawn_blocking(
-		"new-blob-worker",
+		"tx_pool_listener",
 		None,
-		start_tx_pool_listener(TPListenerParams {
-			client: client.clone(),
-			network: network.clone(),
-			transaction_pool: transaction_pool.clone(),
-			backend: backend.clone(),
-		}),
+		start_tx_pool_listener(TPListenerParams::new(
+			client.clone(),
+			das_client.into(),
+			transaction_pool.clone(),
+		)),
 	);
 
-	let dht_event_stream = network.event_stream("network-das").filter_map(|e| async move {
-		match e {
-			Event::Dht(e) => Some(e),
-			_ => None,
-		}
-	});
-
-	let dht_worker = new_worker(
-		client.clone(),
-		network.clone(),
-		backend.clone(),
-		dht_receiver,
-		Box::pin(dht_event_stream),
-	)
-	.expect("Failed to create DHT worker");
-
-	task_manager
-		.spawn_essential_handle()
-		.spawn("dht-worker", None, dht_worker.run(|| {}));
+	task_manager.spawn_essential_handle().spawn_blocking(
+		"das_networker",
+		None,
+		das_networker.run(),
+	);
 
 	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		network: network.clone(),

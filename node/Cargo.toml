@@ -93,6 +93,9 @@ melo-das-network = { version = "0.0.1", path = "../crates/das-network" }
 melo-das-network-protocol = { version = "0.0.1", path = "../crates/das-network/protocol" }
 melo-core-primitives = { version = "0.1.0", path = "../crates/core-primitives" }
 melo-das-rpc = { version = "0.0.1", path = "../crates/das-rpc" }
+melo-das-db = { version = "0.0.1", path = "../crates/das-db" }
+melo-daser = { version = "0.0.1", path = "../crates/daser" }
+melo-das-primitives = { version = "0.1.0", path = "../crates/das-primitives" }
 
 # CLI-specific dependencies
 try-runtime-cli = { optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

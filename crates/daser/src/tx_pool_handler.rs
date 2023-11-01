@@ -12,19 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Arc, DasKv, DaserNetworker, Sampling, SamplingClient, SAMPLES_PER_BLOB};
+use crate::{Arc, DasKv, DasNetworkOperations, Sampling, SamplingClient, SAMPLES_PER_BLOB};
 use futures::StreamExt;
 use melo_core_primitives::{config::BLOCK_SAMPLE_LIMIT, traits::Extractor, Encode};
 use melo_das_primitives::Segment;
 use sc_client_api::{client::BlockchainEvents, HeaderBackend};
-use sc_consensus::block_import::BlockImport;
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 use std::{collections::HashMap, marker::PhantomData};
 
 use futures::stream::FuturesUnordered;
-use melo_core_primitives::traits::ExtendedHeader;
+use melo_core_primitives::traits::HeaderWithCommitment;
 use sp_api::HeaderT;
 
 // Define a constant for logging with a target string
@@ -32,42 +31,61 @@ const LOG_TARGET: &str = "tx_pool_listener";
 
 /// Parameters required for the transaction pool listener.
 #[derive(Clone)]
-pub struct TPListenerParams<Client, H, TP, DB, D: DaserNetworker + std::marker::Sync> {
+pub struct TPListenerParams<Client, H, TP, DB, D: DasNetworkOperations + std::marker::Sync> {
 	pub client: Arc<Client>,
 	pub das_client: Arc<SamplingClient<H, DB, D>>,
 	pub transaction_pool: Arc<TP>,
 	_phantom: PhantomData<DB>,
 }
 
+impl<Client, H, TP, DB, D: DasNetworkOperations + std::marker::Sync>
+	TPListenerParams<Client, H, TP, DB, D>
+{
+	pub fn new(
+		client: Arc<Client>,
+		das_client: Arc<SamplingClient<H, DB, D>>,
+		transaction_pool: Arc<TP>,
+	) -> Self {
+		Self { client, das_client, transaction_pool, _phantom: PhantomData }
+	}
+}
+
 /// Main function responsible for starting the transaction pool listener.
 /// It monitors the transaction pool for incoming transactions and processes them accordingly.
-pub async fn start_tx_pool_listener<Client, TP, B, DB, H, D: DaserNetworker + std::marker::Sync>(
+pub async fn start_tx_pool_listener<
+	Client,
+	TP,
+	B,
+	DB,
+	H,
+	D: DasNetworkOperations + std::marker::Sync,
+>(
 	TPListenerParams { client, das_client, transaction_pool, _phantom }: TPListenerParams<
 		Client,
 		H,
 		TP,
 		DB,
 		D,
-	>, 
+	>,
 ) where
 	TP: TransactionPool<Block = B> + 'static,
 	B: BlockT + Send + Sync + 'static,
-	<B as BlockT>::Header: ExtendedHeader,
+	<B as BlockT>::Header: HeaderWithCommitment,
 	Client: ProvideRuntimeApi<B>
 		+ HeaderBackend<B>
 		+ BlockchainEvents<B>
-		+ BlockImport<B, Error = String>
+		// + BlockImport<B, Error = sp_consensus::Error>
 		+ 'static,
 	Client::Api: Extractor<B>,
 	DB: DasKv + 'static + Send + Sync,
-	H: HeaderT + ExtendedHeader + Send + Sync + 'static,
+	H: HeaderWithCommitment + Send + Sync + 'static,
 	NumberFor<B>: Into<u32>,
 	// D: DaserNetworker + std::marker::Sync
 {
-	tracing::info!(
-		target: LOG_TARGET,
-		"Starting transaction pool listener.",
-	);
+	// tracing::info!(
+	// 	target: LOG_TARGET,
+	// 	"Starting transaction pool listener.",
+	// );
 
 	let mut import_notification_stream = transaction_pool.import_notification_stream();
 	let mut new_best_block_stream = client.import_notification_stream();
@@ -133,7 +151,7 @@ pub async fn start_tx_pool_listener<Client, TP, B, DB, H, D: DaserNetworker + st
 				};
 
 				if !is_availability {
-					tracing::debug!(target: LOG_TARGET, "Block {} is not available", header.number());
+					tracing::debug!(target: LOG_TARGET, "Block {} is not available", HeaderT::number(&header));
 					return
 				}
 
@@ -143,7 +161,6 @@ pub async fn start_tx_pool_listener<Client, TP, B, DB, H, D: DaserNetworker + st
 						let row =
 							segments[row_index * SAMPLES_PER_BLOB..(row_index + 1) * SAMPLES_PER_BLOB].to_vec();
 						let recovered_row = match das_client.network.recovery_order_row_from_segments(&row) {
-                        // recovery_order_row_from_segments(&row, &das_client.network.kzg) {
 							Ok(recovered) => recovered,
 							Err(err) => {
 								tracing::error!("Error in recovery_row_from_segments: {:?}", err);
@@ -171,7 +188,7 @@ pub async fn start_tx_pool_listener<Client, TP, B, DB, H, D: DaserNetworker + st
 					match col_result {
 						Some(col) => {
 							match das_client.network.extend_segments_col(&col) {
-                            // extend_segments_col(&das_client.network.kzg.get_fs(), &col) {
+							// extend_segments_col(&das_client.network.kzg.get_fs(), &col) {
 								Ok(col_ext) => {
 									// Broadcast the extended data to the network
 									let push_segments: Vec<Segment> = col_ext[commitments.len()..].to_vec();
@@ -193,7 +210,7 @@ pub async fn start_tx_pool_listener<Client, TP, B, DB, H, D: DaserNetworker + st
 			// TODO: Sync progress from runtime to eliminate uncertainty in local sampling
 			Some(notification) = finality_notification_stream.next() => {
 				let header = notification.header;
-				let block_number = *header.number();
+				let block_number = *HeaderT::number(&header);
 				let latest_sampled_block = das_client.last_at().await;
 
 				let to_block = std::cmp::min(

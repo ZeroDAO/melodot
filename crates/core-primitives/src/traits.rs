@@ -13,7 +13,8 @@
 // limitations under the License.
 
 use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
-use codec::Encode;
+use codec::{Encode, Decode};
+use sp_runtime::traits::{Hash, MaybeSerialize};
 pub trait ExtendedHeader {
 	/// Header number.
 	type Number;
@@ -55,18 +56,35 @@ pub trait HeaderCommitList {
 	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>);
 }
 
-// sp_api::decl_runtime_apis! {
-// 	/// Extracts the `data` field from some types of extrinsics.
-// 	pub trait DaserApi<Number> where
-// 		Number: Encode + Decode,
-// 	{
-// 		fn extract(
-// 			extrinsic: &Vec<u8>,
-// 		) -> Option<Vec<SubmitDataParams>>;
+pub trait HeaderWithCommitment: MaybeSerialize + Encode + Sized {
+	/// Header number.
+	type Number: PartialOrd + Send + Encode + Decode + Copy;
 
-// 		fn sampled_at_last_block() -> Number;
-// 	}
-// }
+	/// Header hash type
+	type Hash: Encode;
+
+	/// Hashing algorithm
+	type Hashing: Hash<Output = Self::Hash>;
+
+	/// Returns the header extension.
+	fn extension(&self) -> &HeaderExtension;
+
+	/// Returns the commitments.
+	fn commitments(&self) -> Option<Vec<KZGCommitment>>;
+
+	/// Returns the commitments set bytes.
+	fn commitments_bytes(&self) -> &[u8];
+
+	/// Returns the number of columns.
+	fn col_num(&self) -> Option<u32>;
+
+	fn number(&self) -> &Self::Number;
+
+	/// Returns the hash of the header.
+	fn hash(&self) -> Self::Hash {
+		<Self::Hashing as Hash>::hash_of(self)
+	}
+}
 
 sp_api::decl_runtime_apis! {
 	/// Extracts the `data` field from some types of extrinsics.

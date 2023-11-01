@@ -20,13 +20,14 @@ use subxt::{
 };
 use subxt_signer::sr25519::dev::{self};
 use subxt_signer::sr25519::Keypair;
+use anyhow::Result;
 
 // Load the runtime metadata from the provided path.
 #[subxt::subxt(runtime_metadata_path = "melodot_metadata.scale")]
 pub mod melodot {}
 
 pub mod header;
-use header::MelodotHeader;
+pub use header::MelodotHeader;
 
 mod log;
 pub use crate::log::init_logger;
@@ -50,7 +51,7 @@ impl Config for MeloConfig {
     type Address = Address;
     type Signature = Signature;
     type Hasher = BlakeTwo256;
-    type Header = MelodotHeader<u32, BlakeTwo256>;
+    type Header = MelodotHeader;
     type ExtrinsicParams = <PolkadotConfig as Config>::ExtrinsicParams;
 }
 
@@ -88,12 +89,18 @@ impl ClientBuilder {
     }
 
     /// Asynchronously build and return a `Client` instance.
-    pub async fn build(&self) -> Result<Client, Box<dyn std::error::Error>> {
+    pub async fn build(&self) -> Result<Client> {
         let api = OnlineClient::<MeloConfig>::from_url(&self.url).await?;
         Ok(Client {
             api,
             signer: self.signer.clone(),
         })
+    }
+
+    /// Set the URL for the API client.
+    pub fn set_url(mut self, url: &str) -> Self {
+        self.url = url.to_string();
+        self
     }
 }
 

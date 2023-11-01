@@ -22,10 +22,12 @@ tokio = { version = "1.21.2" }
 futures = "0.3.21"
 async-trait = "0.1.56"
 itertools = "0.10.5"
+anyhow = "1.0.66"
 
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false}
 
 sc-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-consensus = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

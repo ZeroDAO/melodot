@@ -38,13 +38,17 @@ use scale_info::TypeInfo;
 use sp_application_crypto::RuntimeAppPublic;
 use sp_runtime::{
 	offchain::storage::{MutateStorageError, StorageRetrievalError, StorageValueRef},
-	traits::AtLeast32BitUnsigned,
+	traits::{AtLeast32BitUnsigned, Saturating},
 	Permill, RuntimeDebug,
 };
 use sp_std::prelude::*;
 
 use melo_core_primitives::{
-	confidence::ConfidenceId, extension::AppLookup, traits::HeaderCommitList, SidecarMetadata,
+	confidence::{ConfidenceId, ConfidenceManager},
+	config::{BLOCK_SAMPLE_LIMIT, MAX_UNAVAILABLE_BLOCK_INTERVAL},
+	extension::AppLookup,
+	traits::HeaderCommitList,
+	SidecarMetadata,
 };
 use melo_das_db::offchain::OffchainKv;
 use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
@@ -194,11 +198,6 @@ pub mod pallet {
 		WeakBoundedVec<BlobMetadata<T>, T::MaxKeys>,
 		ValueQuery,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn is_availability)]
-	pub(super) type IsAvailability<T: Config> =
-		StorageMap<_, Twox64Concat, BlockNumberFor<T>, bool, ValueQuery>;
 
 	/// Contains the keys for this pallet's use.
 	#[pallet::storage]
@@ -457,7 +456,7 @@ pub mod pallet {
 						)
 					}
 				}
-			//
+			// TODO - 报告数据不可用区块
 			} else {
 				log::trace!(
 					target: "runtime::melo-store",
@@ -514,7 +513,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// # Arguments
 	/// * `at_block` - The block number to check for data unavailability.
-	pub fn get_unavailability_data(at_block: BlockNumberFor<T>) -> Vec<u32> {
+	pub fn get_unavailability_apps(at_block: BlockNumberFor<T>) -> Vec<u32> {
 		Metadata::<T>::get(at_block)
 			.iter()
 			.enumerate()
@@ -533,6 +532,43 @@ impl<T: Config> Pallet<T> {
 				}
 			})
 			.collect::<Vec<_>>()
+	}
+
+	pub fn fetch_unavailability_blocks() -> Vec<BlockNumberFor<T>> {
+		let now = <frame_system::Pallet<T>>::block_number();
+		let mut db = OffchainKv::new(Some(DB_PREFIX));
+
+		let last: BlockNumberFor<T> =
+			match ConfidenceManager::new(db.clone()).get_last_processed_block() {
+				Some(block) => block.into(),
+				None => now.saturating_sub(MAX_UNAVAILABLE_BLOCK_INTERVAL.into()),
+			};
+
+		let mut unavail_blocks = vec![];
+
+		for i in 0..BLOCK_SAMPLE_LIMIT {
+			let process_block = last + i.into();
+			if process_block >= now.into() {
+				break
+			}
+
+			let maybe_avail = {
+				let block_hash = <frame_system::Pallet<T>>::block_hash(process_block);
+				match ConfidenceId::block_confidence(block_hash.as_ref()).get_confidence(&mut db) {
+					Some(confidence) => Some(confidence.is_availability(80, 95)),
+					None => None,
+				}
+			};
+
+			if let Some(avail) = maybe_avail {
+				if !avail {
+					unavail_blocks.push(process_block)
+				}
+			} else {
+				break
+			}
+		}
+		unavail_blocks
 	}
 
 	/// Fetch the list of commitments and app lookups at a given block.
@@ -573,7 +609,7 @@ impl<T: Config> Pallet<T> {
 					return None
 				}
 				let at_block = now - gap.into();
-				let index_set = Self::get_unavailability_data(at_block);
+				let index_set = Self::get_unavailability_apps(at_block);
 				if !index_set.is_empty() {
 					Some(Self::local_authority_keys().flat_map(move |(authority_index, key)| {
 						Some(Self::send_single_unavailability_report(

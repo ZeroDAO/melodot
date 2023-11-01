@@ -12,19 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use meloxt::MeloConfig;
+use config::parse_args;
+use melo_das_network::{DasNetworkConfig, DasNetworkDiscovery};
+use melo_das_primitives::KZG;
+use melo_daser::DasNetworkServiceWrapper;
+use meloxt::{ClientBuilder, MeloConfig, MelodotHeader};
 use std::time::Instant;
 use subxt::OnlineClient;
 use tokio::sync::mpsc;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
-use melo_das_db::{DasKv, Sqlite::SqliteDasDb};
-use melo_das_network::{Service as DasNetworkService, DasNetworkDiscovery, DasNetworkConfig};
-// use melo_core_primitives::{config};
+use melo_das_db::sqlite::SqliteDasDb;
 
-mod finalized_headers;
 mod config;
+mod finalized_headers;
+
+use finalized_headers::finalized_headers;
+use melo_core_primitives::traits::HeaderWithCommitment;
 
 pub async fn run(config: &config::Config) -> anyhow::Result<()> {
 	let rpc_url = config.rpc_url.clone();
@@ -34,30 +39,33 @@ pub async fn run(config: &config::Config) -> anyhow::Result<()> {
 
 	tracing::subscriber::set_global_default(subscriber)?;
 
-	let rpc_client = OnlineClient::<MeloConfig>::connect(rpc_url).await?;
+	let rpc_client = match ClientBuilder::default().set_url(&rpc_url).build().await {
+		Ok(client) => client,
+		Err(e) => return Err(e),
+	};
+	
+	let (network_service, network_worker) = melo_das_network::default()?;
 
-	let mut metric_registry = Registry::default();
-	let libp2p_metrics = LibP2PMetrics::new(&mut metric_registry);
-
-	let (network_worker, network_service) = melo_das_network::default(libp2p_metrics);
-
-	if let Err(e) = network_service.init() {
+	if let Err(e) = network_service.init(&DasNetworkConfig::default()).await {
 		tracing::error!("Failed to initiate network discovery: {:?}", e);
-		return Err(e);
+		return Err(e)
 	}
 
+	let network_service_wapper =
+		DasNetworkServiceWrapper::new(network_service.into(), KZG::default_embedded().into());
+
 	// Start the network worker
-	tokio::spawn(network_worker.run(&config.network_config));
+	tokio::spawn(network_worker.run());
 
 	let (message_tx, _message_rx) = mpsc::channel(100);
 	let (error_tx, mut error_rx) = mpsc::channel(10);
 
 	// Start listening for finalized headers
-	tokio::spawn(finalized_headers(
-		rpc_client.clone(),
+	tokio::spawn(finalized_headers::<MelodotHeader>(
+		rpc_client.api,
 		message_tx,
 		error_tx,
-		network_service,
+		network_service_wapper,
 		database,
 	));
 
@@ -78,6 +86,6 @@ pub fn main() {
 		.enable_all()
 		.build()
 		.unwrap()
-		.block_on(run(config))
+		.block_on(run(&config))
 		.unwrap();
 }

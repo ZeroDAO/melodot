@@ -9,17 +9,10 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use melo_core_primitives::traits::AppDataApi;
-use melo_das_network_protocol::DasDht;
+use melo_daser::DasNetworkOperations;
 pub use node_primitives::Signature;
 
-use melodot_runtime::{
-	AccountId,
-	Balance,
-	BlockNumber,
-	Hash,
-	Index,
-	NodeBlock as Block,
-};
+use melodot_runtime::{AccountId, Balance, BlockNumber, Hash, Index, NodeBlock as Block};
 
 use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
@@ -62,7 +55,7 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, DDS> {
+pub struct FullDeps<C, P, SC, B, D> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -77,13 +70,13 @@ pub struct FullDeps<C, P, SC, B, DDS> {
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
-	///
-	pub dht_service: DDS,
+	/// DAS network service.
+	pub das_network: Arc<D>,
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, DDS>(
-	deps: FullDeps<C, P, SC, B, DDS>,
+pub fn create_full<C, P, SC, B, D>(
+	deps: FullDeps<C, P, SC, B, D>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
@@ -103,8 +96,8 @@ where
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	DDS: DasDht + Sync + Send + 'static + Clone,
 	P: TransactionPool<Block = Block> + Sync + Send + 'static,
+	D: DasNetworkOperations + Sync + Send + 'static + Clone,
 {
 	use melo_das_rpc::{Das, DasApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
@@ -122,7 +115,7 @@ where
 		select_chain,
 		babe,
 		grandpa,
-		dht_service,
+		das_network,
 	} = deps;
 
 	let BabeDeps { babe_worker_handle, keystore } = babe;
@@ -155,7 +148,7 @@ where
 			.into_rpc(),
 	)?;
 
-	module.merge(Das::new(client.clone(), pool, dht_service).into_rpc())?;
+	module.merge(Das::new(client.clone(), pool, das_network).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed

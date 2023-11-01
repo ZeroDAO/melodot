@@ -15,13 +15,12 @@
 use codec::Encode;
 use itertools::Itertools;
 use melo_erasure_coding::bytes_to_segments;
-use std::error::Error;
 
 use crate::{
 	sample_key, sample_key_from_block, Arc, KZGCommitment, Position, Sample, Segment, SegmentData,
-	SAMPLES_PER_BLOB,
+	SAMPLES_PER_BLOB, Ok, Result, Context, anyhow
 };
-use melo_core_primitives::{traits::ExtendedHeader, Decode};
+use melo_core_primitives::{traits::HeaderWithCommitment, Decode};
 use melo_das_network::{KademliaKey, Service as DasNetworkService};
 use melo_das_primitives::KZG;
 use melo_erasure_coding::{
@@ -31,12 +30,12 @@ use melo_erasure_coding::{
 use sp_api::HeaderT;
 
 #[async_trait::async_trait]
-pub trait DaserNetworker {
+pub trait DasNetworkOperations {
 	async fn put_ext_segments<Header>(
 		&self,
 		segments: &[Segment],
 		header: &Header,
-	) -> Result<(), Box<dyn std::error::Error>>
+	) -> Result<()>
 	where
 		Header: HeaderT;
 
@@ -45,14 +44,14 @@ pub trait DaserNetworker {
 		segments: &[Segment],
 		app_id: u32,
 		nonce: u32,
-	) -> Result<(), Box<dyn std::error::Error>>;
+	) -> Result<()>;
 
 	async fn put_bytes(
 		&self,
 		bytes: &[u8],
 		app_id: u32,
 		nonce: u32,
-	) -> Result<(), Box<dyn std::error::Error>>;
+	) -> Result<()>;
 
 	async fn fetch_segment_data(
 		&self,
@@ -73,26 +72,27 @@ pub trait DaserNetworker {
 	async fn fetch_block<Header>(
 		&self,
 		header: &Header,
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool), Box<dyn Error>>
+	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
 	where
-		Header: ExtendedHeader + HeaderT;
+		Header: HeaderWithCommitment + HeaderT;
 
-	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>, String>;
+	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>>;
 
 	fn recovery_order_row_from_segments(
 		&self,
 		segments: &Vec<Option<Segment>>,
-	) -> Result<Vec<Segment>, String>;
+	) -> Result<Vec<Segment>>;
 }
 
-pub struct NetworkDas {
+#[derive(Clone, Debug)]
+pub struct DasNetworkServiceWrapper {
 	network: Arc<DasNetworkService>,
 	pub kzg: Arc<KZG>,
 }
 
-impl NetworkDas {
+impl DasNetworkServiceWrapper {
 	pub fn new(network: Arc<DasNetworkService>, kzg: Arc<KZG>) -> Self {
-		NetworkDas { network, kzg }
+		DasNetworkServiceWrapper { network, kzg }
 	}
 
 	async fn fetch_value(
@@ -105,9 +105,9 @@ impl NetworkDas {
 		self.verify_values(&values, commitment, position).map(|segment| segment.content)
 	}
 
-	pub fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>, Box<dyn Error>>
+	pub fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>>
 	where
-		Header: ExtendedHeader + HeaderT,
+		Header: HeaderWithCommitment + HeaderT,
 	{
 		let keys = header
 			.extension()
@@ -135,7 +135,7 @@ impl NetworkDas {
 		values
 			.iter()
 			.filter_map(|value| {
-				if let Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
+				if let core::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
 					let segment = Segment { position: position.clone(), content: segment_data };
 					if segment
 						.checked()
@@ -153,23 +153,23 @@ impl NetworkDas {
 }
 
 #[async_trait::async_trait]
-impl DaserNetworker for NetworkDas {
-	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>, String> {
-		extend(&self.kzg.get_fs(), segments)
+impl DasNetworkOperations for DasNetworkServiceWrapper {
+	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>> {
+		extend(&self.kzg.get_fs(), segments).map_err(|e| anyhow!(e))
 	}
 
 	fn recovery_order_row_from_segments(
 		&self,
 		segments: &Vec<Option<Segment>>,
-	) -> Result<Vec<Segment>, String> {
-		recovery(segments, &self.kzg)
+	) -> Result<Vec<Segment>> {
+		recovery(segments, &self.kzg).map_err(|e| anyhow!(e))
 	}
 
 	async fn put_ext_segments<Header>(
 		&self,
 		segments: &[Segment],
 		header: &Header,
-	) -> Result<(), Box<dyn std::error::Error>>
+	) -> Result<()>
 	where
 		Header: HeaderT,
 	{
@@ -193,7 +193,7 @@ impl DaserNetworker for NetworkDas {
 		segments: &[Segment],
 		app_id: u32,
 		nonce: u32,
-	) -> Result<(), Box<dyn std::error::Error>> {
+	) -> Result<()> {
 		let values = segments
 			.iter()
 			.map(|segment| {
@@ -211,8 +211,8 @@ impl DaserNetworker for NetworkDas {
 		bytes: &[u8],
 		app_id: u32,
 		nonce: u32,
-	) -> Result<(), Box<dyn std::error::Error>> {
-		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, &self.kzg)?;
+	) -> Result<()> {
+		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, &self.kzg).map_err(|e| anyhow!(e))?;
 		self.put_app_segments(&segments, app_id, nonce).await
 	}
 
@@ -241,12 +241,12 @@ impl DaserNetworker for NetworkDas {
 	async fn fetch_block<Header>(
 		&self,
 		header: &Header,
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool), Box<dyn Error>>
+	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
 	where
-		Header: ExtendedHeader + HeaderT,
+		Header: HeaderWithCommitment + HeaderT,
 	{
-		let commitments =
-			header.commitments().ok_or_else(|| "Header does not contain commitments.")?;
+		let commitments = 
+			header.commitments().context("Header does not contain commitments.")?;
 		let keys = self.prepare_keys(header)?;
 
 		let values_set = self.network.get_values(&keys).await?;
