@@ -3,18 +3,19 @@
 #![warn(unused_extern_crates)]
 use futures::prelude::*;
 use grandpa::SharedVoterState;
-use melo_das_db::offchain::OffchainKv;
+use melo_das_db::offchain_outside::OffchainKvOutside;
 use melo_das_network::{default as create_das_network, DasNetwork};
 use melo_das_primitives::KZG;
 use melo_daser::{
-	start_tx_pool_listener, DasNetworkOperations, DasNetworkServiceWrapper, SamplingClient,
+	start_tx_pool_listener, DasNetworkServiceWrapper, SamplingClient,
 	TPListenerParams,
 };
 use melodot_runtime::{self, Header, NodeBlock as Block, RuntimeApi};
-use sc_client_api::BlockBackend;
+use sc_client_api::{Backend, BlockBackend};
 use sc_consensus_babe::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream};
+use sc_offchain::OffchainDb;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use std::{sync::Arc, time::Duration};
@@ -49,6 +50,8 @@ type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
 	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
+type DbType = OffchainKvOutside<Block, FullBackend>;
+
 #[allow(clippy::type_complexity)]
 pub fn new_partial(
 	config: &Configuration,
@@ -71,7 +74,7 @@ pub fn new_partial(
 			),
 			grandpa::SharedVoterState,
 			Option<Telemetry>,
-			SamplingClient<Header, OffchainKv, DasNetworkServiceWrapper>,
+			SamplingClient<Header, OffchainKvOutside<Block, FullBackend>, DasNetworkServiceWrapper>,
 			DasNetwork,
 		),
 	>,
@@ -157,12 +160,19 @@ pub fn new_partial(
 	let (das_network_service, das_networker) =
 		create_das_network().map_err(|e| sc_service::Error::from(e.to_string()))?;
 
-	let db = OffchainKv::default();
+	// Initialize the off-chain database using the backend's off-chain storage.
+	// If unavailable, log a warning and return without starting the listener.
+	let offchain_db = backend
+		.offchain_storage()
+		.map(OffchainDb::new)
+		.ok_or_else(|| sc_service::Error::from("No offchain storage available"))?;
+
+	let db: DbType = OffchainKvOutside::new(offchain_db, None);
 	let kzg = KZG::default_embedded();
 
 	let das_network_warpper = DasNetworkServiceWrapper::new(das_network_service.into(), kzg.into());
 
-	let das_client: SamplingClient<Header, OffchainKv, DasNetworkServiceWrapper> =
+	let das_client: SamplingClient<Header, DbType, DasNetworkServiceWrapper> =
 		SamplingClient::new(das_network_warpper.clone(), db);
 
 	let (rpc_extensions_builder, rpc_setup) = {
@@ -183,8 +193,6 @@ pub fn new_partial(
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.keystore();
 		let chain_spec = config.chain_spec.cloned_box();
-
-		// let dht_service = new_service(dht_sender.clone()) as DasDhtService;
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = melo_rpc::FullDeps {

@@ -161,6 +161,10 @@ impl ConfidenceSample for Confidence {
 		let mut rng = rand::thread_rng();
 		let mut positions = Vec::with_capacity(n);
 
+		if self.commitments.is_empty() {
+			return
+		}
+
 		while positions.len() < n {
 			let x = rng.gen_range(0..SAMPLES_PER_BLOB) as u32;
 			let y = rng.gen_range(0..self.commitments.len() as u32);

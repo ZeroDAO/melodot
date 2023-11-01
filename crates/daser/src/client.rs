@@ -142,25 +142,27 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		let id = ConfidenceId::block_confidence(&header.hash().encode());
 		let commitments = header.commitments().context("Commitments not found in the header")?;
 
-		let mut confidence = Confidence { samples: Vec::new(), commitments: Vec::new() };
+		if commitments.len() > 0 {
+			let mut confidence = Confidence { samples: Vec::new(), commitments: Vec::new() };
 
-		confidence.set_sample(SAMPLES_PER_BLOB);
-
-		let apps: Result<Vec<(u32, u32)>> = confidence
-			.samples
-			.iter()
-			.map(|sample| {
-				header
-					.extension()
-					.get_lookup(sample.position.y)
-					.context("AppLookup not found for given sample position")
-					.map(|app_lookup| (app_lookup.app_id, app_lookup.nonce))
-			})
-			.collect();
-
-		let apps = apps?;
-
-		self.sample(&id, &mut confidence, &apps, &commitments).await?;
+			confidence.set_sample(SAMPLES_PER_BLOB);
+	
+			let apps: Result<Vec<(u32, u32)>> = confidence
+				.samples
+				.iter()
+				.map(|sample| {
+					header
+						.extension()
+						.get_lookup(sample.position.y)
+						.context("AppLookup not found for given sample position")
+						.map(|app_lookup| (app_lookup.app_id, app_lookup.nonce))
+				})
+				.collect();
+	
+			let apps = apps?;
+	
+			self.sample(&id, &mut confidence, &apps, &commitments).await?;
+		}
 
 		let at = header.number();
 		self.set_last_at::<<Header as HeaderWithCommitment>::Number>(*at).await;
