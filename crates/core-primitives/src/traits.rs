@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use core::fmt::Display;
+
 use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
 use codec::{Encode, Decode};
 use sp_runtime::traits::{Hash, MaybeSerialize};
@@ -58,7 +60,7 @@ pub trait HeaderCommitList {
 
 pub trait HeaderWithCommitment: MaybeSerialize + Encode + Sized {
 	/// Header number.
-	type Number: PartialOrd + Send + Encode + Decode + Copy;
+	type Number: PartialOrd + Send + Encode + Decode + Copy + Display + Ord;
 
 	/// Header hash type
 	type Hash: Encode;

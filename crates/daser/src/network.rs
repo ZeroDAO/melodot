@@ -20,7 +20,7 @@ use crate::{
 	sample_key, sample_key_from_block, Arc, KZGCommitment, Position, Sample, Segment, SegmentData,
 	SAMPLES_PER_BLOB, Ok, Result, Context, anyhow
 };
-use melo_core_primitives::{traits::HeaderWithCommitment, Decode};
+use melo_core_primitives::{traits::HeaderWithCommitment, Decode, config::FIELD_ELEMENTS_PER_SEGMENT};
 use melo_das_network::{KademliaKey, Service as DasNetworkService};
 use melo_das_primitives::KZG;
 use melo_erasure_coding::{
@@ -212,7 +212,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		app_id: u32,
 		nonce: u32,
 	) -> Result<()> {
-		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, &self.kzg).map_err(|e| anyhow!(e))?;
+		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT,&self.kzg).map_err(|e| anyhow!(e))?;
 		self.put_app_segments(&segments, app_id, nonce).await
 	}
 

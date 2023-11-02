@@ -13,7 +13,8 @@
 // limitations under the License.
 pub use log::warn;
 pub use melo_core_primitives::{
-	confidence::{sample_key, sample_key_from_block, Confidence, ConfidenceId, Sample, SAMPLES_PER_BLOB},
+	config::SAMPLES_PER_BLOB,
+	confidence::{sample_key, sample_key_from_block, Confidence, ConfidenceId, Sample},
 	Header, HeaderExtension,
 };
 pub use melo_das_db::traits::DasKv;

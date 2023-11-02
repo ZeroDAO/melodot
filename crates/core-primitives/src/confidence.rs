@@ -21,12 +21,11 @@ use rand::Rng;
 use sp_arithmetic::{traits::Saturating, Permill};
 
 use melo_das_db::traits::DasKv;
-use melo_das_primitives::{config::FIELD_ELEMENTS_PER_BLOB, Position, Segment, KZG};
+use melo_das_primitives::{Position, Segment, KZG};
 
-const CHUNK_COUNT: usize = 2 ^ 4;
+use crate::config::{FIELD_ELEMENTS_PER_SEGMENT, SAMPLES_PER_BLOB};
+
 const LATEST_PROCESSED_BLOCK_KEY: &[u8] = b"latestprocessedblock";
-
-pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / CHUNK_COUNT;
 
 #[cfg(feature = "std")]
 pub trait ConfidenceSample {
@@ -151,7 +150,7 @@ impl Confidence {
 			return Ok(false)
 		}
 		let commitment = self.commitments[position.y as usize];
-		segment.checked()?.verify(&kzg, &commitment, CHUNK_COUNT)
+		segment.checked()?.verify(&kzg, &commitment, FIELD_ELEMENTS_PER_SEGMENT)
 	}
 }
 

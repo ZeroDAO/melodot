@@ -16,6 +16,8 @@
 //! This is an extension of the Substrate default header
 //! https://github.com/paritytech/substrate/blob/master/primitives/runtime/src/generic/header.rs
 
+use core::fmt::Display;
+
 use crate::Vec;
 
 pub use codec::{Codec, Decode, Encode};
@@ -257,7 +259,8 @@ where
 		+ Codec
 		+ Into<U256>
 		+ TryFrom<U256>
-		+ PartialOrd,
+		+ PartialOrd
+		+ Display,
 	Hash: HashT,
 	Hash::Output:
 		Default + sp_std::hash::Hash + Copy + Member + MaybeDisplay + SimpleBitOps + Codec,

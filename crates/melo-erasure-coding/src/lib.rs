@@ -127,6 +127,7 @@ pub fn bytes_to_blobs(bytes: &[u8], field_elements_per_blob: usize) -> Result<Ve
 pub fn bytes_to_segments(
 	bytes: &[u8],
 	field_elements_per_blob: usize,
+	field_elements_per_segment: usize,
 	kzg: &KZG,
 ) -> Result<Vec<melo_das_primitives::Segment>, String> {
 	if bytes.is_empty() {
@@ -140,7 +141,7 @@ pub fn bytes_to_segments(
 			let ploy = Blob::try_from_bytes_pad(chunk, bytes_per_blob)
 				.expect("Failed to convert bytes to Blob; qed")
 				.to_poly();
-			poly_to_segment_vec(&ploy, kzg, y, field_elements_per_blob)
+			poly_to_segment_vec(&ploy, kzg, y, field_elements_per_segment)
 				.expect("Failed to convert bytes to Blob; qed")
 		})
 		.collect::<Vec<_>>();

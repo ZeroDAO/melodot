@@ -14,6 +14,7 @@
 
 use crate::{Arc, DasKv, DasNetworkOperations, Sampling, SamplingClient, SAMPLES_PER_BLOB};
 use futures::StreamExt;
+use log::info;
 use melo_core_primitives::{config::BLOCK_SAMPLE_LIMIT, traits::Extractor, Encode};
 use melo_das_primitives::Segment;
 use sc_client_api::{client::BlockchainEvents, HeaderBackend};
@@ -82,10 +83,7 @@ pub async fn start_tx_pool_listener<
 	NumberFor<B>: Into<u32>,
 	// D: DaserNetworker + std::marker::Sync
 {
-	// tracing::info!(
-	// 	target: LOG_TARGET,
-	// 	"Starting transaction pool listener.",
-	// );
+	info!("🚀 Starting transaction pool listener.");
 
 	let mut import_notification_stream = transaction_pool.import_notification_stream();
 	let mut new_best_block_stream = client.import_notification_stream();
@@ -140,7 +138,19 @@ pub async fn start_tx_pool_listener<
 			Some(notification) = new_best_block_stream.next() => {
 				if !notification.is_new_best {return};
 				let header = notification.header;
-				let commitments = header.commitments().unwrap_or(vec![]);
+				let block_number = HeaderT::number(&header);
+
+				let commitments = if let Some(cmts) = header.commitments() {
+					if cmts.is_empty() {
+						tracing::debug!(target: LOG_TARGET, "Block {} has no commitments", block_number);
+						continue;
+					}
+					cmts
+				} else {
+					tracing::debug!(target: LOG_TARGET, "Block {} has no commitments information", block_number);
+					continue;
+				};
+
 				let fetch_result = das_client.network.fetch_block(&header).await;
 				let (segments, need_reconstruct, is_availability) = match fetch_result {
 					Ok(data) => data,
@@ -151,8 +161,8 @@ pub async fn start_tx_pool_listener<
 				};
 
 				if !is_availability {
-					tracing::debug!(target: LOG_TARGET, "Block {} is not available", HeaderT::number(&header));
-					return
+					info!("🔍Block {} is not available", block_number);
+					continue
 				}
 
 				let reconstructed_rows: HashMap<usize, Vec<Segment>> = need_reconstruct
@@ -194,11 +204,12 @@ pub async fn start_tx_pool_listener<
 									let push_segments: Vec<Segment> = col_ext[commitments.len()..].to_vec();
 									if let Err(e) = das_client.network.put_ext_segments(&push_segments, &header).await {
 										tracing::error!(target: LOG_TARGET, "Error pushing values: {:?}", e);
+									} else {
+										info!("📡Block {} is available", block_number);
 									}
 								},
 								Err(e) => {
 									tracing::error!(target: LOG_TARGET, "Error extending col: {:?}", e);
-									continue
 								},
 							};
 						},
@@ -212,6 +223,7 @@ pub async fn start_tx_pool_listener<
 				let header = notification.header;
 				let block_number = *HeaderT::number(&header);
 				let latest_sampled_block = das_client.last_at().await;
+
 
 				let to_block = std::cmp::min(
 					block_number,
