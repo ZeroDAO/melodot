@@ -123,8 +123,8 @@ where
 			.ok_or(Error::InvalidTransactionFormat)?;
 
 		// Validate the length and hash of the data.
-		if !metadata.check() {
-			return Err(Error::DataLengthOrHashError.into());
+		if !metadata.check() && data.len() != metadata.bytes_len as usize {
+			return Err(Error::DataLengthError.into());
 		}
 
 		// Submit to the transaction pool

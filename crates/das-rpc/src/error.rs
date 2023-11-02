@@ -40,7 +40,7 @@ pub enum Error {
     InvalidTransactionFormat,
     /// Data length or hash error
     #[error("Data length or hash error")]
-    DataLengthOrHashError,
+    DataLengthError,
     /// Failed to push transaction
     #[error("Failed to push transaction: {}", .0)]
     TransactionPushFailed(Box<dyn std::error::Error + Send + Sync>),
@@ -72,9 +72,9 @@ impl From<Error> for JsonRpseeError {
                 "Invalid transaction format",
                 None::<()>,
             )),
-            Error::DataLengthOrHashError => CallError::Custom(ErrorObject::owned(
+            Error::DataLengthError => CallError::Custom(ErrorObject::owned(
                 BASE_ERROR + 5,
-                "Data length or hash error",
+                "Data/Commitments/Proofs length error",
                 None::<()>,
             )),
             Error::TransactionPushFailed(e) => CallError::Custom(ErrorObject::owned(

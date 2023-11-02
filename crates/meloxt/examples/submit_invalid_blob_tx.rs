@@ -51,7 +51,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
 	// Invalid blob
-	submit_invalid_blob(&client, bytes.clone(), metadata.clone()).await?;
+	// submit_invalid_blob(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid extrinsic
 	submit_invalid_extrinsic(&client, bytes.clone(), metadata.clone()).await?;
@@ -70,19 +70,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	Ok(())
 }
 
-async fn submit_invalid_blob(
-	client: &Client,
-	bytes: Vec<u8>,
-	metadata: SidecarMetadata,
-) -> Result<(), Box<dyn std::error::Error>> {
-	let bytes = vec![0; bytes.len()];
+// // TODO
+// async fn submit_invalid_blob(
+// 	client: &Client,
+// 	bytes: Vec<u8>,
+// 	metadata: SidecarMetadata,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+// 	let bytes = vec![0; bytes.len()];
 
-	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
+// 	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
 
-	let params = rpc_params![hex_bytes, hex_extrinsic];
+// 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
-	rpc_err_handler(client, "10005".to_string(), "InvalidBlob".to_string(), &params).await
-}
+// 	rpc_err_handler(client, "10005".to_string(), "InvalidBlob".to_string(), &params).await
+// }
 
 async fn submit_invalid_extrinsic(
 	client: &Client,
