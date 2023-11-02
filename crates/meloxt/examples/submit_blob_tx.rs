@@ -14,12 +14,11 @@
 
 use futures::StreamExt;
 use log::{debug, error, info};
-use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
 use melo_das_rpc::BlobTxSatus;
 use melo_core_primitives::SidecarMetadata;
 use meloxt::{
-	commitments_to_runtime, info_msg::*, init_logger, melodot, proofs_to_runtime, sidecar_metadata,
-	Client, ClientBuilder,
+	commitments_to_runtime, info_msg::*, init_logger, melodot, sidecar_metadata,
+	Client, ClientBuilder, sidecar_metadata_to_runtime
 };
 use primitive_types::H256;
 use subxt::rpc::rpc_params;
@@ -45,8 +44,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	let bytes_len = 123; // Exceeding the limit
 	let (sidecar_metadata, bytes) = sidecar_metadata(bytes_len, app_id, 0);
 
-	let commitments_t = sidecar_metadata.commitments;
-	let proofs_t = sidecar_metadata.proofs;
+	let commitments_t = sidecar_metadata.commitments.clone();
 
 	let commitments = commitments_to_runtime(commitments_t.clone());
 
@@ -56,7 +54,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
 	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments_t, proofs_t, bytes_len, bytes, app_id)
+		create_params(&client, &sidecar_metadata.clone(), bytes)
 			.await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
@@ -114,12 +112,10 @@ async fn create_params(
 	metadata: &SidecarMetadata,
 	bytes: Vec<u8>,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-	let commitments = commitments_to_runtime(commitments);
-	let proofs = proofs_to_runtime(proofs);
 	let submit_data_tx =
 		melodot::tx()
 			.melo_store()
-			.submit_data(metadata);
+			.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
 
 	let extrinsic = client
 		.api

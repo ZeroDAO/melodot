@@ -16,9 +16,7 @@ use config::parse_args;
 use melo_das_network::{DasNetworkConfig, DasNetworkDiscovery};
 use melo_das_primitives::KZG;
 use melo_daser::DasNetworkServiceWrapper;
-use meloxt::{ClientBuilder, MeloConfig, MelodotHeader};
-use std::time::Instant;
-use subxt::OnlineClient;
+use meloxt::{ClientBuilder, MelodotHeader};
 use tokio::sync::mpsc;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
@@ -29,7 +27,6 @@ mod config;
 mod finalized_headers;
 
 use finalized_headers::finalized_headers;
-use melo_core_primitives::traits::HeaderWithCommitment;
 
 pub async fn run(config: &config::Config) -> anyhow::Result<()> {
 	let rpc_url = config.rpc_url.clone();

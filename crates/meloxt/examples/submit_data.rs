@@ -34,13 +34,14 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	client.set_signer(dev::bob());
 
 	let app_id = 1;
-	let bytes_len = 121; // Exceeding the limit
-	let (commitments, proofs, data_hash, _) = sidecar_metadata_runtime(bytes_len);
+	let bytes_len = 121;
+
+	let (sidecar_metadata, _) = sidecar_metadata_runtime(bytes_len, app_id, 0);
 
 	let submit_data_tx =
 		melodot::tx()
 			.melo_store()
-			.submit_data(app_id, bytes_len, data_hash, commitments, proofs);
+			.submit_data(sidecar_metadata);
 
 	let block_hash = client
 		.api

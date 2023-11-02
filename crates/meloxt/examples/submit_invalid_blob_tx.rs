@@ -13,15 +13,15 @@
 // limitations under the License.
 
 use log::{error, info};
+use melo_core_primitives::SidecarMetadata;
 use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
 use melo_das_rpc::BlobTxSatus;
-use meloxt::info_msg::*;
-use meloxt::Client;
-use meloxt::{commitments_to_runtime, wait_for_block, init_logger, proofs_to_runtime, sidecar_metadata};
-use meloxt::{melodot, ClientBuilder};
+use meloxt::{
+	commitments_to_runtime, info_msg::*, init_logger, melodot, sidecar_metadata,
+	sidecar_metadata_to_runtime, wait_for_block, Client, ClientBuilder,
+};
 use primitive_types::H256;
-use subxt::rpc::rpc_params;
-use subxt::rpc::RpcParams;
+use subxt::rpc::{rpc_params, RpcParams};
 
 #[tokio::main]
 pub async fn main() {
@@ -38,8 +38,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	let client = ClientBuilder::default().build().await?;
 
 	let app_id = 1;
-	let bytes_len = 123; // Exceeding the limit
-	let (commitments_t, proofs_t, data_hash, bytes) = sidecar_metadata(bytes_len);
+	let bytes_len = 123;
+	let nonce = 0;
+	let (metadata, bytes) = sidecar_metadata(bytes_len, app_id, nonce);
+	let commitments_t = metadata.commitments.clone();
 
 	let commitments = commitments_to_runtime(commitments_t.clone());
 
@@ -49,76 +51,19 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
 	// Invalid blob
-	submit_invalid_blob(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
+	submit_invalid_blob(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid extrinsic
-	submit_invalid_extrinsic(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
-
-	// Invalid data_hash
-	submit_invalid_data_hash(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
+	submit_invalid_extrinsic(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid bytes_len
-	submit_invalid_bytes_len(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
+	submit_invalid_bytes_len(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid commitments
-	submit_invalid_commitments(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
+	submit_invalid_commitments(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid proofs
-	submit_invalid_proofs(
-		&client,
-		commitments_t.clone(),
-		proofs_t.clone(),
-		data_hash,
-		bytes_len,
-		bytes.clone(),
-		app_id,
-	)
-	.await?;
+	submit_invalid_proofs(&client, bytes.clone(), metadata.clone()).await?;
 
 	info!("{} : Submit invalid blob tx", ALL_SUCCESS);
 
@@ -127,17 +72,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn submit_invalid_blob(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
 	let bytes = vec![0; bytes.len()];
 
-	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs, data_hash, bytes_len, bytes, app_id).await?;
+	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
@@ -146,16 +86,11 @@ async fn submit_invalid_blob(
 
 async fn submit_invalid_extrinsic(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let (hex_bytes, _) =
-		create_params(&client, commitments, proofs, data_hash, bytes_len, bytes, app_id).await?;
-	
+	let (hex_bytes, _) = create_params(&client, bytes, &metadata).await?;
+
 	let hex_extrinsic = "0x000111122223334444455556666".to_string();
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
@@ -164,16 +99,14 @@ async fn submit_invalid_extrinsic(
 
 async fn submit_invalid_bytes_len(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
-	let bytes_len = bytes_len - 1;
-	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs, data_hash, bytes_len, bytes, app_id).await?;
+	let bytes_len = metadata.bytes_len - 1;
+	let mut metadata = metadata;
+	metadata.bytes_len = bytes_len;
+
+	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
@@ -182,20 +115,20 @@ async fn submit_invalid_bytes_len(
 
 async fn submit_invalid_commitments(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
 	let commitment_invalid = KZGCommitmentT::rand();
-	let commitments_invalid =
-		commitments.iter().map(|_| commitment_invalid.clone()).collect::<Vec<_>>();
+	let commitments_invalids = metadata
+		.commitments
+		.iter()
+		.map(|_| commitment_invalid.clone())
+		.collect::<Vec<_>>();
 
-	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments_invalid, proofs, data_hash, bytes_len, bytes, app_id)
-			.await?;
+	let mut metadata = metadata;
+	metadata.commitments = commitments_invalids;
+
+	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
@@ -212,40 +145,18 @@ async fn submit_invalid_commitments(
 	Ok(())
 }
 
-async fn submit_invalid_data_hash(
-	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	_: H256,
-	bytes_len: u32,
-	bytes: Vec<u8>,
-	app_id: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
-	let data_hash_invalid = H256::random();
-	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs, data_hash_invalid, bytes_len, bytes, app_id)
-			.await?;
-
-	let params = rpc_params![hex_bytes, hex_extrinsic];
-
-	rpc_err_handler(client, "10005".to_string(), "InvalidDataHash".to_string(), &params).await
-}
-
 async fn submit_invalid_proofs(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
 	let proof_invalid = KZGProofT::rand();
-	let proofs_invalid = proofs.iter().map(|_| proof_invalid.clone()).collect::<Vec<_>>();
+	let proofs_invalids = metadata.proofs.iter().map(|_| proof_invalid.clone()).collect::<Vec<_>>();
 
-	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, commitments, proofs_invalid, data_hash, bytes_len, bytes, app_id)
-			.await?;
+	let mut metadata = metadata;
+	metadata.proofs = proofs_invalids;
+
+	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 
@@ -264,19 +175,12 @@ async fn submit_invalid_proofs(
 
 async fn create_params(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
 	bytes: Vec<u8>,
-	app_id: u32,
+	metadata: &SidecarMetadata,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-	let commitments = commitments_to_runtime(commitments);
-	let proofs = proofs_to_runtime(proofs);
-	let submit_data_tx =
-		melodot::tx()
-			.melo_store()
-			.submit_data(app_id, bytes_len, data_hash, commitments, proofs);
+	let submit_data_tx = melodot::tx()
+		.melo_store()
+		.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
 
 	let extrinsic = client
 		.api
@@ -309,8 +213,11 @@ async fn rpc_err_handler(
 		if err.contains(&code) {
 			info!("{}: Submit {}, tx failed with code: {}", SUCCESS, case, code);
 		} else {
-			info!("{}: Submit {}, tx failed, but the code does not match. res: {}", ERROR, case, err);
-			return Err("Failed to submit blob transaction".into());
+			info!(
+				"{}: Submit {}, tx failed, but the code does not match. res: {}",
+				ERROR, case, err
+			);
+			return Err("Failed to submit blob transaction".into())
 		}
 	} else {
 		info!("{}: Submit {}, but tx success", ERROR, case);

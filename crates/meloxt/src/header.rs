@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use subxt::config::{substrate::{Digest, BlakeTwo256 as SubtxBlakeTwo256},  Hasher, Header as SubtxHeader};
 
-use melo_core_primitives::{traits::HeaderWithCommitment, AppLookup, HeaderExtension};
+use melo_core_primitives::{traits::HeaderWithCommitment, HeaderExtension};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Encode, Decode)]
 #[serde(rename_all = "camelCase")]

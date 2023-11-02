@@ -14,7 +14,7 @@
 
 use std::time::Instant;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Context};
 use meloxt::{MeloConfig, MelodotHeader as Header};
 use subxt::OnlineClient;
 use tokio::sync::mpsc::Sender;
@@ -22,18 +22,17 @@ use tokio_stream::StreamExt;
 use tracing::{error, info};
 
 use melo_core_primitives::traits::HeaderWithCommitment;
-use melo_das_db::{sqlite::SqliteDasDb, traits::DasKv};
-// use melo_das_network::{DasNetworkServiceWrapper, DasNetworkOperations}; // 假设这是正确的导入
-use melo_daser::{DasNetworkOperations, DasNetworkServiceWrapper, Sampling, SamplingClient};
+use melo_das_db::sqlite::SqliteDasDb;
+use melo_daser::{DasNetworkServiceWrapper, Sampling, SamplingClient};
 
 pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 	rpc_client: OnlineClient<MeloConfig>,
 	message_tx: Sender<(Header, Instant)>,
 	error_sender: Sender<anyhow::Error>,
-	network: DasNetworkServiceWrapper, // 更新类型为 DasNetworkServiceWrapper
+	network: DasNetworkServiceWrapper,
 	database: SqliteDasDb,
 ) {
-	let mut client: SamplingClient<H, SqliteDasDb, DasNetworkServiceWrapper> =
+	let client: SamplingClient<H, SqliteDasDb, DasNetworkServiceWrapper> =
 		SamplingClient::new(network, database);
 	let mut new_heads_sub = match rpc_client.blocks().subscribe_finalized().await {
 		Ok(subscription) => subscription,
@@ -54,7 +53,7 @@ pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 			}
 
 			match client.sample_block::<Header>(&header.into()).await {
-				Ok(_) => {}, // 如果成功，这里可以添加相应的处理逻辑
+				Ok(_) => {},
 				Err(e) => {
 					error!("Sampling error: {:?}", e);
 				},
