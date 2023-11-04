@@ -19,9 +19,10 @@ use jsonrpsee::{
 	core::{async_trait, RpcResult},
 	proc_macros::rpc,
 };
+use log::{error, info};
 use melo_core_primitives::traits::AppDataApi;
-use melodot_runtime::{RuntimeCall, UncheckedExtrinsic};
 use melo_daser::DasNetworkOperations;
+use melodot_runtime::{RuntimeCall, UncheckedExtrinsic};
 
 use sc_transaction_pool_api::{error::IntoPoolError, TransactionPool, TransactionSource};
 use serde::{Deserialize, Serialize};
@@ -37,7 +38,7 @@ pub use error::Error;
 
 /// Represents the status of a Blob transaction.
 /// Includes the transaction hash and potential error details.
-#[derive(Eq, PartialEq, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
+#[derive(Eq, PartialEq, Default, Clone, Encode, Decode, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BlobTxSatus<Hash> {
 	pub tx_hash: Hash,
@@ -97,8 +98,8 @@ where
 	/// * `err` - `Some` error string if the data submission fails. `None` if successful.
 	///
 	/// # Note
-	/// Ensure proper encoding of the data. Improper encoding can result in a successful transaction submission (if it's valid),
-	/// but a failed data publication, rendering the data inaccessible.
+	/// Ensure proper encoding of the data. Improper encoding can result in a successful transaction
+	/// submission (if it's valid), but a failed data publication, rendering the data inaccessible.
 	async fn submit_blob_tx(
 		&self,
 		data: Bytes,
@@ -122,9 +123,35 @@ where
 			.map_err(|e| Error::FetchTransactionMetadataFailed(Box::new(e)))?
 			.ok_or(Error::InvalidTransactionFormat)?;
 
-		// Validate the length and hash of the data.
-		if !metadata.check() && data.len() != metadata.bytes_len as usize {
-			return Err(Error::DataLengthError.into());
+		// Validate the length of the data.
+		if !metadata.check() || data.len() != (metadata.bytes_len as usize) {
+			return Err(Error::DataLengthError.into())
+		}
+
+		let mut err_msg = None;
+
+		match metadata.verify_bytes(&data) {
+			Ok(true) => {
+				info!("🤩 Data verification successful. Pushing data to DHT network.");
+				// On successful data verification, push data to DHT network.
+				let put_res =
+					self.das_network.put_bytes(&data, metadata.app_id, metadata.nonce).await;
+
+				if let Err(e) = put_res {
+					error!("❌ Failed to put data to DHT network: {:?}", e);
+					err_msg = Some(e.to_string());
+				}
+			},
+			Ok(false) => {
+				// Handle cases where data verification failed.
+				err_msg = Some(
+					"Data verification failed. Please check your data and try again.".to_string(),
+				);
+			},
+			Err(e) => {
+				// Handle unexpected errors during verification.
+				err_msg = Some(e);
+			},
 		}
 
 		// Submit to the transaction pool
@@ -138,31 +165,7 @@ where
 				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)))
 		})?;
 
-		let mut blob_tx_status = BlobTxSatus { tx_hash, err: None };
-
-		match metadata.verify_bytes(&data) {
-			Ok(true) => {
-				// On successful data verification, push data to DHT network.
-				let put_res = self.das_network
-					.put_bytes(&data, metadata.app_id, metadata.nonce).await;
-
-				if let Err(e) = put_res {
-					blob_tx_status.err = Some(e.to_string());
-				}
-			},
-			Ok(false) => {
-				// Handle cases where data verification failed.
-				blob_tx_status.err = Some(
-					"Data verification failed. Please check your data and try again.".to_string(),
-				);
-			},
-			Err(e) => {
-				// Handle unexpected errors during verification.
-				blob_tx_status.err = Some(e);
-			},
-		}
-
 		// Return the transaction hash
-		Ok(blob_tx_status)
+		Ok(BlobTxSatus { tx_hash, err: err_msg })
 	}
 }

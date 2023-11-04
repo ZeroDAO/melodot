@@ -7,8 +7,7 @@ use melo_das_db::offchain_outside::OffchainKvOutside;
 use melo_das_network::{default as create_das_network, DasNetwork};
 use melo_das_primitives::KZG;
 use melo_daser::{
-	start_tx_pool_listener, DasNetworkServiceWrapper, SamplingClient,
-	TPListenerParams,
+	start_tx_pool_listener, DasNetworkServiceWrapper, SamplingClient, TPListenerParams,
 };
 use melodot_runtime::{self, Header, NodeBlock as Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};

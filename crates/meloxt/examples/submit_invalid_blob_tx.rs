@@ -18,7 +18,7 @@ use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as K
 use melo_das_rpc::BlobTxSatus;
 use meloxt::{
 	commitments_to_runtime, info_msg::*, init_logger, melodot, sidecar_metadata,
-	sidecar_metadata_to_runtime, wait_for_block, Client, ClientBuilder,
+	sidecar_metadata_to_runtime, wait_for_block, Client, ClientBuilder, ClientSync,
 };
 use primitive_types::H256;
 use subxt::rpc::{rpc_params, RpcParams};
@@ -39,8 +39,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	let app_id = 1;
 	let bytes_len = 123;
-	let nonce = 0;
-	let (metadata, bytes) = sidecar_metadata(bytes_len, app_id, nonce);
+	let nonce = client.nonce(app_id).await?;
+	let (metadata, bytes) = sidecar_metadata(bytes_len, app_id, nonce + 1);
 	let commitments_t = metadata.commitments.clone();
 
 	let commitments = commitments_to_runtime(commitments_t.clone());
@@ -49,9 +49,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 		commitments.iter().flat_map(|c| c.inner.clone().to_vec()).collect::<Vec<_>>();
 
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
-
-	// Invalid blob
-	// submit_invalid_blob(&client, bytes.clone(), metadata.clone()).await?;
 
 	// Invalid extrinsic
 	submit_invalid_extrinsic(&client, bytes.clone(), metadata.clone()).await?;
@@ -69,21 +66,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	Ok(())
 }
-
-// // TODO
-// async fn submit_invalid_blob(
-// 	client: &Client,
-// 	bytes: Vec<u8>,
-// 	metadata: SidecarMetadata,
-// ) -> Result<(), Box<dyn std::error::Error>> {
-// 	let bytes = vec![0; bytes.len()];
-
-// 	let (hex_bytes, hex_extrinsic) = create_params(&client, bytes, &metadata).await?;
-
-// 	let params = rpc_params![hex_bytes, hex_extrinsic];
-
-// 	rpc_err_handler(client, "10005".to_string(), "InvalidBlob".to_string(), &params).await
-// }
 
 async fn submit_invalid_extrinsic(
 	client: &Client,
@@ -104,6 +86,7 @@ async fn submit_invalid_bytes_len(
 	metadata: SidecarMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
 	let bytes_len = metadata.bytes_len - 1;
+
 	let mut metadata = metadata;
 	metadata.bytes_len = bytes_len;
 

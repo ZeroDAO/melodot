@@ -19,6 +19,8 @@ use meloxt::sidecar_metadata_runtime;
 use meloxt::{melodot, ClientBuilder};
 use subxt_signer::sr25519::dev::{self};
 
+use meloxt::ClientSync;
+
 #[tokio::main]
 pub async fn main() {
 	init_logger().unwrap();
@@ -36,7 +38,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	let app_id = 1;
 	let bytes_len = 121;
 
-	let (sidecar_metadata, _) = sidecar_metadata_runtime(bytes_len, app_id, 0);
+	let nonce = client.nonce(app_id).await?;
+
+	let (sidecar_metadata, _) = sidecar_metadata_runtime(bytes_len, app_id, nonce + 1);
 
 	let submit_data_tx =
 		melodot::tx()

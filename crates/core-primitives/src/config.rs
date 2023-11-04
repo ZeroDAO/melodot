@@ -19,6 +19,8 @@ pub const BLOCK_SAMPLE_LIMIT: u32 = 3;
 /// 允许提交不可用性区块的最长间隔区块数量
 pub const MAX_UNAVAILABLE_BLOCK_INTERVAL: u32 = 3;
 /// 每个片段的元素数量，必须为2的幂
-pub const FIELD_ELEMENTS_PER_SEGMENT: usize = 2 ^ 4;
+pub const FIELD_ELEMENTS_PER_SEGMENT: usize = 2usize.pow(4);
 /// 每个 blob 的样本/片段数量
 pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / FIELD_ELEMENTS_PER_SEGMENT;
+/// 扩展后的每行片段数量
+pub const EXTENDED_SAMPLES_PER_ROW: usize = SAMPLES_PER_BLOB * 2;

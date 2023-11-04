@@ -128,9 +128,14 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 
 		let mut confidence = Confidence { samples: Vec::new(), commitments: commitments.clone() };
 
-		confidence.set_sample(SAMPLES_PER_BLOB);
+		let blob_count = commitments.len();
 
-		let apps = vec![(app_id, nonce); SAMPLES_PER_BLOB];
+		// 平均每个blob抽样1次
+		let n = blob_count;
+
+		confidence.set_sample(n);
+
+		let apps = vec![(app_id, nonce); blob_count];
 
 		self.sample(&id, &mut confidence, &apps, &commitments).await
 	}

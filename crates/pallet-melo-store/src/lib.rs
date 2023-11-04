@@ -212,7 +212,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn nonce)]
-	pub(super) type Nonces<T: Config> = StorageValue<_, u32, ValueQuery>;
+	pub(super) type Nonces<T: Config> = StorageMap<_, Twox64Concat, u32, u32, ValueQuery>;
 
 	/// Represents votes regarding the availability of certain data.
 	#[pallet::storage]
@@ -274,6 +274,8 @@ pub mod pallet {
 		MismatchedProofsCount,
 		/// The provided public key is not valid.
 		InvalidKey,
+		/// The nonce is invalid.
+		NonceError,
 	}
 
 	#[pallet::call]
@@ -306,8 +308,11 @@ pub mod pallet {
 			ensure!(params.app_id <= current_app_id, Error::<T>::AppIdError);
 
 			// Check if the nonce is valid.
-			let current_nonce = Nonces::<T>::get();
-			ensure!(params.nonce == current_nonce, Error::<T>::AppIdError);
+			let current_nonce = Nonces::<T>::get(
+				&current_app_id,
+			);
+
+			ensure!(params.nonce == current_nonce.saturating_add(1), Error::<T>::NonceError);
 
 			let mut commitment_list: BoundedVec<KZGCommitment, T::MaxBlobNum> =
 				BoundedVec::default();
@@ -340,7 +345,10 @@ pub mod pallet {
 				metadata_vec.try_push(metadata).map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)
 			})?;
 
-			Nonces::<T>::put(params.nonce + 1);
+			Nonces::<T>::mutate(
+				&current_app_id,
+				|nonce| *nonce = params.nonce,
+			);
 
 			Self::deposit_event(Event::DataReceived {
 				bytes_len: params.bytes_len,

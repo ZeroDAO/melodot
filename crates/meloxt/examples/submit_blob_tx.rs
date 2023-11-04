@@ -14,11 +14,11 @@
 
 use futures::StreamExt;
 use log::{debug, error, info};
-use melo_das_rpc::BlobTxSatus;
 use melo_core_primitives::SidecarMetadata;
+use melo_das_rpc::BlobTxSatus;
 use meloxt::{
 	commitments_to_runtime, info_msg::*, init_logger, melodot, sidecar_metadata,
-	Client, ClientBuilder, sidecar_metadata_to_runtime
+	sidecar_metadata_to_runtime, Client, ClientBuilder, ClientSync,
 };
 use primitive_types::H256;
 use subxt::rpc::rpc_params;
@@ -42,7 +42,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	let app_id = 1;
 	let bytes_len = 123; // Exceeding the limit
-	let (sidecar_metadata, bytes) = sidecar_metadata(bytes_len, app_id, 0);
+
+	let nonce = client.nonce(app_id).await?;
+
+	let (sidecar_metadata, bytes) = sidecar_metadata(bytes_len, app_id, nonce + 1);
 
 	let commitments_t = sidecar_metadata.commitments.clone();
 
@@ -54,8 +57,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
 	let (hex_bytes, hex_extrinsic) =
-		create_params(&client, &sidecar_metadata.clone(), bytes)
-			.await?;
+		create_params(&client, &sidecar_metadata.clone(), bytes).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 	debug!("Params of das_submitBlobTx: {:?}", params.clone().build().unwrap().get());
@@ -112,10 +114,9 @@ async fn create_params(
 	metadata: &SidecarMetadata,
 	bytes: Vec<u8>,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-	let submit_data_tx =
-		melodot::tx()
-			.melo_store()
-			.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
+	let submit_data_tx = melodot::tx()
+		.melo_store()
+		.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
 
 	let extrinsic = client
 		.api

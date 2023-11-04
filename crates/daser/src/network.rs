@@ -17,10 +17,13 @@ use itertools::Itertools;
 use melo_erasure_coding::bytes_to_segments;
 
 use crate::{
-	sample_key, sample_key_from_block, Arc, KZGCommitment, Position, Sample, Segment, SegmentData,
-	SAMPLES_PER_BLOB, Ok, Result, Context, anyhow
+	anyhow, sample_key, sample_key_from_block, Arc, Context, KZGCommitment, Ok, Position, Result,
+	Sample, Segment, SegmentData, EXTENDED_SAMPLES_PER_ROW, FIELD_ELEMENTS_PER_BLOB,
+	SAMPLES_PER_BLOB,
 };
-use melo_core_primitives::{traits::HeaderWithCommitment, Decode, config::FIELD_ELEMENTS_PER_SEGMENT};
+use melo_core_primitives::{
+	config::FIELD_ELEMENTS_PER_SEGMENT, traits::HeaderWithCommitment, Decode,
+};
 use melo_das_network::{KademliaKey, Service as DasNetworkService};
 use melo_das_primitives::KZG;
 use melo_erasure_coding::{
@@ -31,27 +34,13 @@ use sp_api::HeaderT;
 
 #[async_trait::async_trait]
 pub trait DasNetworkOperations {
-	async fn put_ext_segments<Header>(
-		&self,
-		segments: &[Segment],
-		header: &Header,
-	) -> Result<()>
+	async fn put_ext_segments<Header>(&self, segments: &[Segment], header: &Header) -> Result<()>
 	where
 		Header: HeaderT;
 
-	async fn put_app_segments(
-		&self,
-		segments: &[Segment],
-		app_id: u32,
-		nonce: u32,
-	) -> Result<()>;
+	async fn put_app_segments(&self, segments: &[Segment], app_id: u32, nonce: u32) -> Result<()>;
 
-	async fn put_bytes(
-		&self,
-		bytes: &[u8],
-		app_id: u32,
-		nonce: u32,
-	) -> Result<()>;
+	async fn put_bytes(&self, bytes: &[u8], app_id: u32, nonce: u32) -> Result<()>;
 
 	async fn fetch_segment_data(
 		&self,
@@ -114,7 +103,7 @@ impl DasNetworkServiceWrapper {
 			.app_lookup
 			.iter()
 			.flat_map(|app_lookup| {
-				(0..SAMPLES_PER_BLOB).flat_map(move |x| {
+				(0..EXTENDED_SAMPLES_PER_ROW).flat_map(move |x| {
 					(0..app_lookup.count).map(move |y| {
 						let position = Position { x: x as u32, y: y as u32 };
 						let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
@@ -132,23 +121,7 @@ impl DasNetworkServiceWrapper {
 		commitment: &KZGCommitment,
 		position: &Position,
 	) -> Option<Segment> {
-		values
-			.iter()
-			.filter_map(|value| {
-				if let core::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
-					let segment = Segment { position: position.clone(), content: segment_data };
-					if segment
-						.checked()
-						.unwrap()
-						.verify(&self.kzg, &commitment, segment.size())
-						.is_ok()
-					{
-						return Some(segment)
-					}
-				}
-				None
-			})
-			.next()
+		verify_values(&self.kzg, values, commitment, position)
 	}
 }
 
@@ -165,11 +138,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		recovery(segments, &self.kzg).map_err(|e| anyhow!(e))
 	}
 
-	async fn put_ext_segments<Header>(
-		&self,
-		segments: &[Segment],
-		header: &Header,
-	) -> Result<()>
+	async fn put_ext_segments<Header>(&self, segments: &[Segment], header: &Header) -> Result<()>
 	where
 		Header: HeaderT,
 	{
@@ -188,12 +157,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		Ok(())
 	}
 
-	async fn put_app_segments(
-		&self,
-		segments: &[Segment],
-		app_id: u32,
-		nonce: u32,
-	) -> Result<()> {
+	async fn put_app_segments(&self, segments: &[Segment], app_id: u32, nonce: u32) -> Result<()> {
 		let values = segments
 			.iter()
 			.map(|segment| {
@@ -206,13 +170,14 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		Ok(())
 	}
 
-	async fn put_bytes(
-		&self,
-		bytes: &[u8],
-		app_id: u32,
-		nonce: u32,
-	) -> Result<()> {
-		let segments = bytes_to_segments(bytes, SAMPLES_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT,&self.kzg).map_err(|e| anyhow!(e))?;
+	async fn put_bytes(&self, bytes: &[u8], app_id: u32, nonce: u32) -> Result<()> {
+		let segments = bytes_to_segments(
+			bytes,
+			FIELD_ELEMENTS_PER_BLOB,
+			FIELD_ELEMENTS_PER_SEGMENT,
+			&self.kzg,
+		)
+		.map_err(|e| anyhow!(e))?;
 		self.put_app_segments(&segments, app_id, nonce).await
 	}
 
@@ -245,46 +210,78 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 	where
 		Header: HeaderWithCommitment + HeaderT,
 	{
-		let commitments = 
-			header.commitments().context("Header does not contain commitments.")?;
+		let commitments = header.commitments().context("Header does not contain commitments.")?;
 		let keys = self.prepare_keys(header)?;
 
 		let values_set = self.network.get_values(&keys).await?;
 
-		let mut need_reconstruct = vec![];
-		let mut is_availability = true;
-
-		let all_segments: Vec<Option<Segment>> = values_set
-			.into_iter()
-			.chunks(SAMPLES_PER_BLOB)
-			.into_iter()
-			.enumerate()
-			.flat_map(|(y, chunk)| {
-				if !is_availability {
-					return vec![None; SAMPLES_PER_BLOB]
-				}
-
-				let segments = chunk
-					.enumerate()
-					.map(|(x, values)| match values {
-						Some(values) => self.verify_values(
-							&values,
-							&commitments[y],
-							&Position { x: x as u32, y: y as u32 },
-						),
-						None => None,
-					})
-					.collect::<Vec<_>>();
-
-				if segments.iter().filter(|s| s.is_some()).count() > SAMPLES_PER_BLOB / 2 {
-					need_reconstruct.push(y);
-				} else {
-					is_availability = false;
-				}
-				segments
-			})
-			.collect();
-
-		Ok((all_segments, need_reconstruct, is_availability))
+		values_set_handler(&values_set, &commitments, &self.kzg)
 	}
+}
+
+fn values_set_handler(
+	values_set: &Vec<Option<Vec<Vec<u8>>>>,
+	commitments: &Vec<KZGCommitment>,
+	kzg: &KZG,
+) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)> {
+	let mut need_reconstruct = vec![];
+	let mut is_availability = true;
+
+	let all_segments: Vec<Option<Segment>> = values_set
+		.into_iter()
+		.chunks(EXTENDED_SAMPLES_PER_ROW)
+		.into_iter()
+		.enumerate()
+		.flat_map(|(y, chunk)| {
+			if !is_availability {
+				return vec![None; EXTENDED_SAMPLES_PER_ROW]
+			}
+
+			let segments = chunk
+				.enumerate()
+				.map(|(x, values)| match values {
+					Some(values) => verify_values(
+						kzg,
+						&values,
+						&commitments[y],
+						&Position { x: x as u32, y: y as u32 },
+					),
+					None => None,
+				})
+				.collect::<Vec<_>>();
+
+			let available_segments = segments.iter().filter(|s| s.is_some()).count();
+
+			if available_segments >= SAMPLES_PER_BLOB {
+				if available_segments < EXTENDED_SAMPLES_PER_ROW {
+					need_reconstruct.push(y);
+				}
+			} else {
+				is_availability = false;
+			}
+			segments
+		})
+		.collect();
+
+	Ok((all_segments, need_reconstruct, is_availability))
+}
+
+fn verify_values(
+	kzg: &KZG,
+	values: &[Vec<u8>],
+	commitment: &KZGCommitment,
+	position: &Position,
+) -> Option<Segment> {
+	values
+		.iter()
+		.filter_map(|value| {
+			if let core::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
+				let segment = Segment { position: position.clone(), content: segment_data };
+				if segment.checked().unwrap().verify(&kzg, &commitment, segment.size()).is_ok() {
+					return Some(segment)
+				}
+			}
+			None
+		})
+		.next()
 }

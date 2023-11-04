@@ -59,7 +59,7 @@ pub fn submit_init_data() -> DispatchResult {
 	let bytes_len = 10;
 	let (commitments, proofs) = commits_and_proofs(bytes_len, 0);
 
-	submit_data(2, app_id, bytes_len, 0u32, commitments, proofs)
+	submit_data(2, app_id, bytes_len, 1u32, commitments, proofs)
 }
 
 // Utility function to submit data
@@ -116,7 +116,7 @@ fn should_submit_data_successfully() {
 		let bytes_len = 100_000;
 		let (commitments, proofs) = commits_and_proofs(bytes_len, 0);
 
-		assert_ok!(submit_data(1, app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()));
+		assert_ok!(submit_data(1, app_id, bytes_len, 1u32, commitments.clone(), proofs.clone()));
 		let block_number = System::block_number();
 		let metadata = Metadata::<Runtime>::get(block_number);
 		assert_eq!(metadata.len(), 1);
@@ -138,7 +138,7 @@ fn should_fail_when_submitting_data_exceeds_limit() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments, proofs),
+				SidecarMetadata::new(app_id, bytes_len, 1, commitments, proofs),
 			),
 			Error::<Runtime>::ExceedMaxBlobLimit
 		);
@@ -157,7 +157,7 @@ fn should_fail_when_submitting_invalid_app_id() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 1u32, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::AppIdError
 		);
@@ -172,7 +172,7 @@ fn should_emit_event_on_successful_submission() {
 		let app_id = 1;
 		let bytes_len = 10;
 		let (commitments, proofs) = commits_and_proofs(bytes_len, 0);
-		let nonce = 1u32;
+		let nonce = 1;
 
 		assert_ok!(submit_data(who, app_id, bytes_len, nonce, commitments.clone(), proofs.clone()));
 
@@ -260,7 +260,7 @@ fn should_report_unavailable_data_successfully_with_multiple_app_id_and_data() {
 					SidecarMetadata::new(
 						app_id,
 						bytes_len,
-						0u32,
+						1,
 						commitments.clone(),
 						proofs.clone()
 					)
@@ -399,7 +399,7 @@ fn should_fail_when_submitting_empty_data() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::SubmittedDataIsEmpty
 		);
@@ -418,7 +418,7 @@ fn should_fail_with_mismatched_commitments_count() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::MismatchedCommitmentsCount
 		);
@@ -440,7 +440,7 @@ fn should_fail_with_mismatched_proofs_count() {
 		assert_noop!(
 			MeloStore::submit_data(
 				RuntimeOrigin::signed(2),
-				SidecarMetadata::new(app_id, bytes_len, 0u32, commitments.clone(), proofs.clone()),
+				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
 			Error::<Runtime>::MismatchedProofsCount
 		);
@@ -480,7 +480,7 @@ fn should_have_expected_data_when_reported_unavailable() {
 
 		// Submit data
 		let (commitments, proofs) = commits_and_proofs(10, 0);
-		assert_ok!(submit_data(1, 1, 10, 0u32, commitments, proofs));
+		assert_ok!(submit_data(1, 1, 10, 1, commitments, proofs));
 
 		// Report unavailability
 		assert_ok!(report_unavailability(1, now, vec![0], 3));

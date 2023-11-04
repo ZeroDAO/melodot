@@ -83,9 +83,12 @@ pub fn create(
 
 	let (to_worker, from_service) = mpsc::channel(8);
 
+	// let service = service::Service::new(to_worker, config.parallel_limit);
+	// service.init(&config)?;
+
 	Ok((
 		service::Service::new(to_worker, config.parallel_limit),
-		worker::DasNetwork::new(swarm, from_service, metrics),
+		worker::DasNetwork::new(swarm, from_service, metrics, &config),
 	))
 }
 

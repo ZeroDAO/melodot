@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::{Behavior, BehaviourEvent, Command};
+use crate::{Behavior, BehaviourEvent, Command, DasNetworkConfig};
 use futures::{
 	channel::{mpsc, oneshot},
 	stream::StreamExt,
@@ -25,9 +25,9 @@ use libp2p::{
 	metrics::Metrics,
 	multiaddr::Protocol,
 	swarm::{ConnectionError, Swarm, SwarmEvent},
-	PeerId,
+	PeerId, Multiaddr,
 };
-use log::{debug, info, trace, warn};
+use log::{debug, info, trace, warn, error};
 use std::{collections::HashMap, fmt::Debug};
 
 const MAX_RETRIES: u8 = 3;
@@ -56,6 +56,7 @@ pub struct DasNetwork {
 	pending_routing: HashMap<PeerId, QueryResultSender>,
 	retry_counts: HashMap<PeerId, u8>,
 	metrics: Metrics,
+	known_addresses: HashMap<PeerId, Vec<String>>,
 }
 
 impl DasNetwork {
@@ -63,7 +64,37 @@ impl DasNetwork {
 		swarm: Swarm<Behavior>,
 		command_receiver: mpsc::Receiver<Command>,
 		metrics: Metrics,
+		config: &DasNetworkConfig,
 	) -> Self {
+		let mut swarm = swarm;
+		let mut known_addresses = HashMap::new();
+
+		// Add bootstrap node addresses to the swarm and known_addresses
+		for addr in &config.bootstrap_nodes {
+			if let Ok(multiaddr) = addr.parse::<Multiaddr>() {
+				if let Some(peer_id) = multiaddr.iter().find_map(|p| {
+					if let Protocol::P2p(hash) = p {
+						PeerId::from_multihash(hash).ok()
+					} else {
+						None
+					}
+				}) {
+					swarm.behaviour_mut().kademlia.add_address(&peer_id, multiaddr.clone());
+					known_addresses.entry(peer_id).or_insert_with(Vec::new).push(addr.clone());
+				} else {
+					warn!("Bootstrap node address does not contain a Peer ID: {}", addr);
+				}
+			} else {
+				warn!("Invalid multiaddr for bootstrap node: {}", addr);
+			}
+		}
+
+		// Start listening on the specified address and port from config
+		let listen_addr = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port);
+		if let Err(e) = Swarm::listen_on(&mut swarm, listen_addr.parse().unwrap()) {
+			error!("Error starting to listen on {}: {}", listen_addr, e);
+		}
+
 		Self {
 			swarm,
 			command_receiver,
@@ -72,10 +103,26 @@ impl DasNetwork {
 			pending_routing: HashMap::default(),
 			retry_counts: HashMap::default(),
 			metrics,
+			known_addresses,
 		}
 	}
 
 	pub async fn run(mut self) {
+		if !self.known_addresses.is_empty() {
+			for (peer_id, addrs) in self.known_addresses.iter() {
+				for addr in addrs {
+					if let Ok(multiaddr) = addr.parse() {
+						self.swarm.behaviour_mut().kademlia.add_address(peer_id, multiaddr);
+					}
+				}
+			}
+
+			match self.swarm.behaviour_mut().kademlia.bootstrap() {
+				Ok(_) => info!("Bootstrap initiated."),
+				Err(e) => warn!("Bootstrap failed to start: {:?}", e),
+			}
+		}
+
 		loop {
 			tokio::select! {
 				swarm_event = self.swarm.select_next_some() => {

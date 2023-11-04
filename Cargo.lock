@@ -4853,6 +4853,7 @@ version = "0.0.1"
 dependencies = [
  "hex",
  "jsonrpsee",
+ "log",
  "melo-core-primitives",
  "melo-das-network",
  "melo-das-network-protocol",
@@ -5077,6 +5078,7 @@ name = "meloxt"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "async-trait",
  "derive_more",
  "futures",
  "hex",

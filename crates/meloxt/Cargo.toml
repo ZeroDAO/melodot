@@ -33,6 +33,7 @@ hex = "0.4"
 serde_json = "1.0"
 serde = { version = "1", features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
+async-trait = "0.1.56"
 
 subxt = { version = "0.31.0"}
 subxt-signer = { version = "0.31.0", features = ["subxt"] }

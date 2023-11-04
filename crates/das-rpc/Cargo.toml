@@ -20,6 +20,7 @@ jsonrpsee = { version = "0.16.2", features = ["server", "client", "macros"] }
 thiserror = "1.0"
 serde = { version = "1.0.159", features = ["derive"] }
 hex = { version = "0.4.3", features = ["serde"] }
+log = { version = "0.4.17", default-features = false }
 
 melodot-runtime = { path = "../../runtime" }
 melo-core-primitives = { path = "../core-primitives" }

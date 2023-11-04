@@ -13,7 +13,7 @@
 // limitations under the License.
 pub use log::warn;
 pub use melo_core_primitives::{
-	config::SAMPLES_PER_BLOB,
+	config::{SAMPLES_PER_BLOB, FIELD_ELEMENTS_PER_BLOB, EXTENDED_SAMPLES_PER_ROW},
 	confidence::{sample_key, sample_key_from_block, Confidence, ConfidenceId, Sample},
 	Header, HeaderExtension,
 };

@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Arc, DasKv, DasNetworkOperations, Sampling, SamplingClient, SAMPLES_PER_BLOB};
+use crate::{
+	Arc, DasKv, DasNetworkOperations, Sampling, SamplingClient, EXTENDED_SAMPLES_PER_ROW
+};
 use futures::StreamExt;
-use log::info;
+use log::{error, info, warn};
 use melo_core_primitives::{config::BLOCK_SAMPLE_LIMIT, traits::Extractor, Encode};
 use melo_das_primitives::Segment;
 use sc_client_api::{client::BlockchainEvents, HeaderBackend};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
-use sp_runtime::traits::{Block as BlockT, NumberFor};
+use sp_runtime::traits::{Block as BlockT, NumberFor, Saturating};
 use std::{collections::HashMap, marker::PhantomData};
 
 use futures::stream::FuturesUnordered;
@@ -75,13 +77,11 @@ pub async fn start_tx_pool_listener<
 	Client: ProvideRuntimeApi<B>
 		+ HeaderBackend<B>
 		+ BlockchainEvents<B>
-		// + BlockImport<B, Error = sp_consensus::Error>
 		+ 'static,
 	Client::Api: Extractor<B>,
 	DB: DasKv + 'static + Send + Sync,
 	H: HeaderWithCommitment + Send + Sync + 'static,
 	NumberFor<B>: Into<u32>,
-	// D: DaserNetworker + std::marker::Sync
 {
 	info!("🚀 Starting transaction pool listener.");
 
@@ -111,10 +111,7 @@ pub async fn start_tx_pool_listener<
 									.sample_application(params.app_id, params.nonce, &params.commitments)
 									.await
 								{
-									tracing::error!(
-										target: LOG_TARGET,
-										"Error during sampling application: {:?}", e
-									);
+									warn!("⚠️ Error during sampling application: {:?}", e);
 									continue;
 								}
 							}
@@ -135,95 +132,93 @@ pub async fn start_tx_pool_listener<
 			},
 			// Restore and extend the best block's data and broadcast the extended data to the network
 			// TODO: To be run distributedly by farmers
-			Some(notification) = new_best_block_stream.next() => {
-				if !notification.is_new_best {return};
-				let header = notification.header;
-				let block_number = HeaderT::number(&header);
+            Some(notification) = new_best_block_stream.next() => {
+                if !notification.is_new_best { continue; }
+                let header = notification.header;
+                let block_number = HeaderT::number(&header).saturating_sub(1u32.into());
 
-				let commitments = if let Some(cmts) = header.commitments() {
-					if cmts.is_empty() {
-						tracing::debug!(target: LOG_TARGET, "Block {} has no commitments", block_number);
-						continue;
-					}
-					cmts
-				} else {
-					tracing::debug!(target: LOG_TARGET, "Block {} has no commitments information", block_number);
-					continue;
-				};
+                if block_number == 0u32.into() {
+                    continue;
+                }
 
-				let fetch_result = das_client.network.fetch_block(&header).await;
-				let (segments, need_reconstruct, is_availability) = match fetch_result {
-					Ok(data) => data,
-					Err(e) => {
-						tracing::error!(target: LOG_TARGET, "Error fetching block: {:?}", e);
-						continue;
-					},
-				};
+                let commitments = if let Some(cmts) = header.commitments() {
+                    if cmts.is_empty() {
+                        info!("😴 Block {} has no blob", block_number);
+                        continue;
+                    }
+                    cmts
+                } else {
+                    error!("⚠️ Block {} has no commitments information", block_number);
+                    continue;
+                };
 
-				if !is_availability {
-					info!("🔍Block {} is not available", block_number);
-					continue
-				}
+                let fetch_result = das_client.network.fetch_block(&header).await;
+                let (segments, need_reconstruct, is_availability) = match fetch_result {
+                    Ok(data) => data,
+                    Err(e) => {
+                        tracing::error!(target: LOG_TARGET, "Error fetching block: {:?}", e);
+                        continue;
+                    },
+                };
 
-				let reconstructed_rows: HashMap<usize, Vec<Segment>> = need_reconstruct
-					.iter()
-					.map(|&row_index| {
-						let row =
-							segments[row_index * SAMPLES_PER_BLOB..(row_index + 1) * SAMPLES_PER_BLOB].to_vec();
-						let recovered_row = match das_client.network.recovery_order_row_from_segments(&row) {
-							Ok(recovered) => recovered,
-							Err(err) => {
-								tracing::error!("Error in recovery_row_from_segments: {:?}", err);
-								vec![]
-							},
-						};
-						(row_index, recovered_row)
-					})
-					.collect();
+                if !is_availability {
+                    info!("🥵 Block {} is not available", block_number);
+                    continue
+                }
 
-				for x in 0..SAMPLES_PER_BLOB {
-					let col_result = segments.iter()
-						.skip(x)
-						.step_by(SAMPLES_PER_BLOB)
-						.enumerate()
-						.try_fold(Vec::new(), |mut col, (y, maybe_segment)| {
-							let segment = match maybe_segment {
-								Some(segment) => segment,
-								None => &reconstructed_rows.get(&y)?[x],
-							};
-							col.push(segment.clone());
-							Some(col)
-					});
+                let reconstructed_rows: HashMap<usize, Vec<Segment>> = need_reconstruct
+                    .iter()
+                    .filter_map(|&row_index| {
+                        // Use the `row` helper function
+                        match row(&segments, row_index, EXTENDED_SAMPLES_PER_ROW) {
+                            Ok(row) => {
+                                match das_client.network.recovery_order_row_from_segments(&row) {
+                                    Ok(recovered) => Some((row_index, recovered)),
+                                    Err(err) => {
+                                        tracing::error!("Row {:?} recovery err: {:?}", row_index, err);
+                                        None
+                                    },
+                                }
+                            },
+                            Err(err) => {
+                                tracing::error!("Row {:?} fetch err: {:?}", row_index, err);
+                                None
+                            },
+                        }
+                    })
+                    .collect();
 
-					match col_result {
-						Some(col) => {
-							match das_client.network.extend_segments_col(&col) {
-							// extend_segments_col(&das_client.network.kzg.get_fs(), &col) {
-								Ok(col_ext) => {
-									// Broadcast the extended data to the network
-									let push_segments: Vec<Segment> = col_ext[commitments.len()..].to_vec();
-									if let Err(e) = das_client.network.put_ext_segments(&push_segments, &header).await {
-										tracing::error!(target: LOG_TARGET, "Error pushing values: {:?}", e);
-									} else {
-										info!("📡Block {} is available", block_number);
-									}
-								},
-								Err(e) => {
-									tracing::error!(target: LOG_TARGET, "Error extending col: {:?}", e);
-								},
-							};
-						},
-						None => continue,
-					};
-				};
-			},
+                for x in 0..EXTENDED_SAMPLES_PER_ROW {
+                    // Use the `full_col` helper function
+                    match full_col(&segments, x, &reconstructed_rows, EXTENDED_SAMPLES_PER_ROW) {
+                        Ok(col) => {
+                            match das_client.network.extend_segments_col(&col) {
+                                Ok(col_ext) => {
+                                    // Broadcast the extended data to the network
+                                    let push_segments: Vec<Segment> = col_ext[commitments.len()..].to_vec();
+                                    if let Err(e) = das_client.network.put_ext_segments(&push_segments, &header).await {
+                                        error!("⚠️ Error pushing values: {:?}", e);
+                                    }
+                                },
+                                Err(e) => {
+                                    error!("⚠️ Error extending col: {:?}", e);
+                                },
+                            };
+                        },
+                        Err(err) => {
+                            error!("Column {:?} fetch or reconstruction error: {:?}", x, err);
+                            continue;
+                        },
+                    };
+                };
+                info!("🎉 Block {} is available", block_number);
+            },
 			// Sample blocks after finalization to determine block data availability
 			// TODO: Sync progress from runtime to eliminate uncertainty in local sampling
 			Some(notification) = finality_notification_stream.next() => {
 				let header = notification.header;
 				let block_number = *HeaderT::number(&header);
 				let latest_sampled_block = das_client.last_at().await;
-
 
 				let to_block = std::cmp::min(
 					block_number,
@@ -271,5 +266,87 @@ pub async fn start_tx_pool_listener<
 				}
 			}
 		}
+	}
+}
+
+fn row<T>(segments: &[Option<T>], index: usize, len: usize) -> Result<Vec<Option<T>>, String>
+where
+	T: Clone,
+{
+	let stop = index * len + len;
+	if stop > segments.len() {
+		return Err("Index out of range".into())
+	}
+	let row = segments[index * len..(index + 1) * len].to_vec();
+	Ok(row)
+}
+
+fn full_col<T>(
+	segments: &[Option<T>],
+	index: usize,
+	reconstructed_rows: &HashMap<usize, Vec<T>>,
+	len: usize,
+) -> Result<Vec<T>, String>
+where
+	T: Clone,
+{
+	let col_result = segments.iter().skip(index).step_by(len).enumerate().try_fold(
+		Vec::new(),
+		|mut col, (y, maybe_segment)| {
+			let segment = match maybe_segment {
+				Some(segment) => segment,
+				None => &reconstructed_rows.get(&y)?[index],
+			};
+			col.push(segment.clone());
+			Some(col)
+		},
+	);
+	match col_result {
+		Some(col) => Ok(col),
+		None => Err("Col is not available".into()),
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::collections::HashMap;
+
+	#[test]
+	fn test_row_success() {
+		let segments = vec![Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)];
+		let result = row(&segments, 1, 3);
+		assert_eq!(result, Ok(vec![Some(4), Some(5), Some(6)]));
+	}
+
+	#[test]
+	fn test_row_out_of_range() {
+		let segments = vec![Some(1), Some(2), Some(3)];
+		let result = row(&segments, 1, 3);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_full_col_success() {
+		// 1 2
+		// 3 4
+		// 5 6
+		let segments = vec![Some(1), None, Some(3), None, Some(5), None];
+		let mut reconstructed_rows = HashMap::new();
+		reconstructed_rows.insert(0, vec![1, 2]);
+		reconstructed_rows.insert(1, vec![3, 4]);
+		reconstructed_rows.insert(2, vec![5, 6]);
+
+		let result = full_col(&segments, 1, &reconstructed_rows, 2);
+		assert_eq!(result, Ok(vec![2, 4, 6]));
+	}
+
+	#[test]
+	fn test_full_col_missing_data() {
+		let segments = vec![Some(1), None, Some(3), None];
+		let reconstructed_rows = HashMap::new(); // Missing data for reconstruction
+
+		let result = full_col(&segments, 1, &reconstructed_rows, 2);
+		assert!(result.is_err());
 	}
 }

@@ -136,8 +136,8 @@ pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize, chunk_size: u
         return Err("chunk_size must be a power of two".to_string());
     }
 
-    let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size).unwrap();
-    let all_proofs = fk.data_availability(&poly.0).unwrap();
+    let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size)?;
+    let all_proofs = fk.data_availability(&poly.0)?;
     let extended_poly = extend_poly(&fk.kzg_settings.fs, poly)?;
     let segments = extended_poly
         .chunks(chunk_size)
