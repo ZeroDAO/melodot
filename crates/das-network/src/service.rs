@@ -129,6 +129,12 @@ impl Service {
 			.await?;
 		receiver.await.context("Failed receiving put record response")?
 	}
+
+	pub async fn remove_records(&self, keys: &[KademliaKey]) -> anyhow::Result<()> {
+		let (sender, receiver) = oneshot::channel();
+		self.to_worker.clone().send(Command::RemoveRecords { keys: keys.to_vec(), sender }).await?;
+		receiver.await.context("Failed receiving remove records response")?
+	}
 }
 
 #[async_trait]

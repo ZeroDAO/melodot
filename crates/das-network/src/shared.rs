@@ -29,4 +29,5 @@ pub enum Command {
 	Bootstrap { sender: oneshot::Sender<Result<()>> },
 	GetKadRecord { key: KademliaKey, sender: oneshot::Sender<Result<Vec<Record>>> },
 	PutKadRecord { record: Record, quorum: Quorum, sender: oneshot::Sender<Result<()>> },
+	RemoveRecords { keys: Vec<KademliaKey>, sender: oneshot::Sender<Result<()>> },
 }

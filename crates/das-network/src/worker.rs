@@ -220,7 +220,6 @@ impl DasNetwork {
 					}
 				}
 			},
-
 			KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
 				QueryResult::GetRecord(result) => {
 					let msg = self.query_id_receivers.remove(&id);
@@ -303,6 +302,14 @@ impl DasNetwork {
 				} else {
 					warn!("Failed to execute put_record.");
 				}
+			},
+			Command::RemoveRecords { keys, sender } => {
+				for key in keys {
+					self.swarm.behaviour_mut().kademlia.remove_record(&key);
+				}
+				sender.send(Ok(())).unwrap_or_else(|_| {
+					debug!("Failed to send result");
+				});
 			},
 		}
 	}

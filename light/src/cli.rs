@@ -16,13 +16,12 @@ use melo_das_network::DasNetworkConfig;
 use std::net::SocketAddr;
 use clap::{Parser, ArgAction};
 
-const DEV_RPC_LISTEN_ADDR: &str = "127.0.0.1:9944";
-const TEST_RPC_LISTEN_ADDR: &str = "127.0.0.1:9945";
-const DEFAULT_RPC_LISTEN_ADDR: &str = "127.0.0.1:4177";
+pub const DEFAULT_RPC_LISTEN_ADDR: &str = "127.0.0.1:4177";
 
-const DEV_RPC_URL: &str = "http://127.0.0.1:9944";
-const TEST_RPC_URL: &str = "http://127.0.0.1:9945";
-const DEFAULT_RPC_URL: &str = "http://127.0.0.1:9944";
+const DEV_RPC_URL: &str = "ws://127.0.0.1:9944";
+const TEST_RPC_URL: &str = "wss://dev.melodot.io:9944";
+
+const DEFAULT_RPC_URL: &str = "ws://127.0.0.1:9944";
 
 /// Command line interface configuration
 #[derive(Parser, Debug)]
@@ -55,13 +54,7 @@ pub struct Config {
 impl Config {
     pub fn from_cli_args(cli: Cli) -> Self {
         let rpc_listen_addr = cli.rpc_listen_addr.unwrap_or_else(|| {
-            if cli.dev_mode {
-                DEV_RPC_LISTEN_ADDR.parse().expect("Invalid DEV SocketAddr")
-            } else if cli.test_mode {
-                TEST_RPC_LISTEN_ADDR.parse().expect("Invalid TEST SocketAddr")
-            } else {
-                DEFAULT_RPC_LISTEN_ADDR.parse().expect("Invalid DEFAULT SocketAddr")
-            }
+            DEFAULT_RPC_LISTEN_ADDR.parse().expect("Invalid DEFAULT SocketAddr")
         });
 
         let rpc_url = cli.rpc_remote_url.unwrap_or_else(|| {
@@ -86,4 +79,3 @@ pub fn parse_args() -> Config {
     let cli = Cli::parse();
     Config::from_cli_args(cli)
 }
-

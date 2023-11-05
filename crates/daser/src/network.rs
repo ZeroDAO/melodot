@@ -71,6 +71,8 @@ pub trait DasNetworkOperations {
 		&self,
 		segments: &Vec<Option<Segment>>,
 	) -> Result<Vec<Segment>>;
+
+	async fn remove_records(&self, keys: Vec<&[u8]>) -> Result<()>;
 }
 
 #[derive(Clone, Debug)]
@@ -216,6 +218,14 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		let values_set = self.network.get_values(&keys).await?;
 
 		values_set_handler(&values_set, &commitments, &self.kzg)
+	}
+
+	async fn remove_records(&self, keys: Vec<&[u8]>) -> Result<()> {
+		let keys = keys
+			.into_iter()
+			.map(|key| KademliaKey::new(&key))
+			.collect::<Vec<_>>();
+		self.network.remove_records(&keys).await
 	}
 }
 
