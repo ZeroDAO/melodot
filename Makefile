@@ -1,4 +1,7 @@
-.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e
+.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light
+
+run-light-dev:
+	./target/release/melodot-light --dev
 
 run-dev: init
 	./target/release/melodot-node --dev --ws-external

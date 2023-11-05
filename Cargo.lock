@@ -4851,10 +4851,12 @@ dependencies = [
 name = "melo-das-rpc"
 version = "0.0.1"
 dependencies = [
+ "futures",
  "hex",
  "jsonrpsee",
  "log",
  "melo-core-primitives",
+ "melo-das-db",
  "melo-das-network",
  "melo-das-network-protocol",
  "melo-daser",
@@ -4914,10 +4916,14 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap 4.4.1",
+ "futures",
+ "jsonrpsee",
+ "log",
  "melo-core-primitives",
  "melo-das-db",
  "melo-das-network",
  "melo-das-primitives",
+ "melo-das-rpc",
  "melo-daser",
  "meloxt",
  "substrate-build-script-utils",

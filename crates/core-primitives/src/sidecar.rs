@@ -14,7 +14,7 @@
 
 use crate::{
 	String, Vec,
-	confidence::ConfidenceId,
+	reliability::ReliabilityId,
 };
 use crate::TypeInfo;
 use alloc::format;
@@ -72,8 +72,8 @@ impl SidecarMetadata {
 			self.bytes_len > 0
 	}
 
-	pub fn confidence_id(&self) -> ConfidenceId {
-		ConfidenceId::app_confidence(self.app_id, self.nonce)
+	pub fn confidence_id(&self) -> ReliabilityId {
+		ReliabilityId::app_confidence(self.app_id, self.nonce)
 	}
 
 	/// Calculates and returns the ID (hash) of the metadata.

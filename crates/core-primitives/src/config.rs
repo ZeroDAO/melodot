@@ -24,3 +24,5 @@ pub const FIELD_ELEMENTS_PER_SEGMENT: usize = 2usize.pow(4);
 pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / FIELD_ELEMENTS_PER_SEGMENT;
 /// 扩展后的每行片段数量
 pub const EXTENDED_SAMPLES_PER_ROW: usize = SAMPLES_PER_BLOB * 2;
+/// 大于该数值的区块数据可用
+pub const BLOCK_AVAILABILITY_THRESHOLD: u32 = 5;

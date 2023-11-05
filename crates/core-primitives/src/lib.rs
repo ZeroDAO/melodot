@@ -31,7 +31,7 @@ pub use header::*;
 pub mod sidecar;
 pub use sidecar::*;
 
-pub mod confidence;
+pub mod reliability;
 pub mod config;
 pub mod localstorage;
 pub mod traits;

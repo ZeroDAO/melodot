@@ -13,29 +13,42 @@
 // limitations under the License.
 
 extern crate alloc;
+
+pub use sp_arithmetic::Permill;
+
+use sp_arithmetic::traits::Saturating;
+
 use crate::{KZGCommitment, String};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use rand::Rng;
-use sp_arithmetic::{traits::Saturating, Permill};
 
 use melo_das_db::traits::DasKv;
 use melo_das_primitives::{Position, Segment, KZG};
 
-use crate::config::{FIELD_ELEMENTS_PER_SEGMENT, SAMPLES_PER_BLOB};
+use crate::config::{BLOCK_AVAILABILITY_THRESHOLD, FIELD_ELEMENTS_PER_SEGMENT, SAMPLES_PER_BLOB};
 
+/// 大于该数值的应用数据可用，应用数据抽样面临网络问题，允许一定概率的失败
+/// TODO: 我们应该使用二项式分布？
+pub const APP_AVAILABILITY_THRESHOLD_PERMILL: Permill = Permill::from_parts(900);
+/// 最新处理的区块的键
 const LATEST_PROCESSED_BLOCK_KEY: &[u8] = b"latestprocessedblock";
 
+/// 应用的失败概率，这是一个千分比
+pub const APP_FAILURE_PROBABILITY: Permill = Permill::from_parts(500);
+/// 区块的失败概率，这是一个千分比
+pub const BLOCK_FAILURE_PROBABILITY: Permill = Permill::from_parts(250);
+
 #[cfg(feature = "std")]
-pub trait ConfidenceSample {
+pub trait ReliabilitySample {
 	fn set_sample(&mut self, n: usize);
 }
 
 #[derive(Debug, Clone, Default, Decode, Encode)]
-pub struct ConfidenceId(Vec<u8>);
+pub struct ReliabilityId(Vec<u8>);
 
-impl ConfidenceId {
+impl ReliabilityId {
 	pub fn block_confidence(block_hash: &[u8]) -> Self {
 		Self(block_hash.into())
 	}
@@ -49,19 +62,19 @@ impl ConfidenceId {
 		Self(buffer.into())
 	}
 
-	pub fn get_confidence(&self, db: &mut impl DasKv) -> Option<Confidence> {
-		Confidence::get(self, db)
+	pub fn get_confidence(&self, db: &mut impl DasKv) -> Option<Reliability> {
+		Reliability::get(self, db)
 	}
 }
 
-pub struct ConfidenceManager<DB>
+pub struct ReliabilityManager<DB>
 where
 	DB: DasKv,
 {
 	db: DB,
 }
 
-impl<DB> ConfidenceManager<DB>
+impl<DB> ReliabilityManager<DB>
 where
 	DB: DasKv,
 {
@@ -98,35 +111,76 @@ impl Sample {
 	}
 }
 
-pub const AVAILABILITY_THRESHOLD: f32 = 0.8;
-
-#[derive(Debug, Clone, Decode, Encode, Default)]
-pub struct Confidence {
-	pub samples: Vec<Sample>,
-	pub commitments: Vec<KZGCommitment>,
+#[derive(Debug, Clone, Copy, Decode, Encode)]
+pub enum ReliabilityType {
+	App,
+	Block,
 }
 
-impl Confidence {
-	pub fn value(&self, base_factor: Permill) -> Permill {
-		let success_count = self.samples.iter().filter(|&sample| sample.is_availability).count();
-		calculate_confidence(success_count as u32, base_factor)
+impl Default for ReliabilityType {
+	fn default() -> Self {
+		ReliabilityType::App
+	}
+}
+
+impl ReliabilityType {
+	pub fn failure_probability(&self) -> Permill {
+		match self {
+			ReliabilityType::App => APP_FAILURE_PROBABILITY,
+			ReliabilityType::Block => BLOCK_FAILURE_PROBABILITY,
+		}
 	}
 
-	pub fn exceeds_threshold(&self, base_factor: Permill, threshold: Permill) -> bool {
-		self.value(base_factor) > threshold
+	pub fn is_availability(&self, total_count: u32, success_count: u32) -> bool {
+		match self {
+			ReliabilityType::App =>
+				success_count > APP_AVAILABILITY_THRESHOLD_PERMILL.mul_floor(total_count),
+			ReliabilityType::Block => success_count >= BLOCK_AVAILABILITY_THRESHOLD,
+		}
+	}
+}
+
+#[derive(Debug, Clone, Decode, Encode, Default)]
+pub struct Reliability {
+	pub samples: Vec<Sample>,
+	pub commitments: Vec<KZGCommitment>,
+	pub confidence_type: ReliabilityType,
+}
+
+impl Reliability {
+	pub fn new(confidence_type: ReliabilityType, commitments: &[KZGCommitment]) -> Self {
+		Reliability { samples: Vec::new(), commitments: commitments.to_vec(), confidence_type }
 	}
 
-	pub fn is_availability(&self, base_factor: u32, threshold: u32) -> bool {
-		let base_factor = Permill::from_percent(base_factor);
-		let threshold = Permill::from_percent(threshold);
-		self.value(base_factor) > threshold
+	pub fn success_count(&self) -> usize {
+		self.samples.iter().filter(|&sample| sample.is_availability).count()
 	}
 
-	pub fn save(&self, id: &ConfidenceId, db: &mut impl DasKv) {
+	pub fn value(&self) -> Option<u32> {
+		match self.confidence_type {
+			ReliabilityType::App => None,
+			ReliabilityType::Block => match self.samples.len() {
+				0 => None,
+				_ => {
+					let failure_probability = self.confidence_type.failure_probability();
+					let success_count =
+						self.samples.iter().filter(|&sample| sample.is_availability).count();
+					Some(calculate_confidence(success_count as u32, failure_probability))
+				},
+			},
+		}
+	}
+
+	pub fn is_availability(&self) -> bool {
+		self.confidence_type
+			.is_availability(self.samples.len() as u32, self.success_count() as u32)
+	}
+
+	pub fn save(&self, id: &ReliabilityId, db: &mut impl DasKv) {
 		db.set(&id.0, &self.encode());
 	}
 
-	pub fn get(id: &ConfidenceId, db: &mut impl DasKv) -> Option<Self>
+	pub fn get(id: &ReliabilityId, db: &mut impl DasKv) -> Option<Self>
 	where
 		Self: Sized,
 	{
@@ -134,7 +188,7 @@ impl Confidence {
 			.and_then(|encoded_data| Decode::decode(&mut &encoded_data[..]).ok())
 	}
 
-	pub fn remove(&self, id: &ConfidenceId, db: &mut impl DasKv) {
+	pub fn remove(&self, id: &ReliabilityId, db: &mut impl DasKv) {
 		db.remove(&id.0);
 	}
 
@@ -155,7 +209,7 @@ impl Confidence {
 }
 
 #[cfg(feature = "std")]
-impl ConfidenceSample for Confidence {
+impl ReliabilitySample for Reliability {
 	fn set_sample(&mut self, n: usize) {
 		let mut rng = rand::thread_rng();
 		let mut positions = Vec::with_capacity(n);
@@ -182,10 +236,10 @@ impl ConfidenceSample for Confidence {
 	}
 }
 
-fn calculate_confidence(samples: u32, base_factor: Permill) -> Permill {
+fn calculate_confidence(samples: u32, failure_probability: Permill) -> u32 {
 	let one = Permill::one();
-	let base_power_sample = base_factor.saturating_pow(samples as usize);
-	one.saturating_sub(base_power_sample)
+	let base_power_sample = failure_probability.saturating_pow(samples as usize);
+	one.saturating_sub(base_power_sample).deconstruct()
 }
 
 pub fn sample_key(app_id: u32, nonce: u32, position: &Position) -> Vec<u8> {

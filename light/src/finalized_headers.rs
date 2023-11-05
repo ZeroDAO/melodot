@@ -15,11 +15,13 @@
 use std::time::Instant;
 
 use anyhow::{anyhow, Context};
+use futures::lock::Mutex;
+use log::{debug, error, info};
+use melo_das_network::Arc;
 use meloxt::{MeloConfig, MelodotHeader as Header};
 use subxt::OnlineClient;
 use tokio::sync::mpsc::Sender;
 use tokio_stream::StreamExt;
-use tracing::{error, info};
 
 use melo_core_primitives::traits::HeaderWithCommitment;
 use melo_das_db::sqlite::SqliteDasDb;
@@ -30,14 +32,17 @@ pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 	message_tx: Sender<(Header, Instant)>,
 	error_sender: Sender<anyhow::Error>,
 	network: DasNetworkServiceWrapper,
-	database: SqliteDasDb,
+	database: Arc<Mutex<SqliteDasDb>>,
 ) {
 	let client: SamplingClient<H, SqliteDasDb, DasNetworkServiceWrapper> =
 		SamplingClient::new(network, database);
 	let mut new_heads_sub = match rpc_client.blocks().subscribe_finalized().await {
-		Ok(subscription) => subscription,
+		Ok(subscription) => {
+			info!("🌐 Subscribed to finalized block headers");
+			subscription
+		},
 		Err(e) => {
-			error!("Failed to subscribe to finalized blocks: {:?}", e);
+			error!("⚠️ Failed to subscribe to finalized blocks: {:?}", e);
 			return
 		},
 	};
@@ -46,24 +51,30 @@ pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 		let received_at = Instant::now();
 		if let Ok(block) = message {
 			let header = block.header().clone();
-			info!(header.number, "Received finalized block header");
+
+			let block_number = header.number.clone();
+
+			info!("✅ Received finalized block header #{}", block_number.clone());
+
 			let message = (header.clone(), received_at);
 			if let Err(error) = message_tx.send(message).await.context("Send failed") {
-				error!("Fail to process finalized block header: {error}");
+				error!("❌ Fail to process finalized block header: {error}");
 			}
 
 			match client.sample_block::<Header>(&header.into()).await {
-				Ok(_) => {},
+				Ok(_) => debug!("🔍 Sampled block header #{}", block_number),
 				Err(e) => {
-					error!("Sampling error: {:?}", e);
+					error!("⚠️ Sampling error: {:?}", e);
 				},
 			}
+		} else if let Err(e) = message {
+			error!("❗ Error receiving finalized header message: {:?}", e);
 		}
 	}
 
 	if let Err(error) =
 		error_sender.send(anyhow!("Finalized blocks subscription disconnected")).await
 	{
-		error!("Cannot send error to error channel: {error}");
+		error!("🚫 Cannot send error to error channel: {error}");
 	}
 }

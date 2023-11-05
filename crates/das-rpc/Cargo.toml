@@ -21,11 +21,13 @@ thiserror = "1.0"
 serde = { version = "1.0.159", features = ["derive"] }
 hex = { version = "0.4.3", features = ["serde"] }
 log = { version = "0.4.17", default-features = false }
+futures = "0.3.21"
 
 melodot-runtime = { path = "../../runtime" }
 melo-core-primitives = { path = "../core-primitives" }
 melo-das-network = { path = "../das-network" }
 melo-das-network-protocol = { path = "../das-network/protocol" }
 melo-daser = { path = "../daser" }
+melo-das-db = { path = "../das-db" }
 
 [dev-dependencies]

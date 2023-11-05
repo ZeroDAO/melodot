@@ -1,7 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 #![warn(unused_extern_crates)]
-use futures::prelude::*;
+use futures::{lock::Mutex, prelude::*};
 use grandpa::SharedVoterState;
 use melo_das_db::offchain_outside::OffchainKvOutside;
 use melo_das_network::{default as create_das_network, DasNetwork};
@@ -172,7 +172,7 @@ pub fn new_partial(
 	let das_network_warpper = DasNetworkServiceWrapper::new(das_network_service.into(), kzg.into());
 
 	let das_client: SamplingClient<Header, DbType, DasNetworkServiceWrapper> =
-		SamplingClient::new(das_network_warpper.clone(), db);
+		SamplingClient::new(das_network_warpper.clone(), Arc::new(Mutex::new(db)));
 
 	let (rpc_extensions_builder, rpc_setup) = {
 		let (_, grandpa_link, _) = &import_setup;

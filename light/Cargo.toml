@@ -23,15 +23,19 @@ melo-das-network = { path = "../crates/das-network" }
 meloxt = { path = "../crates/meloxt" }
 melo-core-primitives = { path = "../crates/core-primitives" }
 melo-daser = { path = "../crates/daser" }
+melo-das-rpc = { path = "../crates/das-rpc" }
 
 subxt = { version = "0.31.0"}
 
-clap = { version = "4.0.9", features = ["derive"] }
+clap = { version = "4.0.9", features = ["derive","env"] }
 anyhow = "1.0.66"
 tracing = "0.1.37"
 tokio-stream = { version = "0.1" }
 tracing-subscriber = { version = "0.2.25", features = ["json"] }
 tokio = { version = "1.21.2", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+jsonrpsee = { version = "0.16.2", features = ["full"] }
+futures = "0.3.21"
+log = "0.4"
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

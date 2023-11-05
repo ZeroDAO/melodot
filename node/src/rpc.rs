@@ -99,7 +99,7 @@ where
 	P: TransactionPool<Block = Block> + Sync + Send + 'static,
 	D: DasNetworkOperations + Sync + Send + 'static + Clone,
 {
-	use melo_das_rpc::{Das, DasApiServer};
+	use melo_das_rpc::{SubmitBlob, SubmitBlobApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
@@ -148,7 +148,7 @@ where
 			.into_rpc(),
 	)?;
 
-	module.merge(Das::new(client.clone(), pool, das_network).into_rpc())?;
+	module.merge(SubmitBlob::new(client.clone(), pool, das_network).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed

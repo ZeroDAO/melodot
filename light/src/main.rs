@@ -12,77 +12,74 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use config::parse_args;
-use melo_das_network::{DasNetworkConfig, DasNetworkDiscovery};
+use cli::parse_args;
+use futures::lock::Mutex;
+use log::{error, info};
 use melo_das_primitives::KZG;
 use melo_daser::DasNetworkServiceWrapper;
 use meloxt::{ClientBuilder, MelodotHeader};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 use melo_das_db::sqlite::SqliteDasDb;
 
-mod config;
+mod cli;
 mod finalized_headers;
+mod rpc;
 
 use finalized_headers::finalized_headers;
 
-pub async fn run(config: &config::Config) -> anyhow::Result<()> {
+pub async fn run(config: &cli::Config) -> anyhow::Result<()> {
+	info!("🚀 Melodot Light Client starting up");
+
 	let rpc_url = config.rpc_url.clone();
 	let subscriber = FmtSubscriber::builder().with_max_level(Level::DEBUG).finish();
 
-	let database = SqliteDasDb::default();
+	let database = Arc::new(Mutex::new(SqliteDasDb::default()));
+	let full_deps = rpc::FullDeps { db: database.clone() };
+	let addr = rpc::run_server(&full_deps, &config.rpc_listen_addr).await?;
 
+	info!("👂 RPC server started at: {}", addr);
 	tracing::subscriber::set_global_default(subscriber)?;
-
 	let rpc_client = match ClientBuilder::default().set_url(&rpc_url).build().await {
 		Ok(client) => client,
-		Err(e) => return Err(e),
+		Err(e) => {
+			error!("❌ Failed to build RPC client: {:?}", e);
+			return Err(e)
+		},
 	};
-	
 	let (network_service, network_worker) = melo_das_network::default()?;
-
-	if let Err(e) = network_service.init(&DasNetworkConfig::default()).await {
-		tracing::error!("Failed to initiate network discovery: {:?}", e);
-		return Err(e)
-	}
-
-	let network_service_wapper =
+	let network_service_wrapper =
 		DasNetworkServiceWrapper::new(network_service.into(), KZG::default_embedded().into());
-
-	// Start the network worker
 	tokio::spawn(network_worker.run());
 
 	let (message_tx, _message_rx) = mpsc::channel(100);
 	let (error_tx, mut error_rx) = mpsc::channel(10);
-
-	// Start listening for finalized headers
 	tokio::spawn(finalized_headers::<MelodotHeader>(
 		rpc_client.api,
 		message_tx,
 		error_tx,
-		network_service_wapper,
+		network_service_wrapper,
 		database,
 	));
 
-	// Handling errors for demonstration, in a real-world application you may want a more
-	// sophisticated error handling mechanism
 	while let Some(error) = error_rx.recv().await {
-		tracing::error!("Error in finalized headers stream: {:?}", error);
+		error!("⚠️ Error in finalized headers stream: {:?}", error);
 	}
 
 	Ok(())
 }
 
 pub fn main() {
-	let config = parse_args();
+    let config = parse_args();
 
-	tokio::runtime::Builder::new_multi_thread()
-		.worker_threads(4)
-		.enable_all()
-		.build()
-		.unwrap()
-		.block_on(run(&config))
-		.unwrap();
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .expect("Failed to build runtime")
+        .block_on(run(&config))
+        .unwrap_or_else(|e| error!("Fatal error: {}", e));
 }

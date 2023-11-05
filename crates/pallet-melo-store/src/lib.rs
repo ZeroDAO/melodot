@@ -44,7 +44,7 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 use melo_core_primitives::{
-	confidence::{ConfidenceId, ConfidenceManager},
+	reliability::{ReliabilityId, ReliabilityManager},
 	config::{BLOCK_SAMPLE_LIMIT, MAX_UNAVAILABLE_BLOCK_INTERVAL},
 	extension::AppLookup,
 	traits::HeaderCommitList,
@@ -527,11 +527,11 @@ impl<T: Config> Pallet<T> {
 			.enumerate()
 			.filter_map(|(i, metadata)| {
 				let mut db = OffchainKv::new(Some(DB_PREFIX));
-				match ConfidenceId::app_confidence(metadata.app_id, metadata.nonce)
+				match ReliabilityId::app_confidence(metadata.app_id, metadata.nonce)
 					.get_confidence(&mut db)
 				{
 					Some(confidence) =>
-						if !confidence.is_availability(80, 95) {
+						if !confidence.is_availability() {
 							Some(i as u32)
 						} else {
 							None
@@ -547,7 +547,7 @@ impl<T: Config> Pallet<T> {
 		let mut db = OffchainKv::new(Some(DB_PREFIX));
 
 		let last: BlockNumberFor<T> =
-			match ConfidenceManager::new(db.clone()).get_last_processed_block() {
+			match ReliabilityManager::new(db.clone()).get_last_processed_block() {
 				Some(block) => block.into(),
 				None => now.saturating_sub(MAX_UNAVAILABLE_BLOCK_INTERVAL.into()),
 			};
@@ -562,8 +562,8 @@ impl<T: Config> Pallet<T> {
 
 			let maybe_avail = {
 				let block_hash = <frame_system::Pallet<T>>::block_hash(process_block);
-				match ConfidenceId::block_confidence(block_hash.as_ref()).get_confidence(&mut db) {
-					Some(confidence) => Some(confidence.is_availability(80, 95)),
+				match ReliabilityId::block_confidence(block_hash.as_ref()).get_confidence(&mut db) {
+					Some(confidence) => Some(confidence.is_availability()),
 					None => None,
 				}
 			};
