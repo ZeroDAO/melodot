@@ -19,15 +19,16 @@ use futures::{
 use libp2p::{
 	identify::Event as IdentifyEvent,
 	kad::{
-		BootstrapOk, GetRecordOk, InboundRequest, KademliaEvent, PutRecordOk, QueryId, QueryResult,
-		Record,
+		store::RecordStore, BootstrapOk, GetRecordOk, InboundRequest, KademliaEvent, PutRecordOk,
+		QueryId, QueryResult, Record,
 	},
+	mdns::Event as MdnsEvent,
 	metrics::Metrics,
 	multiaddr::Protocol,
 	swarm::{ConnectionError, Swarm, SwarmEvent},
-	PeerId, Multiaddr,
+	Multiaddr, PeerId,
 };
-use log::{debug, info, trace, warn, error};
+use log::{debug, error, info, trace, warn};
 use std::{collections::HashMap, fmt::Debug};
 
 const MAX_RETRIES: u8 = 3;
@@ -91,6 +92,7 @@ impl DasNetwork {
 
 		// Start listening on the specified address and port from config
 		let listen_addr = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port);
+
 		if let Err(e) = Swarm::listen_on(&mut swarm, listen_addr.parse().unwrap()) {
 			error!("Error starting to listen on {}: {}", listen_addr, e);
 		}
@@ -144,7 +146,33 @@ impl DasNetwork {
 			SwarmEvent::NewListenAddr { address, .. } => {
 				let peer_id = self.swarm.local_peer_id();
 				let address_with_peer = address.with(Protocol::P2p(peer_id.clone().into()));
-				info!("Local node is listening on {:?}", address_with_peer);
+				debug!("Local node is listening on {:?}", address_with_peer);
+			},
+			SwarmEvent::Behaviour(BehaviourEvent::Mdns(event)) => {
+				// Obtain a mutable reference to the behaviour to avoid multiple mutable borrowings
+				// later on.
+				let behaviour = self.swarm.behaviour_mut();
+
+				match event {
+					MdnsEvent::Discovered(peers) =>
+						for (peer_id, address) in peers {
+							debug!(
+								"MDNS discovered peer: ID = {:?}, Address = {:?}",
+								peer_id, address
+							);
+							behaviour.kademlia.add_address(&peer_id, address);
+						},
+					MdnsEvent::Expired(peers) =>
+						for (peer_id, address) in peers {
+							if !behaviour.mdns.has_node(&peer_id) {
+								debug!(
+									"MDNS expired peer: ID = {:?}, Address = {:?}",
+									peer_id, address
+								);
+								behaviour.kademlia.remove_address(&peer_id, &address);
+							}
+						},
+				}
 			},
 			SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
 				debug!("Connection closed with peer {:?}", peer_id);
@@ -304,8 +332,10 @@ impl DasNetwork {
 				}
 			},
 			Command::RemoveRecords { keys, sender } => {
+				let kademlia_store = self.swarm.behaviour_mut().kademlia.store_mut();
+
 				for key in keys {
-					self.swarm.behaviour_mut().kademlia.remove_record(&key);
+					kademlia_store.remove(&key);
 				}
 				sender.send(Ok(())).unwrap_or_else(|_| {
 					debug!("Failed to send result");

@@ -14,6 +14,7 @@
 
 use anyhow::Result;
 use codec::Decode;
+use melo_core_primitives::SidecarMetadata;
 use subxt::{
 	config::substrate::BlakeTwo256,
 	ext::scale_encode::EncodeAsType,
@@ -90,6 +91,12 @@ impl Client {
 #[async_trait::async_trait]
 pub trait ClientSync {
 	async fn nonce(&self, app_id: u32) -> Result<u32>;
+
+	async fn create_params(
+		&self,
+		bytes: Vec<u8>,
+		metadata: &SidecarMetadata,
+	) -> Result<(String, String)>;
 }
 
 #[async_trait::async_trait]
@@ -104,6 +111,31 @@ impl ClientSync for Client {
 			Some(nonce_data) => Decode::decode(&mut &nonce_data.0[..])?,
 		};
 		Ok(nonce)
+	}
+
+	async fn create_params(
+		&self,
+		bytes: Vec<u8>,
+		metadata: &SidecarMetadata,
+	) -> Result<(String, String)> {
+		let submit_data_tx = melodot::tx()
+			.melo_store()
+			.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
+	
+		let extrinsic = self
+			.api
+			.tx()
+			.create_signed(&submit_data_tx, &self.signer, Default::default())
+			.await?;
+	
+		fn to_hex_string(bytes: &[u8]) -> String {
+			format!("0x{}", hex::encode(bytes))
+		}
+	
+		let hex_bytes = to_hex_string(&bytes);
+		let hex_extrinsic = to_hex_string(&extrinsic.encoded());
+	
+		Ok((hex_bytes, hex_extrinsic))
 	}
 }
 

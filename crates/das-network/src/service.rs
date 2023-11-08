@@ -147,6 +147,7 @@ pub trait DasNetworkDiscovery {
 	) -> anyhow::Result<()>;
 }
 
+#[derive(Clone, Debug)]
 pub struct DasNetworkConfig {
 	pub listen_addr: String,
 	pub listen_port: u16,

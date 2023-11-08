@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use libp2p::{core::PeerId, kad::store::MemoryStore};
-
-use libp2p::{
-	identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
-	kad::{Kademlia, KademliaConfig, KademliaEvent},
-	ping::{Behaviour as Ping, Event as PingEvent},
-};
-use libp2p::swarm::NetworkBehaviour;
+use anyhow::Result;
 use derive_more::From;
+use libp2p::{
+	core::PeerId,
+	identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
+	kad::{store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
+	mdns::{tokio::Behaviour as TokioMdns, Config as MdnsConfig, Event as MdnsEvent},
+	ping::{Behaviour as Ping, Event as PingEvent},
+	swarm::NetworkBehaviour,
+};
 
 pub struct BehaviorConfig {
 	/// Identity keypair of a node used for authenticated connections.
@@ -40,13 +41,15 @@ pub struct Behavior {
 	pub kademlia: Kademlia<MemoryStore>,
 	pub identify: Identify,
 	pub ping: Ping,
+	pub mdns: TokioMdns,
 }
 
 impl Behavior {
-	pub fn new(config: BehaviorConfig) -> Self {
+	pub fn new(config: BehaviorConfig) -> Result<Self> {
+		let mdns = TokioMdns::new(MdnsConfig::default())?;
 		let kademlia = Kademlia::with_config(config.peer_id, config.kad_store, config.kademlia);
 
-		Self { identify: Identify::new(config.identify), kademlia, ping: Ping::default() }
+		Ok(Self { identify: Identify::new(config.identify), mdns, kademlia, ping: Ping::default() })
 	}
 }
 
@@ -55,4 +58,5 @@ pub enum BehaviourEvent {
 	Identify(IdentifyEvent),
 	Kademlia(KademliaEvent),
 	Ping(PingEvent),
+	Mdns(MdnsEvent),
 }

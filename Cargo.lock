@@ -1264,17 +1264,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf1af155f9b9ef647e42cdc158db4b64a1b61f743629225fde6f3e0be2a7c7"
 
 [[package]]
-name = "colored"
-version = "1.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5f741c91823341bebf717d4c71bda820630ce065443b58bd1b7451af008355"
-dependencies = [
- "is-terminal",
- "lazy_static",
- "winapi",
-]
-
-[[package]]
 name = "comfy-table"
 version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4777,6 +4766,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "tempfile",
 ]
 
 [[package]]
@@ -4928,6 +4918,29 @@ dependencies = [
  "meloxt",
  "substrate-build-script-utils",
  "subxt",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "melodot-light-client-e2e"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap 4.4.1",
+ "hex",
+ "jsonrpsee",
+ "log",
+ "melo-core-primitives",
+ "melo-das-rpc",
+ "meloxt",
+ "serde_json",
+ "substrate-build-script-utils",
+ "subxt",
+ "subxt-signer",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -5097,13 +5110,13 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "simple_logger",
  "sp-runtime",
  "structopt",
  "substrate-build-script-utils",
  "subxt",
  "subxt-signer",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9249,19 +9262,6 @@ dependencies = [
  "num-traits",
  "paste",
  "wide",
-]
-
-[[package]]
-name = "simple_logger"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28475b72d7e5da6ad80c6d284aa557821bb4f7f788b9f607632635e3783a8608"
-dependencies = [
- "atty",
- "chrono",
- "colored",
- "log",
- "winapi",
 ]
 
 [[package]]

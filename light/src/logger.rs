@@ -12,10 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use simple_logger::SimpleLogger;
-use log::LevelFilter;
+use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::util::SubscriberInitExt;
 
 pub fn init_logger() -> Result<(), Box<dyn std::error::Error>> {
-	SimpleLogger::new().with_level(LevelFilter::Info).init()?;
-	Ok(())
+    let filter = EnvFilter::new("info")
+        .add_directive("libp2p_kad=off".parse()?);
+
+    fmt::Subscriber::builder()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .without_time()
+        .with_target(false)
+        .finish()
+        .init();
+
+    Ok(())
 }
+

@@ -1,7 +1,10 @@
-.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light
+.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light run-light-e2e
 
 run-light-dev:
-	./target/release/melodot-light --dev
+	./target/release/melodot-light --dev-mode
+
+run-light-e2e:
+	./target/release/melodot-light-e2e
 
 run-dev: init
 	./target/release/melodot-node --dev --ws-external
@@ -16,7 +19,7 @@ build-meloxt: init
 	cargo build --release -p meloxt
 
 build-light: init
-	cargo build --release -p melodot-light-client
+	cargo build --release -p melodot-light-client -p melodot-light-client-e2e
 
 purge-dev: init
 	./target/release/melodot-node purge-chain --dev

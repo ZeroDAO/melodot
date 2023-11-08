@@ -21,7 +21,7 @@ pub use alloc::{
 	vec::Vec,
 };
 
-pub(crate) use melo_das_primitives::{KZGCommitment, KZGProof};
+pub use melo_das_primitives::{KZGCommitment, KZGProof, Position};
 use sp_core::RuntimeDebug;
 use sp_runtime::generic::Digest;
 

@@ -16,6 +16,7 @@ members = [
     "crates/das-db",
     "crates/meloxt",
     "light",
+    "light/e2e",
     "runtime",
 ]
 

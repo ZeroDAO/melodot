@@ -33,8 +33,8 @@ use libp2p::{
 	yamux::YamuxConfig,
 	Transport,
 };
-use prometheus_client::registry::Registry;
 use melo_core_primitives::config;
+use prometheus_client::registry::Registry;
 
 pub use log::warn;
 
@@ -46,7 +46,7 @@ pub use std::sync::Arc;
 use std::time::Duration;
 
 pub use behaviour::{Behavior, BehaviorConfig, BehaviourEvent};
-pub use service::{DasNetworkConfig, Service, DasNetworkDiscovery};
+pub use service::{DasNetworkConfig, DasNetworkDiscovery, Service};
 pub use shared::Command;
 pub use worker::DasNetwork;
 
@@ -54,6 +54,8 @@ mod behaviour;
 mod service;
 mod shared;
 mod worker;
+
+const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 5000;
 
 pub fn create(
 	keypair: identity::Keypair,
@@ -66,7 +68,6 @@ pub fn create(
 	let protocol_version = format!("/melodot-das/{}", protocol_version);
 	let identify = IdentifyConfig::new(protocol_version.clone(), keypair.public());
 
-	// Create a TCP transport with mplex and Yamux.
 	let transport = build_transport(&keypair, true)?;
 
 	let behaviour = Behavior::new(BehaviorConfig {
@@ -74,17 +75,13 @@ pub fn create(
 		identify,
 		kademlia: KademliaConfig::default(),
 		kad_store: MemoryStore::new(local_peer_id.clone()),
-	});
+	})?;
 
-	// Build the swarm.
 	let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
-		// .max_negotiating_inbound_streams(SWARM_MAX_NEGOTIATING_INBOUND_STREAMS)
+		.max_negotiating_inbound_streams(SWARM_MAX_NEGOTIATING_INBOUND_STREAMS)
 		.build();
 
 	let (to_worker, from_service) = mpsc::channel(8);
-
-	// let service = service::Service::new(to_worker, config.parallel_limit);
-	// service.init(&config)?;
 
 	Ok((
 		service::Service::new(to_worker, config.parallel_limit),
@@ -92,12 +89,31 @@ pub fn create(
 	))
 }
 
-pub fn default() -> Result<(service::Service, worker::DasNetwork)> {
-    let keypair = identity::Keypair::generate_ed25519();
+pub fn default(
+	config: Option<DasNetworkConfig>,
+	keypair: Option<identity::Keypair>,
+) -> Result<(service::Service, worker::DasNetwork)> {
+	let keypair = match keypair {
+		Some(keypair) => keypair,
+		None => {
+			identity::Keypair::generate_ed25519()
+		}
+	};
+
+	let config = match config {
+		Some(config) => config,
+		None => DasNetworkConfig::default(),
+	};
+
 	let mut metric_registry = Registry::default();
 	let libp2p_metrics = Metrics::new(&mut metric_registry);
 
-    create(keypair, config::DAS_NETWORK_VERSION.to_string(), libp2p_metrics, DasNetworkConfig::default())
+	create(
+		keypair,
+		config::DAS_NETWORK_VERSION.to_string(),
+		libp2p_metrics,
+		config,
+	)
 }
 
 fn build_transport(

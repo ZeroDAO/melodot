@@ -13,16 +13,18 @@
 // limitations under the License.
 use crate::{
 	anyhow, Arc, Context, DasKv, DasNetworkOperations, KZGCommitment, Ok, Reliability,
-	ReliabilityId, Result, SAMPLES_PER_BLOB,
+	ReliabilityId, Result, SAMPLES_PER_BLOCK,
 };
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
+use log::info;
 use melo_core_primitives::{
 	reliability::{ReliabilitySample, ReliabilityType},
 	traits::HeaderWithCommitment,
+	AppLookup,
 };
-// use sp_api::HeaderT;
+use melo_erasure_coding::erasure_coding::extend_fs_g1;
 use std::marker::PhantomData;
 
 const LAST_AT_KEY: &[u8] = b"sampled_at_last_block";
@@ -63,18 +65,13 @@ where
 		&self,
 		confidence_id: &ReliabilityId,
 		confidence: &mut Reliability,
-		app: &[(u32, u32)],
 		commitments: &[KZGCommitment],
 	) -> Result<()> {
-		if confidence.samples.len() != app.len() || commitments.len() != app.len() {
-			return Err(anyhow!("nvalid sample length"))
-		}
-
-		for ((sample, (app_id, nonce)), commitment) in
-			confidence.samples.iter_mut().zip(app.iter()).zip(commitments.iter())
-		{
-			if self.network.fetch_sample(*app_id, *nonce, sample, commitment).await.is_some() {
+		for (sample, commitment) in confidence.samples.iter_mut().zip(commitments.iter()) {
+			if self.network.fetch_sample(sample, commitment).await.is_some() {
 				sample.set_success();
+			} else {
+				info!("❌ Sampled failed: {:?}", sample.id);
 			}
 		}
 
@@ -127,48 +124,37 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		commitments: &Vec<KZGCommitment>,
 	) -> Result<()> {
 		let id = ReliabilityId::app_confidence(app_id, nonce);
-
 		let mut confidence = Reliability::new(ReliabilityType::App, &commitments);
-
 		let blob_count = commitments.len();
-
-		// 平均每个blob抽样1次
 		let n = blob_count;
-
-		confidence.set_sample(n);
-
-		let apps = vec![(app_id, nonce); blob_count];
-
-		self.sample(&id, &mut confidence, &apps, &commitments).await
+		let app_lookups = vec![AppLookup { app_id, nonce, count: blob_count as u16 }];
+		let sample_commitments =
+			confidence.set_sample(n, &app_lookups, None).map_err(|e| anyhow!(e))?;
+		self.sample(&id, &mut confidence, &sample_commitments).await
 	}
 
 	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
 	where
 		Header: HeaderWithCommitment + Sync,
 	{
-		let id = ReliabilityId::block_confidence(&header.hash().encode());
+		let block_hash = header.hash().encode();
+		let id = ReliabilityId::block_confidence(&block_hash);
 		let commitments = header.commitments().context("Commitments not found in the header")?;
 
 		if commitments.len() > 0 {
-			let mut confidence = Reliability::new(ReliabilityType::Block, &commitments);
+			info!("🌈 Sampling block {}, ID: {:?}", header.number(), id);
 
-			confidence.set_sample(SAMPLES_PER_BLOB);
+			let extended_commits =
+				extend_fs_g1(self.network.kzg().get_fs(), &commitments).map_err(|e| anyhow!(e))?;
+			let mut confidence = Reliability::new(ReliabilityType::Block, &extended_commits);
 
-			let apps: Result<Vec<(u32, u32)>> = confidence
-				.samples
-				.iter()
-				.map(|sample| {
-					header
-						.extension()
-						.get_lookup(sample.position.y)
-						.context("AppLookup not found for given sample position")
-						.map(|app_lookup| (app_lookup.app_id, app_lookup.nonce))
-				})
-				.collect();
+			let app_lookups = header.extension().app_lookup.clone();
 
-			let apps = apps?;
+			let sample_commitments = confidence
+				.set_sample(SAMPLES_PER_BLOCK, &app_lookups, Some(&block_hash))
+				.map_err(|e| anyhow!(e))?;
 
-			self.sample(&id, &mut confidence, &apps, &commitments).await?;
+			self.sample(&id, &mut confidence, &sample_commitments).await?;
 		}
 
 		let at = header.number();

@@ -28,6 +28,25 @@ pub struct AppLookup {
 	pub count: u16,
 }
 
+impl AppLookup {
+    pub fn get_lookup(lookups: &[Self], at: u32) -> Option<(&Self, u32)> {
+        let mut prev_sum = 0u32;
+
+        for lookup in lookups {
+            let next_sum = prev_sum + lookup.count as u32;
+
+            if at < next_sum {
+                // 计算并返回相对行数 (at - prev_sum)
+                return Some((lookup, at - prev_sum));
+            }
+
+            prev_sum = next_sum;
+        }
+
+        None
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct HeaderExtension {
@@ -57,17 +76,83 @@ impl HeaderExtension {
         None
     }
 
-    pub fn get_lookup(&self, at: u32) -> Option<&AppLookup> {
-        let mut sum = 0u32;
-        
-        for lookup in &self.app_lookup {
-            sum += lookup.count as u32;
-
-            if at < sum {
-                return Some(lookup);
-            }
-        }
-
-        None
+    pub fn get_lookup(&self, at: u32) -> Option<(&AppLookup, u32)> {
+        AppLookup::get_lookup(&self.app_lookup, at)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_lookup_get_lookup() {
+        let lookups = vec![
+            AppLookup {
+                app_id: 1,
+                nonce: 1,
+                count: 10,
+            },
+            AppLookup {
+                app_id: 2,
+                nonce: 1,
+                count: 20,
+            },
+            AppLookup {
+                app_id: 3,
+                nonce: 1,
+                count: 30,
+            },
+        ];
+
+        // at is within the range of the first AppLookup
+        assert_eq!(
+            AppLookup::get_lookup(&lookups, 5).map(|(lookup, relative_row)| (lookup.app_id, relative_row)),
+            Some((1, 5))
+        );
+
+        // at is the start of the second AppLookup
+        assert_eq!(
+            AppLookup::get_lookup(&lookups, 10).map(|(lookup, relative_row)| (lookup.app_id, relative_row)),
+            Some((2, 0))
+        );
+
+        // at is within the range of the second AppLookup
+        assert_eq!(
+            AppLookup::get_lookup(&lookups, 15).map(|(lookup, relative_row)| (lookup.app_id, relative_row)),
+            Some((2, 5))
+        );
+
+        // at is beyond the range of all AppLookups
+        assert!(AppLookup::get_lookup(&lookups, 61).is_none());
+    }
+
+    #[test]
+    fn test_header_extension_start_at() {
+        let header_extension = HeaderExtension {
+            commitments_bytes: vec![],
+            app_lookup: vec![
+                AppLookup {
+                    app_id: 1,
+                    nonce: 1,
+                    count: 10,
+                },
+                AppLookup {
+                    app_id: 2,
+                    nonce: 1,
+                    count: 20,
+                },
+            ],
+        };
+
+        // Testing for existing app_id and nonce
+        assert_eq!(header_extension.start_at(1, 1), Some(0));
+
+        // Testing for app_id and nonce that are in the second AppLookup
+        assert_eq!(header_extension.start_at(2, 1), Some(10));
+
+        // Testing for non-existing app_id and nonce
+        assert_eq!(header_extension.start_at(3, 1), None);
+    }
+}
+

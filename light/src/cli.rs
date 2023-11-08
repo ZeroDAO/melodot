@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use clap::{ArgAction, Parser};
 use melo_das_network::DasNetworkConfig;
 use std::net::SocketAddr;
-use clap::{Parser, ArgAction};
 
 pub const DEFAULT_RPC_LISTEN_ADDR: &str = "127.0.0.1:4177";
 
@@ -27,55 +27,61 @@ const DEFAULT_RPC_URL: &str = "ws://127.0.0.1:9944";
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Listening address for the RPC service
-    #[clap(short = 'a', long, env)]
-    rpc_listen_addr: Option<SocketAddr>,
+	/// Listening address for the RPC service
+	#[clap(short = 'a', long, env)]
+	rpc_listen_addr: Option<SocketAddr>,
 
-    /// Remote RPC URL for receiving messages
-    #[clap(short = 'r', long, env = "RPC_REMOTE_URL")]
-    rpc_remote_url: Option<String>,
+	/// Remote RPC URL for receiving messages
+	#[clap(short = 'r', long, env = "RPC_REMOTE_URL")]
+	rpc_remote_url: Option<String>,
 
-    /// Activate development configuration
-    #[clap(long, action = ArgAction::SetTrue)]
-    dev_mode: bool,
+	/// Remote RPC URL for receiving messages
+	#[clap(short = 'd', long, env = "DAS_NET_LISTEN_PORT")]
+	das_net_listen_port: Option<u16>,
 
-    /// Activate test configuration
-    #[clap(long, action = ArgAction::SetTrue)]
-    test_mode: bool,
+	/// Activate development configuration
+	#[clap(long, action = ArgAction::SetTrue)]
+	dev_mode: bool,
+
+	/// Activate test configuration
+	#[clap(long, action = ArgAction::SetTrue)]
+	test_mode: bool,
 }
 
 /// Application configuration
 pub struct Config {
-    pub rpc_listen_addr: SocketAddr,
-    pub rpc_url: String,
-    pub network_config: DasNetworkConfig,
+	pub rpc_listen_addr: SocketAddr,
+	pub rpc_url: String,
+	pub network_config: DasNetworkConfig,
 }
 
 impl Config {
-    pub fn from_cli_args(cli: Cli) -> Self {
-        let rpc_listen_addr = cli.rpc_listen_addr.unwrap_or_else(|| {
-            DEFAULT_RPC_LISTEN_ADDR.parse().expect("Invalid DEFAULT SocketAddr")
-        });
+	pub fn from_cli_args(cli: Cli) -> Self {
+		let rpc_listen_addr = cli.rpc_listen_addr.unwrap_or_else(|| {
+			DEFAULT_RPC_LISTEN_ADDR.parse().expect("Invalid DEFAULT SocketAddr")
+		});
 
-        let rpc_url = cli.rpc_remote_url.unwrap_or_else(|| {
-            if cli.dev_mode {
-                DEV_RPC_URL.to_string()
-            } else if cli.test_mode {
-                TEST_RPC_URL.to_string()
-            } else {
-                DEFAULT_RPC_URL.to_string()
-            }
-        });
+		let mut das_network_config = DasNetworkConfig::default();
+		let mut rpc_url = DEFAULT_RPC_URL.to_string();
 
-        Config {
-            rpc_listen_addr,
-            rpc_url,
-            network_config: DasNetworkConfig::default(),
-        }
-    }
+		if cli.dev_mode {
+			rpc_url = DEV_RPC_URL.to_string();
+			das_network_config.listen_port = 4418;
+		} else if cli.test_mode {
+			rpc_url = TEST_RPC_URL.to_string();
+		}
+
+		if let Some(rpc_remote_url) = cli.rpc_remote_url {
+			rpc_url = rpc_remote_url.to_string();
+		}
+
+        print!("poot: {}", das_network_config.listen_port);
+
+		Config { rpc_listen_addr, rpc_url, network_config: das_network_config }
+	}
 }
 
 pub fn parse_args() -> Config {
-    let cli = Cli::parse();
-    Config::from_cli_args(cli)
+	let cli = Cli::parse();
+	Config::from_cli_args(cli)
 }

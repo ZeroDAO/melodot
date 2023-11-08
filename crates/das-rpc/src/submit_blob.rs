@@ -50,9 +50,6 @@ pub trait SubmitBlobApi<Hash> {
 	/// This will take care of encoding, and then submitting the data and extrinsic to the pool.
 	#[method(name = "submitBlobTx")]
 	async fn submit_blob_tx(&self, data: Bytes, extrinsic: Bytes) -> RpcResult<BlobTxSatus<Hash>>;
-
-	#[method(name = "removeRecords")]
-	async fn remove_records(&self, keys: Vec<Bytes>) -> RpcResult<()>;
 }
 
 /// Main structure representing the Das system.
@@ -168,11 +165,5 @@ where
 
 		// Return the transaction hash
 		Ok(BlobTxSatus { tx_hash, err: err_msg })
-	}
-
-	async fn remove_records(&self, keys: Vec<Bytes>) -> RpcResult<()> {
-		let keys = keys.iter().map(|key| &**key).collect::<Vec<_>>();
-		self.das_network.remove_records(keys).await?;
-		Ok(())
 	}
 }

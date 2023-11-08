@@ -20,6 +20,7 @@ sc-offchain = { git = "https://github.com/paritytech/substrate.git", branch = "p
 rusqlite = { version = "0.28.0", optional = true }
 
 [dev-dependencies]
+tempfile = "3.0"
 
 [features]
 default = ["std","outside"]

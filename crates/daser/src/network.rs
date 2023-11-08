@@ -18,8 +18,8 @@ use melo_erasure_coding::bytes_to_segments;
 
 use crate::{
 	anyhow, sample_key, sample_key_from_block, Arc, Context, KZGCommitment, Ok, Position, Result,
-	Sample, Segment, SegmentData, EXTENDED_SAMPLES_PER_ROW, FIELD_ELEMENTS_PER_BLOB,
-	SAMPLES_PER_BLOB,
+	Sample, Segment, SegmentData, EXTENDED_SEGMENTS_PER_BLOB, FIELD_ELEMENTS_PER_BLOB,
+	SEGMENTS_PER_BLOB,
 };
 use melo_core_primitives::{
 	config::FIELD_ELEMENTS_PER_SEGMENT, traits::HeaderWithCommitment, Decode,
@@ -52,8 +52,6 @@ pub trait DasNetworkOperations {
 
 	async fn fetch_sample(
 		&self,
-		app_id: u32,
-		nonce: u32,
 		sample: &Sample,
 		commitment: &KZGCommitment,
 	) -> Option<SegmentData>;
@@ -71,6 +69,8 @@ pub trait DasNetworkOperations {
 		&self,
 		segments: &Vec<Option<Segment>>,
 	) -> Result<Vec<Segment>>;
+
+	fn kzg(&self) -> Arc<KZG>;
 
 	async fn remove_records(&self, keys: Vec<&[u8]>) -> Result<()>;
 }
@@ -105,7 +105,7 @@ impl DasNetworkServiceWrapper {
 			.app_lookup
 			.iter()
 			.flat_map(|app_lookup| {
-				(0..EXTENDED_SAMPLES_PER_ROW).flat_map(move |x| {
+				(0..EXTENDED_SEGMENTS_PER_BLOB).flat_map(move |x| {
 					(0..app_lookup.count).map(move |y| {
 						let position = Position { x: x as u32, y: y as u32 };
 						let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
@@ -129,6 +129,10 @@ impl DasNetworkServiceWrapper {
 
 #[async_trait::async_trait]
 impl DasNetworkOperations for DasNetworkServiceWrapper {
+	fn kzg(&self) -> Arc<KZG> {
+		self.kzg.clone()
+	}
+	
 	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>> {
 		extend(&self.kzg.get_fs(), segments).map_err(|e| anyhow!(e))
 	}
@@ -196,13 +200,10 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 
 	async fn fetch_sample(
 		&self,
-		app_id: u32,
-		nonce: u32,
 		sample: &Sample,
 		commitment: &KZGCommitment,
 	) -> Option<SegmentData> {
-		let key = sample.key(app_id, nonce);
-		self.fetch_value(&key, &sample.position, commitment).await
+		self.fetch_value(&sample.get_id(), &sample.position, commitment).await
 	}
 
 	async fn fetch_block<Header>(
@@ -239,12 +240,12 @@ fn values_set_handler(
 
 	let all_segments: Vec<Option<Segment>> = values_set
 		.into_iter()
-		.chunks(EXTENDED_SAMPLES_PER_ROW)
+		.chunks(EXTENDED_SEGMENTS_PER_BLOB)
 		.into_iter()
 		.enumerate()
 		.flat_map(|(y, chunk)| {
 			if !is_availability {
-				return vec![None; EXTENDED_SAMPLES_PER_ROW]
+				return vec![None; EXTENDED_SEGMENTS_PER_BLOB]
 			}
 
 			let segments = chunk
@@ -262,8 +263,8 @@ fn values_set_handler(
 
 			let available_segments = segments.iter().filter(|s| s.is_some()).count();
 
-			if available_segments >= SAMPLES_PER_BLOB {
-				if available_segments < EXTENDED_SAMPLES_PER_ROW {
+			if available_segments >= SEGMENTS_PER_BLOB {
+				if available_segments < EXTENDED_SEGMENTS_PER_BLOB {
 					need_reconstruct.push(y);
 				}
 			} else {

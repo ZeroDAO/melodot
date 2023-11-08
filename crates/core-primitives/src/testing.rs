@@ -18,7 +18,7 @@
 //! Testing utilities.
 use crate::{
 	traits::{ExtendedHeader, HeaderCommitList},
-	Header as HeaderT, HeaderExtension, AppLookup,
+	AppLookup, Header as HeaderT, HeaderExtension,
 };
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
@@ -47,14 +47,14 @@ use std::{
 };
 
 lazy_static! {
-		/// A static reference containing test commitments.
+	/// A static reference containing test commitments.
 	pub static ref TEST_COMMITMENTS: Vec<KZGCommitment> = vec![
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
 	];
 }
 

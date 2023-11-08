@@ -21,8 +21,10 @@ pub const MAX_UNAVAILABLE_BLOCK_INTERVAL: u32 = 3;
 /// 每个片段的元素数量，必须为2的幂
 pub const FIELD_ELEMENTS_PER_SEGMENT: usize = 2usize.pow(4);
 /// 每个 blob 的样本/片段数量
-pub const SAMPLES_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / FIELD_ELEMENTS_PER_SEGMENT;
+pub const SEGMENTS_PER_BLOB: usize = FIELD_ELEMENTS_PER_BLOB / FIELD_ELEMENTS_PER_SEGMENT;
 /// 扩展后的每行片段数量
-pub const EXTENDED_SAMPLES_PER_ROW: usize = SAMPLES_PER_BLOB * 2;
+pub const EXTENDED_SEGMENTS_PER_BLOB: usize = SEGMENTS_PER_BLOB * 2;
 /// 大于该数值的区块数据可用
 pub const BLOCK_AVAILABILITY_THRESHOLD: u32 = 5;
+/// 每个区块的抽样量
+pub const SAMPLES_PER_BLOCK: usize = 8;

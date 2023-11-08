@@ -157,7 +157,7 @@ pub fn new_partial(
 	let import_setup = (babe_block_import, grandpa_link, babe_link);
 
 	let (das_network_service, das_networker) =
-		create_das_network().map_err(|e| sc_service::Error::from(e.to_string()))?;
+		create_das_network(None, None).map_err(|e| sc_service::Error::from(e.to_string()))?;
 
 	// Initialize the off-chain database using the backend's off-chain storage.
 	// If unavailable, log a warning and return without starting the listener.
@@ -171,8 +171,10 @@ pub fn new_partial(
 
 	let das_network_warpper = DasNetworkServiceWrapper::new(das_network_service.into(), kzg.into());
 
+	let db = Arc::new(Mutex::new(db));
+
 	let das_client: SamplingClient<Header, DbType, DasNetworkServiceWrapper> =
-		SamplingClient::new(das_network_warpper.clone(), Arc::new(Mutex::new(db)));
+		SamplingClient::new(das_network_warpper.clone(), db.clone());
 
 	let (rpc_extensions_builder, rpc_setup) = {
 		let (_, grandpa_link, _) = &import_setup;
@@ -212,6 +214,7 @@ pub fn new_partial(
 					finality_provider: finality_proof_provider.clone(),
 				},
 				das_network: das_network_warpper.clone().into(),
+				das_db: db.clone(),
 			};
 
 			melo_rpc::create_full(deps).map_err(Into::into)
