@@ -32,3 +32,6 @@ sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git",
 sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[dev-dependencies]
+rand = "0.8.5"

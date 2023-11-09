@@ -4879,6 +4879,7 @@ dependencies = [
  "melo-das-primitives",
  "melo-erasure-coding",
  "parity-scale-codec 3.6.4",
+ "rand 0.8.5",
  "sc-client-api",
  "sc-consensus",
  "sc-transaction-pool-api",

@@ -132,7 +132,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 	fn kzg(&self) -> Arc<KZG> {
 		self.kzg.clone()
 	}
-	
+
 	fn extend_segments_col(&self, segments: &[Segment]) -> Result<Vec<Segment>> {
 		extend(self.kzg.get_fs(), &segments.to_vec()).map_err(|e| anyhow!(e))
 	}
@@ -222,10 +222,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 	}
 
 	async fn remove_records(&self, keys: Vec<&[u8]>) -> Result<()> {
-		let keys = keys
-			.into_iter()
-			.map(|key| KademliaKey::new(&key))
-			.collect::<Vec<_>>();
+		let keys = keys.into_iter().map(|key| KademliaKey::new(&key)).collect::<Vec<_>>();
 		self.network.remove_records(&keys).await
 	}
 }
@@ -235,6 +232,11 @@ fn values_set_handler(
 	commitments: &[KZGCommitment],
 	kzg: &KZG,
 ) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)> {
+
+	if values_set.is_empty() || commitments.is_empty() {
+		return Ok((vec![], vec![], false))
+	}
+
 	let mut need_reconstruct = vec![];
 	let mut is_availability = true;
 
@@ -286,13 +288,265 @@ fn verify_values(
 	values
 		.iter()
 		.filter_map(|value| {
-			if let core::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
+			// Attempt to decode the value into a SegmentData
+			if let std::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
 				let segment = Segment { position: position.clone(), content: segment_data };
-				if segment.checked().unwrap().verify(kzg, commitment, segment.size()).is_ok() {
-					return Some(segment)
+				// Safely check the segment and verify it
+				if let std::result::Result::Ok(checked_segment) = segment.checked() {
+					if let std::result::Result::Ok(vd) =
+						checked_segment.verify(kzg, commitment, SEGMENTS_PER_BLOB)
+					{
+						if vd {
+							return Some(segment)
+						}
+					}
 				}
 			}
 			None
 		})
-		.next()
+		// Only return the segment that matches the provided position
+		.find(|segment| segment.position == *position)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use codec::Encode;
+	use melo_das_primitives::Blob;
+	use melo_erasure_coding::{bytes_to_blobs, bytes_to_segments};
+	use rand::Rng;
+
+	fn random_bytes(len: usize) -> Vec<u8> {
+		let mut rng = rand::thread_rng();
+		let bytes: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
+		bytes
+	}
+
+	fn create_commitments(blobs: &[Blob]) -> Option<Vec<KZGCommitment>> {
+		blobs
+			.iter()
+			.map(|blob| blob.commit(&KZG::default_embedded()))
+			.collect::<Result<Vec<_>, _>>()
+			.ok()
+	}
+
+	#[test]
+	fn test_verify_values_valid() {
+		let bytes = random_bytes(500);
+		let segments = bytes_to_segments(
+			&bytes,
+			FIELD_ELEMENTS_PER_BLOB,
+			FIELD_ELEMENTS_PER_SEGMENT,
+			&KZG::default_embedded(),
+		)
+		.unwrap();
+
+		let blobs = bytes_to_blobs(&bytes, FIELD_ELEMENTS_PER_BLOB).unwrap();
+
+		let commitments = blobs
+			.iter()
+			.map(|blob| blob.commit(&KZG::default_embedded()))
+			.collect::<Vec<_>>();
+
+		let commitment = commitments[0].clone().unwrap();
+
+		let segment = &segments[0];
+
+		let segment_data_vec = vec![
+			segments[2].content.clone().encode(),
+			segment.content.clone().encode(),
+			segments[1].content.clone().encode(),
+		];
+
+		let segment_option = verify_values(
+			&KZG::default_embedded(),
+			&segment_data_vec,
+			&commitment,
+			&segment.position,
+		);
+
+		assert!(segment_option.is_some());
+		assert_eq!(segment_option.unwrap().content, segment.content.clone());
+
+		let segment_data_vec =
+			vec![segments[2].content.clone().encode(), segments[1].content.clone().encode()];
+		let segment_option = verify_values(
+			&KZG::default_embedded(),
+			&segment_data_vec,
+			&commitment,
+			&segment.position,
+		);
+		assert!(segment_option.is_none());
+	}
+
+	#[test]
+	fn test_verify_values_invalid() {
+		let bytes = random_bytes(500);
+		let segments = bytes_to_segments(
+			&bytes,
+			FIELD_ELEMENTS_PER_BLOB,
+			FIELD_ELEMENTS_PER_SEGMENT,
+			&KZG::default_embedded(),
+		)
+		.unwrap();
+
+		let blobs = bytes_to_blobs(&bytes, FIELD_ELEMENTS_PER_BLOB).unwrap();
+
+		let commitments = blobs
+			.iter()
+			.map(|blob| blob.commit(&KZG::default_embedded()))
+			.collect::<Vec<_>>();
+
+		let commitment = commitments[0].clone().unwrap();
+
+		// Provide an invalid segment position.
+		let invalid_position = Position { x: 9999, y: 9999 };
+
+		let segment_data_vec =
+			vec![segments[2].content.clone().encode(), segments[1].content.clone().encode()];
+
+		let segment_option = verify_values(
+			&KZG::default_embedded(),
+			&segment_data_vec,
+			&commitment,
+			&invalid_position,
+		);
+		assert!(segment_option.is_none());
+
+		// Provide a random segment data which should not match the commitment.
+		let random_segment_data = random_bytes(100); // assuming 100 bytes is the size of a segment data
+		let segment_option = verify_values(
+			&KZG::default_embedded(),
+			&[random_segment_data],
+			&commitment,
+			&segments[0].position,
+		);
+		assert!(segment_option.is_none());
+	}
+
+	#[test]
+	fn test_values_set_handler() {
+		// Setup your test data with all valid values
+		let data = random_bytes(31 * FIELD_ELEMENTS_PER_BLOB);
+		let blobs = bytes_to_blobs(&data, FIELD_ELEMENTS_PER_BLOB).unwrap();
+		let commitments = create_commitments(&blobs).unwrap();
+
+		let kzg = KZG::default_embedded();
+
+		let segments =
+			bytes_to_segments(&data, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT, &kzg)
+				.unwrap();
+
+		assert_eq!(segments.len(), EXTENDED_SEGMENTS_PER_BLOB);
+
+		let values_set: Vec<Option<Vec<Vec<u8>>>> = segments
+			.iter()
+			.map(|segment| {
+				let encoded_segments = segment.content.encode();
+				Some(vec![encoded_segments])
+			})
+			.collect::<Vec<_>>();
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+
+		assert!(result.is_ok());
+
+		let (segments_res, need_reconstruct, is_availability) = result.unwrap();
+
+		assert_eq!(segments.len(), segments_res.len());
+
+		for (segment, segment_res) in segments.iter().zip(segments_res.iter()) {
+			assert_eq!(segment, segment_res.as_ref().unwrap());
+		}
+
+		assert_eq!(Some(segments[0].clone()), segments_res[0]);
+		assert_eq!(need_reconstruct.len(), 0);
+		assert!(is_availability);
+
+		for (segment, segment_res) in segments.iter().zip(segments_res.iter()) {
+			assert_eq!(segment, segment_res.as_ref().unwrap());
+		}
+
+		let mut values_set: Vec<Option<Vec<Vec<u8>>>> = values_set;
+		values_set[0] = None;
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+
+		assert!(result.is_ok());
+
+		let (segments_res, need_reconstruct, is_availability) = result.unwrap();
+
+		assert_eq!(need_reconstruct.len(), 1);
+		assert_eq!(need_reconstruct[0], 0);
+		assert_eq!(segments_res[0], None);
+
+		assert!(is_availability);
+
+		for i in 0..SEGMENTS_PER_BLOB + 2 {
+			values_set[i] = None;
+		}
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+
+		assert!(result.is_ok());
+
+		let (_, _, is_availability) = result.unwrap();
+
+		assert!(!is_availability);
+	}
+
+	#[test]
+	fn test_values_set_handler_empty() {
+		let commitments: Vec<KZGCommitment> = vec![];
+		let kzg = KZG::default_embedded();
+		let values_set: Vec<Option<Vec<Vec<u8>>>> = vec![];
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+		assert!(result.is_ok());
+		let (_, need_reconstruct, is_availability) = result.unwrap();
+
+		assert!(need_reconstruct.is_empty());
+		assert!(!is_availability);
+	}
+
+	#[test]
+	fn test_values_set_handler_unavailability() {
+		let data = random_bytes(31 * FIELD_ELEMENTS_PER_BLOB * 5);
+		let blobs = bytes_to_blobs(&data, FIELD_ELEMENTS_PER_BLOB).unwrap();
+		let commitments = create_commitments(&blobs).unwrap();
+
+		let kzg = KZG::default_embedded();
+
+		let segments =
+			bytes_to_segments(&data, FIELD_ELEMENTS_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT, &kzg)
+				.unwrap();
+
+		let mut values_set: Vec<Option<Vec<Vec<u8>>>> = segments
+			.iter()
+			.map(|segment| {
+				let encoded_segments = segment.content.encode();
+				Some(vec![encoded_segments])
+			})
+			.collect::<Vec<_>>();
+
+		for i in 0..SEGMENTS_PER_BLOB - 1 {
+			values_set[i] = None;
+		}
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+		assert!(result.is_ok());
+		let (_, _, is_availability) = result.unwrap();
+
+		assert!(is_availability);
+
+		for i in SEGMENTS_PER_BLOB..SEGMENTS_PER_BLOB + 5 {
+			values_set[i] = None;
+		}
+
+		let result = values_set_handler(&values_set, &commitments, &kzg);
+		assert!(result.is_ok());
+		let (_, _, is_availability) = result.unwrap();
+
+		assert!(!is_availability);
+	}
 }

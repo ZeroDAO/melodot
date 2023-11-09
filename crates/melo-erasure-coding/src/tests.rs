@@ -831,12 +831,10 @@ fn test_bytes_vec_to_blobs_returns_err() {
 	bytes_vec_to_blobs_returns_err_case(vec![20 * 31], 0);
 }
 
-#[test]
-fn test_bytes_to_segments() {
+fn test_bytes_to_segments_case(bytes_len: usize) {
 	let field_elements_per_blob = 2048;
 	let field_elements_per_segment = 16;
 
-	let bytes_len = 3000;
 	let kzg = KZG::default_embedded();
 
 	let bytes = random_bytes(bytes_len);
@@ -861,4 +859,19 @@ fn test_bytes_to_segments() {
         let verify = segments[i].verify(&kzg, commitment, field_elements_per_blob / field_elements_per_segment).unwrap();
         assert!(verify);
 	}
+}
+
+#[test]
+fn test_bytes_to_segments() {
+	test_bytes_to_segments_case(2048);
+	test_bytes_to_segments_case(4096);
+	test_bytes_to_segments_case(1024);
+	test_bytes_to_segments_case(512);
+	test_bytes_to_segments_case(256);
+	test_bytes_to_segments_case(128);
+	test_bytes_to_segments_case(105);
+	test_bytes_to_segments_case(32);
+	test_bytes_to_segments_case(16);
+	test_bytes_to_segments_case(8);
+	test_bytes_to_segments_case(1);
 }
