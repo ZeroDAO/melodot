@@ -31,5 +31,8 @@ outside = [
 	"sc-offchain",
 ]
 sqlite = [
+    "sp-core/std",
+    "sp-io/std",
+    "sp-runtime/std",
     "rusqlite",
 ]

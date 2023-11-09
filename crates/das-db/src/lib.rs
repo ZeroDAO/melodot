@@ -20,7 +20,7 @@ pub use alloc::{
 };
 
 pub mod traits;
-#[cfg(feature = "std")]
+#[cfg(feature = "sqlite")]
 pub mod sqlite;
 pub mod offchain;
 #[cfg(feature = "outside")]
