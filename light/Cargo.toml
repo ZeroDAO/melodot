@@ -18,7 +18,7 @@ path = "src/main.rs"
 
 [dependencies]
 melo-das-primitives = { path = "../crates/das-primitives" }
-melo-das-db = { path = "../crates/das-db" }
+melo-das-db = { path = "../crates/das-db", features = ["sqlite"] }
 melo-das-network = { path = "../crates/das-network" }
 meloxt = { path = "../crates/meloxt" }
 melo-core-primitives = { path = "../crates/core-primitives" }

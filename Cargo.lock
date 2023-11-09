@@ -4766,7 +4766,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "tempfile",
 ]
 
 [[package]]

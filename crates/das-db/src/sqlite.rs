@@ -124,23 +124,20 @@ impl DasKv for SqliteDasDb {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use tempfile::tempdir;
 
-	fn setup_test_db() -> SqliteDasDb {
-		let dir = tempdir().unwrap();
-		let db_path = dir.path().join("test.sqlite3");
-		SqliteDasDb::new(db_path.to_str().unwrap()).unwrap()
+	#[test]
+	fn test_get() {
+		let mut db = SqliteDasDb::new(":memory:").unwrap();
+		let key = b"test_key";
+		let value = b"test_value";
+
+		db.set(key, value);
+		assert_eq!(db.get(key), Some(value.to_vec()));
 	}
 
 	#[test]
-	fn test_new_db() {
-		let _db = setup_test_db();
-		// Further assertions can be made to ensure table creation, etc.
-	}
-
-	#[test]
-	fn test_set_and_get() {
-		let mut db = setup_test_db();
+	fn test_set() {
+		let mut db = SqliteDasDb::new(":memory:").unwrap();
 		let key = b"test_key";
 		let value = b"test_value";
 
@@ -150,7 +147,7 @@ mod tests {
 
 	#[test]
 	fn test_remove() {
-		let mut db = setup_test_db();
+		let mut db = SqliteDasDb::new(":memory:").unwrap();
 		let key = b"test_key";
 		let value = b"test_value";
 
@@ -163,7 +160,7 @@ mod tests {
 
 	#[test]
 	fn test_contains() {
-		let mut db = setup_test_db();
+		let mut db = SqliteDasDb::new(":memory:").unwrap();
 		let key = b"test_key";
 		let value = b"test_value";
 
@@ -174,7 +171,7 @@ mod tests {
 
 	#[test]
 	fn test_compare_and_set() {
-		let mut db = setup_test_db();
+		let mut db = SqliteDasDb::new(":memory:").unwrap();
 		let key = b"test_key";
 		let old_value = b"test_value_old";
 		let new_value = b"test_value_new";
