@@ -16,10 +16,8 @@ use tracing_subscriber::{fmt, EnvFilter};
 use tracing_subscriber::util::SubscriberInitExt;
 
 pub fn init_logger() -> Result<(), Box<dyn std::error::Error>> {
-    // Set up the filter to ignore `warn` and below.
     let filter = EnvFilter::new("info");
 
-    // Build and initialize the subscriber with the specified filter.
     fmt::Subscriber::builder()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)

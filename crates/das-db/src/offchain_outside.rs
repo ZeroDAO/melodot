@@ -40,7 +40,6 @@ impl<B: Block, BE: Backend<B>> OffchainKvOutside<B, BE> {
         prefixed_key
     }
 
-    // 注意这里需要接受 DB 类型作为参数而不是 OffchainDb<BE::OffchainStorage>
     pub fn new(db: OffchainDb<BE::OffchainStorage>, prefix: Option<&[u8]>) -> Self {
         let prefix = prefix.unwrap_or(DEFAULT_PREFIX).to_vec();
         OffchainKvOutside {

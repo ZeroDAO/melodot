@@ -574,7 +574,6 @@ fn test_proof_multi() {
 	}
 }
 
-// TODO Modify the way data is interleaved
 #[test]
 fn test_extend_and_commit_multi() {
 	let chunk_len: usize = 16;

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Das Network Wrapper
+//! 
+//! This module contains the DasNetworkServiceWrapper struct which wraps the DasNetworkService. It
+//! provides methods for fetching values, preparing keys, and verifying values.
 use codec::Encode;
 use itertools::Itertools;
 use melo_erasure_coding::bytes_to_segments;
@@ -32,16 +36,66 @@ use melo_erasure_coding::{
 };
 use sp_api::HeaderT;
 
+
+/// Defines a trait for network operations required by the DAS protocol.
 #[async_trait::async_trait]
 pub trait DasNetworkOperations {
+	/// Puts external segments into the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `segments` - A slice of `Segment` to be put into the network.
+	/// * `header` - A reference to the header of the segments.
+	///
+	/// # Type parameters
+	///
+	/// * `Header` - A type that implements `HeaderT`.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` indicating success or failure.
 	async fn put_ext_segments<Header>(&self, segments: &[Segment], header: &Header) -> Result<()>
 	where
 		Header: HeaderT;
 
+	/// Puts application segments into the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `segments` - A slice of `Segment` to be put into the network.
+	/// * `app_id` - The ID of the application.
+	/// * `nonce` - A nonce value.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` indicating success or failure.
 	async fn put_app_segments(&self, segments: &[Segment], app_id: u32, nonce: u32) -> Result<()>;
 
+	/// Puts bytes into the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `bytes` - A slice of bytes to be put into the network.
+	/// * `app_id` - The ID of the application.
+	/// * `nonce` - A nonce value.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` indicating success or failure.
 	async fn put_bytes(&self, bytes: &[u8], app_id: u32, nonce: u32) -> Result<()>;
 
+	/// Fetches segment data from the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `app_id` - The ID of the application.
+	/// * `nonce` - A nonce value.
+	/// * `position` - A reference to the position of the segment.
+	/// * `commitment` - A reference to the KZG commitment.
+	///
+	/// # Returns
+	///
+	/// Returns an `Option` containing the fetched `SegmentData` or `None` if the data is not found.
 	async fn fetch_segment_data(
 		&self,
 		app_id: u32,
@@ -50,12 +104,36 @@ pub trait DasNetworkOperations {
 		commitment: &KZGCommitment,
 	) -> Option<SegmentData>;
 
+	/// Fetches a sample from the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `sample` - A reference to the sample to be fetched.
+	/// * `commitment` - A reference to the KZG commitment.
+	///
+	/// # Returns
+	///
+	/// Returns an `Option` containing the fetched `SegmentData` or `None` if the data is not found.
 	async fn fetch_sample(
 		&self,
 		sample: &Sample,
 		commitment: &KZGCommitment,
 	) -> Option<SegmentData>;
 
+	/// Fetches a block from the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `header` - A reference to the header of the block.
+	///
+	/// # Type parameters
+	///
+	/// * `Header` - A type that implements `HeaderWithCommitment` and `HeaderT`.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` containing a tuple of the fetched segments, their positions, and a boolean
+	/// indicating whether the block is complete or not.
 	async fn fetch_block<Header>(
 		&self,
 		header: &Header,
@@ -63,29 +141,62 @@ pub trait DasNetworkOperations {
 	where
 		Header: HeaderWithCommitment + HeaderT;
 
+	/// Extends the columns of the segments.
+	///
+	/// # Arguments
+	///
+	/// * `segments` - A slice of `Segment` to be extended.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` containing the extended `Segment`s.
 	fn extend_segments_col(&self, segments: &[Segment]) -> Result<Vec<Segment>>;
 
+	/// Recovers the order row from the segments.
+	///
+	/// # Arguments
+	///
+	/// * `segments` - A slice of `Option<Segment>` to recover the order row from.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` containing the recovered `Segment`s.
 	fn recovery_order_row_from_segments(
 		&self,
 		segments: &[Option<Segment>],
 	) -> Result<Vec<Segment>>;
 
+	/// Returns a reference to the KZG instance.
 	fn kzg(&self) -> Arc<KZG>;
 
+	/// Removes records from the DAS network.
+	///
+	/// # Arguments
+	///
+	/// * `keys` - A vector of byte slices representing the keys of the records to be removed.
+	///
+	/// # Returns
+	///
+	/// Returns a `Result` indicating success or failure.
 	async fn remove_records(&self, keys: Vec<&[u8]>) -> Result<()>;
 }
 
+/// DasNetworkServiceWrapper is a struct that wraps the DasNetworkService and KZG structs.
+/// It provides methods for fetching values, preparing keys, and verifying values.
 #[derive(Clone, Debug)]
 pub struct DasNetworkServiceWrapper {
 	network: Arc<DasNetworkService>,
+	/// The KZG instance.
 	pub kzg: Arc<KZG>,
 }
 
 impl DasNetworkServiceWrapper {
+	/// Creates a new instance of DasNetworkServiceWrapper.
 	pub fn new(network: Arc<DasNetworkService>, kzg: Arc<KZG>) -> Self {
 		DasNetworkServiceWrapper { network, kzg }
 	}
 
+	/// Fetches a segment of data from the network.
 	async fn fetch_value(
 		&self,
 		key: &[u8],
@@ -96,6 +207,7 @@ impl DasNetworkServiceWrapper {
 		self.verify_values(&values, commitment, position).map(|segment| segment.content)
 	}
 
+	/// Prepares keys for a given header.
 	pub fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>>
 	where
 		Header: HeaderWithCommitment + HeaderT,
@@ -117,6 +229,7 @@ impl DasNetworkServiceWrapper {
 		Ok(keys)
 	}
 
+	/// Verifies the values of a segment.
 	pub fn verify_values(
 		&self,
 		values: &[Vec<u8>],
@@ -304,7 +417,6 @@ fn verify_values(
 			}
 			None
 		})
-		// Only return the segment that matches the provided position
 		.find(|segment| segment.position == *position)
 }
 

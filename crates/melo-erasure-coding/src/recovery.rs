@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Melo Erasure Coding
+//! 
+//! This crate provides functions for erasure coding and recovery of data.
 use crate::{
 	erasure_coding::{extend_poly, recover_poly},
 	segment::{order_segments_row, segment_datas_to_row},
@@ -24,6 +27,19 @@ use rust_kzg_blst::utils::reverse_bit_order;
 
 use crate::{String, ToString, Vec};
 
+/// Recover the segment datas from the given segment datas, KZG, chunk count, y, and segments size.
+/// 
+/// # Arguments
+/// 
+/// * `segment_datas` - A slice of optional segment data.
+/// * `kzg` - A reference to a KZG instance.
+/// * `chunk_count` - The number of chunks.
+/// * `y` - The y coordinate.
+/// * `segments_size` - The size of the segments.
+/// 
+/// # Returns
+/// 
+/// A Result containing a vector of segments or an error message as a string.
 pub fn recover_segment_datas(
 	segment_datas: &[Option<SegmentData>],
 	kzg: &KZG,
@@ -92,6 +108,19 @@ pub fn recovery_row_from_segments(
 	)
 }
 
+/// Given a slice of `Option<Segment>`s, where each `Segment` represents a chunk of data, this function returns a vector 
+/// of `Segment`s that represent the recovered data of the same row. The function uses the provided `KZG` object to recover 
+/// the data. 
+/// 
+/// # Arguments
+/// 
+/// * `order_segments` - A slice of `Option<Segment>`s, where each `Segment` represents a chunk of data.
+/// * `kzg` - A `KZG` object used to recover the data.
+/// 
+/// # Returns
+/// 
+/// A `Result` containing a vector of `Segment`s that represent the recovered data of the same row, or an error message if the 
+/// segment size and chunk count are not a power of two, or if the segments are not from the same row or not of the same size.
 pub fn recovery_order_row_from_segments(
 	order_segments: &[Option<Segment>],
 	kzg: &KZG,

@@ -31,17 +31,18 @@ use crate::config::{
 	BLOCK_AVAILABILITY_THRESHOLD, EXTENDED_SEGMENTS_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT,
 };
 
-/// 大于该数值的应用数据可用，应用数据抽样面临网络问题，允许一定概率的失败
-/// TODO: 我们应该使用二项式分布？
+/// Application data is available if it is greater than this value. The application data sampling
+/// faces network issues, allowing a certain probability of failure. TODO: Should we use a binomial
+/// distribution?
 pub const APP_AVAILABILITY_THRESHOLD_PERMILL: Permill = Permill::from_parts(900_000);
-/// 最新处理的区块的键
+/// The key of the latest processed block
 const LATEST_PROCESSED_BLOCK_KEY: &[u8] = b"latestprocessedblock";
-
-/// 应用的失败概率，这是一个千分比
+/// The failure probability of the application, this is a permillage
 pub const APP_FAILURE_PROBABILITY: Permill = Permill::from_parts(500_000);
-/// 区块的失败概率，这是一个千分比
+/// The failure probability of the block, this is a permillage
 pub const BLOCK_FAILURE_PROBABILITY: Permill = Permill::from_parts(250_000);
 
+/// A trait for setting reliability samples.
 #[cfg(feature = "std")]
 pub trait ReliabilitySample {
 	fn set_sample(
@@ -52,14 +53,18 @@ pub trait ReliabilitySample {
 	) -> Result<Vec<KZGCommitment>, String>;
 }
 
+/// Creates a new ReliabilityId based on the block hash.
 #[derive(Debug, Clone, Default, Decode, Encode)]
 pub struct ReliabilityId(Vec<u8>);
 
+/// Implementation of ReliabilityId
 impl ReliabilityId {
+	/// Returns a new ReliabilityId with block confidence
 	pub fn block_confidence(block_hash: &[u8]) -> Self {
 		Self(block_hash.into())
 	}
 
+	/// Returns a new ReliabilityId with app confidence
 	pub fn app_confidence(app_id: u32, nonce: u32) -> Self {
 		let mut buffer = [0u8; 8];
 
@@ -69,6 +74,7 @@ impl ReliabilityId {
 		Self(buffer.into())
 	}
 
+	/// Returns the reliability of the current ReliabilityId from the database
 	pub fn get_confidence(&self, db: &mut impl DasKv) -> Option<Reliability> {
 		Reliability::get(self, db)
 	}
@@ -106,36 +112,58 @@ where
 pub struct SampleId(Vec<u8>);
 
 impl SampleId {
+	/// Creates a new `SampleId` for a block sample.
+	///
+	/// # Arguments
+	///
+	/// * `block_hash` - The hash of the block.
+	/// * `position` - The position of the sample in the block.
 	pub fn block_sample(block_hash: &[u8], position: &Position) -> Self {
 		Self(sample_key_from_block(block_hash, position))
 	}
 
+	/// Creates a new `SampleId` for an app sample.
+	///
+	/// # Arguments
+	///
+	/// * `app_id` - The ID of the app.
+	/// * `nonce` - The nonce of the app.
+	/// * `position` - The position of the sample in the app.
 	pub fn app_sample(app_id: u32, nonce: u32, position: &Position) -> Self {
 		Self(sample_key(app_id, nonce, position))
 	}
 }
 
+/// A struct representing a sample with an ID, position, and availability status.
 #[derive(Debug, Clone, Default, Decode, Encode)]
 pub struct Sample {
+	/// The ID of the sample.
 	pub id: SampleId,
+	/// The position of the sample. When the sample is an app sample, the position is relative to
+	/// the app. When the sample is a block sample, the position is relative to the block.
 	pub position: Position,
+	/// The availability status of the sample.
 	pub is_availability: bool,
 }
 
 impl Sample {
+	/// Returns the ID of the sample.
 	pub fn get_id(&self) -> &[u8] {
 		&self.id.0
 	}
 
+	/// Sets the availability status of the sample to true.
 	pub fn set_success(&mut self) {
 		self.is_availability = true;
 	}
 
+	/// Returns the key of the sample given an app ID and nonce.
 	pub fn key(&self, app_id: u32, nonce: u32) -> Vec<u8> {
 		sample_key(app_id, nonce, &self.position)
 	}
 }
 
+/// An enum representing the type of reliability, either app or block.
 #[derive(Debug, Clone, Copy, Decode, Encode, Default)]
 pub enum ReliabilityType {
 	#[default]
@@ -143,7 +171,9 @@ pub enum ReliabilityType {
 	Block,
 }
 
+/// Implementation of ReliabilityType
 impl ReliabilityType {
+	/// Returns the failure probability of the reliability type.
 	pub fn failure_probability(&self) -> Permill {
 		match self {
 			ReliabilityType::App => APP_FAILURE_PROBABILITY,
@@ -151,6 +181,7 @@ impl ReliabilityType {
 		}
 	}
 
+	/// Returns whether the reliability type is available given the total count and success count.
 	pub fn is_availability(&self, total_count: u32, success_count: u32) -> bool {
 		match self {
 			ReliabilityType::App =>
@@ -160,14 +191,25 @@ impl ReliabilityType {
 	}
 }
 
+/// This module contains the implementation of reliability related structs and enums.
+///
+/// `Reliability` is a struct that contains a vector of `Sample`s, a vector of `KZGCommitment`s, and
+/// a `ReliabilityType`. It provides methods to calculate the maximum number of consecutive
+/// successful samples, the value of the reliability, and whether the reliability is available or
+/// not.
 #[derive(Debug, Clone, Decode, Encode, Default)]
 pub struct Reliability {
+	/// `Sample` represents a single reliability sample, which contains an ID, a position, and a
+	/// boolean indicating whether the sample is available or not.
 	pub samples: Vec<Sample>,
+	/// `KZGCommitment` is a struct that contains a commitment and a proof.
 	pub commitments: Vec<KZGCommitment>,
+	/// `ReliabilityType` is an enum that represents the type of reliability, either App or Block.
 	pub confidence_type: ReliabilityType,
 }
 
 impl Reliability {
+	/// Creates a new instance of `Reliability`.
 	pub fn new(confidence_type: ReliabilityType, commitments: &[KZGCommitment]) -> Self {
 		Reliability { samples: Vec::new(), commitments: commitments.to_vec(), confidence_type }
 	}
@@ -193,6 +235,10 @@ impl Reliability {
 			.0
 	}
 
+	/// Calculates the value of the reliability. The value is calculated using the formula:
+	/// `1 - failure_probability ^ success_count`.
+	/// If the reliability type is App, then the value is always `None`.
+	/// If the reliability type is Block, then the value is calculated using the formula above.
 	pub fn value(&self) -> Option<u32> {
 		match self.confidence_type {
 			ReliabilityType::App => None,
@@ -208,15 +254,19 @@ impl Reliability {
 		}
 	}
 
+	/// Returns whether the reliability is available or not.
 	pub fn is_availability(&self) -> bool {
 		self.confidence_type
 			.is_availability(self.samples.len() as u32, self.success_count() as u32)
 	}
 
+	/// Saves the reliability to the database.
 	pub fn save(&self, id: &ReliabilityId, db: &mut impl DasKv) {
 		db.set(&id.0, &self.encode());
 	}
 
+	/// Returns the reliability from the database. If the reliability is not found, then `None` is
+	/// returned.
 	pub fn get(id: &ReliabilityId, db: &mut impl DasKv) -> Option<Self>
 	where
 		Self: Sized,
@@ -225,16 +275,20 @@ impl Reliability {
 			.and_then(|encoded_data| Decode::decode(&mut &encoded_data[..]).ok())
 	}
 
+	/// Removes the reliability from the database.
 	pub fn remove(&self, id: &ReliabilityId, db: &mut impl DasKv) {
 		db.remove(&id.0);
 	}
 
+	/// Sets the availability status of the sample with the given position to true.
 	pub fn set_sample_success(&mut self, position: Position) {
 		if let Some(sample) = self.samples.iter_mut().find(|sample| sample.position == position) {
 			sample.set_success();
 		}
 	}
 
+	/// Verifies the sample with the given position and segment. Returns `Ok(true)` if the sample
+	/// is verified, otherwise `Ok(false)`. If the sample is not found, then `Err` is returned.
 	pub fn verify_sample(&self, position: Position, segment: &Segment) -> Result<bool, String> {
 		let kzg = KZG::default_embedded();
 		if position.y >= self.commitments.len() as u32 {
@@ -267,9 +321,9 @@ impl ReliabilitySample for Reliability {
 		while positions.len() < n {
 			let x = rng.gen_range(0..EXTENDED_SEGMENTS_PER_BLOB) as u32;
 			let y = rng.gen_range(0..column_count);
-		
+
 			let pos = Position { x, y };
-		
+
 			if !positions.contains(&pos) {
 				commitments.push(self.commitments[pos.y as usize]);
 				positions.push(pos);
@@ -326,6 +380,7 @@ fn calculate_confidence(samples: u32, failure_probability: Permill) -> u32 {
 	one.saturating_sub(base_power_sample).deconstruct()
 }
 
+/// Returns the key of the sample given an app ID, nonce, and position.
 pub fn sample_key(app_id: u32, nonce: u32, position: &Position) -> Vec<u8> {
 	let mut key = Vec::new();
 	key.extend_from_slice(&app_id.to_be_bytes());
@@ -334,6 +389,7 @@ pub fn sample_key(app_id: u32, nonce: u32, position: &Position) -> Vec<u8> {
 	key
 }
 
+/// Returns the key of the sample given a block hash and position.
 pub fn sample_key_from_block(block_hash: &[u8], position: &Position) -> Vec<u8> {
 	let mut key = Vec::new();
 	key.extend_from_slice(block_hash);

@@ -27,18 +27,34 @@ use melo_core_primitives::{
 use melo_erasure_coding::erasure_coding::extend_fs_g1;
 use std::marker::PhantomData;
 
+/// The key used to store the last block number sampled.
 const LAST_AT_KEY: &[u8] = b"sampled_at_last_block";
+
+/// The client used to sample the network.
 pub struct SamplingClient<Header, DB, DaserNetwork>
 where
 	DaserNetwork: DasNetworkOperations + Sync,
 {
+	/// The network used to fetch samples.
 	pub network: DaserNetwork,
 	database: Arc<Mutex<DB>>,
 	_phantom: PhantomData<Header>,
 }
 
+/// A trait for sampling an application and block.
 #[async_trait::async_trait]
 pub trait Sampling {
+	/// Samples the application.
+	///
+	/// # Arguments
+	///
+	/// * `app_id` - The ID of the application to sample.
+	/// * `nonce` - A nonce value.
+	/// * `commitments` - An array of KZG commitments.
+	///
+	/// # Returns
+	///
+	/// Returns `Ok(())` if the sampling is successful, otherwise returns an error.
 	async fn sample_application(
 		&self,
 		app_id: u32,
@@ -46,10 +62,24 @@ pub trait Sampling {
 		commitments: &[KZGCommitment],
 	) -> Result<()>;
 
+	/// Samples the block.
+	///
+	/// # Arguments
+	///
+	/// * `header` - A reference to the block header.
+	///
+	/// # Returns
+	///
+	/// Returns `Ok(())` if the sampling is successful, otherwise returns an error.
 	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
 	where
 		Header: HeaderWithCommitment + Sync;
 
+	/// Returns the last block number sampled.
+	///
+	/// # Returns
+	///
+	/// Returns the last block number sampled.
 	async fn last_at(&self) -> u32;
 }
 
@@ -57,10 +87,12 @@ impl<Header, DB: DasKv, DaserNetwork: DasNetworkOperations> SamplingClient<Heade
 where
 	DaserNetwork: DasNetworkOperations + Sync,
 {
+	/// Creates a new [`SamplingClient`] instance.
 	pub fn new(network: DaserNetwork, database: Arc<Mutex<DB>>) -> Self {
 		SamplingClient { network, database, _phantom: PhantomData }
 	}
 
+	/// Actually samples the network.
 	async fn sample(
 		&self,
 		confidence_id: &ReliabilityId,
@@ -82,6 +114,7 @@ where
 		Ok(())
 	}
 
+	/// Sets the last block number sampled.
 	async fn set_last_at<Number>(&self, last: Number)
 	where
 		Number: Encode + Decode + PartialOrd + Send,
@@ -108,6 +141,7 @@ where
 impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations + Sync> Sampling
 	for SamplingClient<H, DB, D>
 {
+	/// Get the last block number sampled.
 	async fn last_at(&self) -> u32 {
 		let mut db_guard = self.database.lock().await;
 		db_guard
@@ -116,6 +150,7 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 			.unwrap_or(0u32)
 	}
 
+	/// Samples the application.
 	async fn sample_application(
 		&self,
 		app_id: u32,
@@ -132,6 +167,7 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		self.sample(&id, &mut confidence, &sample_commitments).await
 	}
 
+	/// Samples the block.
 	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
 	where
 		Header: HeaderWithCommitment + Sync,

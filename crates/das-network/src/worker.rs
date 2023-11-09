@@ -25,13 +25,13 @@ use libp2p::{
 	mdns::Event as MdnsEvent,
 	multiaddr::Protocol,
 	swarm::{ConnectionError, Swarm, SwarmEvent},
-	Multiaddr,
-	PeerId,
+	Multiaddr, PeerId,
 };
 use log::{debug, error, info, trace, warn};
 use prometheus_endpoint::{register, Counter, CounterVec, Gauge, Opts, U64};
 use std::{collections::HashMap, fmt::Debug};
 
+/// The maximum number of connection retries.
 const MAX_RETRIES: u8 = 3;
 
 const LOG_TARGET: &str = "melo-das-network-worker";
@@ -52,6 +52,7 @@ macro_rules! handle_send {
 	};
 }
 
+/// Represents a DAS network worker that manages a swarm of peers and handles incoming commands.
 pub struct DasNetwork {
 	swarm: Swarm<Behavior>,
 	command_receiver: mpsc::Receiver<Command>,
@@ -64,6 +65,11 @@ pub struct DasNetwork {
 }
 
 impl DasNetwork {
+	/// Creates a new worker with the given `swarm`, `command_receiver`, `prometheus_registry`, and
+	/// `config`. The `swarm` is a `Swarm` instance of the `Behavior` type.
+	/// The `command_receiver` is an `mpsc::Receiver` instance of the `Command` type.
+	/// The `prometheus_registry` is an optional `prometheus_endpoint::Registry` instance.
+	/// The `config` is a reference to a `DasNetworkConfig` instance.
 	pub fn new(
 		swarm: Swarm<Behavior>,
 		command_receiver: mpsc::Receiver<Command>,
@@ -123,6 +129,10 @@ impl DasNetwork {
 		}
 	}
 
+	/// Runs the worker asynchronously.
+	/// If there are known addresses, it adds them to the Kademlia routing table and initiates a
+	/// bootstrap process. The worker then enters an event loop, handling incoming swarm events and
+	/// commands.
 	pub async fn run(mut self) {
 		if !self.known_addresses.is_empty() {
 			for (peer_id, addrs) in self.known_addresses.iter() {

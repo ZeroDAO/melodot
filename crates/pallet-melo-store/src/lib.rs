@@ -152,6 +152,7 @@ pub mod pallet {
 		/// Flag indicating whether the blob data is available or not.
 		pub is_available: bool,
 
+		/// Nonce for the application that uses this blob.
 		pub nonce: u32,
 	}
 
@@ -266,12 +267,8 @@ pub mod pallet {
 		ExceedMaxTotalVotes,
 		/// A report was made for a block that hasn't occurred yet.
 		ReportForFutureBlock,
-		/// No data was provided in the submission.
-		SubmittedDataIsEmpty,
-		/// The number of provided commitments doesn't match the expected number.
-		MismatchedCommitmentsCount,
-		/// The number of provided proofs doesn't match the expected number.
-		MismatchedProofsCount,
+		/// The submitted data is invalid.
+		SubmittedDataIsInvalid,
 		/// The provided public key is not valid.
 		InvalidKey,
 		/// The nonce is invalid.
@@ -294,15 +291,9 @@ pub mod pallet {
 		)]
 		pub fn submit_data(origin: OriginFor<T>, params: SidecarMetadata) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			ensure!(params.check(), Error::<T>::SubmittedDataIsEmpty);
-			// ensure!(params.bytes_len > 0, Error::<T>::SubmittedDataIsEmpty);
+			ensure!(params.check(), Error::<T>::SubmittedDataIsInvalid);
 			let blob_num = Blob::blob_count(params.bytes_len as usize, BYTES_PER_BLOB);
 			ensure!(blob_num <= T::MaxBlobNum::get() as usize, Error::<T>::ExceedMaxBlobLimit);
-
-			// // Check if blob_num matches the length of commitments.
-			// ensure!(blob_num == commitments.len(), Error::<T>::MismatchedCommitmentsCount);
-			// // Check if blob_num matches the length of proofs.
-			// ensure!(blob_num == proofs.len(), Error::<T>::MismatchedProofsCount);
 
 			let current_app_id = AppId::<T>::get();
 			ensure!(params.app_id <= current_app_id, Error::<T>::AppIdError);
@@ -459,7 +450,7 @@ pub mod pallet {
 						)
 					}
 				}
-			// TODO - 报告数据不可用区块
+			// TODO - report unavailability.
 			} else {
 				log::trace!(
 					target: "runtime::melo-store",
@@ -537,6 +528,8 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>()
 	}
 
+	/// Fetches the list of unavailable blocks by checking the confidence of each block hash in the chain.
+	/// Returns a vector of block numbers representing the unavailable blocks.
 	pub fn fetch_unavailability_blocks() -> Vec<BlockNumberFor<T>> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let mut db = OffchainKv::new(Some(DB_PREFIX));

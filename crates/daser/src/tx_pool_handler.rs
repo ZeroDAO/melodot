@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Transaction pool listener.
+//! 
+//! This module is responsible for monitoring the transaction pool for incoming transactions and
+//! processing them accordingly.
+//! 
+//! The transaction pool listener is responsible for the following:
+//! 
+//! - Monitoring the transaction pool for incoming transactions and processing them accordingly.
+//! - Monitoring the network for new blocks and processing them accordingly.
+//! - Sampling blocks after finalization to determine block data availability.
 use crate::{
 	Arc, DasKv, DasNetworkOperations, Sampling, SamplingClient, EXTENDED_SEGMENTS_PER_BLOB,
 };

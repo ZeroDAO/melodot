@@ -44,14 +44,20 @@ pub enum SidecarStatus {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 // #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct SidecarMetadata {
+	/// Application ID.
 	pub app_id: u32,
+	/// Length of the data in bytes.
 	pub bytes_len: u32,
+	/// Nonce of the Application.
 	pub nonce: u32,
+	/// Commitments of the data.
 	pub commitments: Vec<KZGCommitment>,
+	/// Proofs of the data.
 	pub proofs: Vec<KZGProof>,
 }
 
 impl SidecarMetadata {
+	/// Constructs a new sidecar metadata instance with the provided data.
 	pub fn new(
 		app_id: u32,
 		bytes_len: u32,
@@ -62,12 +68,14 @@ impl SidecarMetadata {
 		Self { app_id, bytes_len, nonce, commitments, proofs }
 	}
 
+	/// Checks if the metadata is valid.
 	pub fn check(&self) -> bool {
 		self.commitments.len() == self.proofs.len() &&
 			!self.commitments.is_empty() &&
 			self.bytes_len > 0
 	}
 
+	/// Returns the confidence ID of the metadata.
 	pub fn confidence_id(&self) -> ReliabilityId {
 		ReliabilityId::app_confidence(self.app_id, self.nonce)
 	}

@@ -59,7 +59,7 @@ pub struct SubmitBlob<P: TransactionPool, Client, B, D> {
 	client: Arc<Client>,
 	/// Pool for managing and processing transactions.
 	pool: Arc<P>,
-	/// S
+	/// DAS DHT network service.
 	das_network: Arc<D>,
 	/// Marker for the block type.
 	_marker: PhantomData<B>,

@@ -34,17 +34,23 @@ pub struct BehaviorConfig {
 	pub kad_store: MemoryStore,
 }
 
+/// The [`NetworkBehaviour`] of the DAS network.
 #[derive(NetworkBehaviour)]
 #[behaviour(out_event = "BehaviourEvent")]
 #[behaviour(event_process = false)]
 pub struct Behavior {
+	/// The [`Kademlia`] behaviour.
 	pub kademlia: Kademlia<MemoryStore>,
+	/// The [`Identify`] behaviour.
 	pub identify: Identify,
+	/// The [`Ping`] behaviour.
 	pub ping: Ping,
+	/// The [`Mdns`] behaviour.
 	pub mdns: TokioMdns,
 }
 
 impl Behavior {
+	/// Creates a new [`Behavior`] instance.
 	pub fn new(config: BehaviorConfig) -> Result<Self> {
 		let mdns = TokioMdns::new(MdnsConfig::default())?;
 		let kademlia = Kademlia::with_config(config.peer_id, config.kad_store, config.kademlia);

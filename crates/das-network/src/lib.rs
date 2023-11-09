@@ -44,7 +44,7 @@ pub use std::sync::Arc;
 use std::time::Duration;
 
 pub use behaviour::{Behavior, BehaviorConfig, BehaviourEvent};
-pub use service::{DasNetworkConfig, DasNetworkDiscovery, Service};
+pub use service::{DasNetworkConfig, Service};
 pub use shared::Command;
 pub use worker::DasNetwork;
 
@@ -55,6 +55,8 @@ mod worker;
 
 const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 5000;
 
+/// Creates a new [`DasNetwork`] instance.
+/// The [`DasNetwork`] instance is composed of a [`Service`] and a [`Worker`].
 pub fn create(
 	keypair: identity::Keypair,
 	protocol_version: String,
@@ -87,6 +89,7 @@ pub fn create(
 	))
 }
 
+/// Creates a new [`DasNetwork`] instance with default configuration.
 pub fn default(
 	config: Option<DasNetworkConfig>,
 	keypair: Option<identity::Keypair>,

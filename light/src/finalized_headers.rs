@@ -27,6 +27,15 @@ use melo_core_primitives::traits::HeaderWithCommitment;
 use melo_das_db::sqlite::SqliteDasDb;
 use melo_daser::{DasNetworkServiceWrapper, Sampling, SamplingClient};
 
+/// Subscribes to finalized block headers and processes them by sending them to a message channel and sampling them.
+///
+/// # Arguments
+///
+/// * `rpc_client` - An OnlineClient that is used to subscribe to finalized block headers.
+/// * `message_tx` - A Sender that is used to send the received block headers to a message channel.
+/// * `error_sender` - A Sender that is used to send errors to an error channel.
+/// * `network` - A DasNetworkServiceWrapper that is used to sample the received block headers.
+/// * `database` - An Arc<Mutex<SqliteDasDb>> that is used to store the received block headers.
 pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 	rpc_client: OnlineClient<MeloConfig>,
 	message_tx: Sender<(Header, Instant)>,

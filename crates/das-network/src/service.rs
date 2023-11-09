@@ -14,10 +14,9 @@
 
 use crate::{Command, KademliaKey};
 use anyhow::Context;
-use async_trait::async_trait;
 use futures::{
 	channel::{mpsc, oneshot},
-	future::{join_all, FutureExt},
+	future::join_all,
 	SinkExt,
 };
 use libp2p::{
@@ -27,8 +26,6 @@ use libp2p::{
 };
 use std::{fmt::Debug, time::Duration};
 
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng}; // Import SliceRandom
-
 /// `Service` serves as an intermediary to interact with the Worker, handling requests and
 /// facilitating communication. It mainly operates on the message passing mechanism between service
 /// and worker.
@@ -36,6 +33,7 @@ use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng}; // Import SliceRandom
 pub struct Service {
 	// Channel sender to send messages to the worker.
 	to_worker: mpsc::Sender<Command>,
+	// The maximum number of parallel requests to the worker.
 	parallel_limit: usize,
 }
 
@@ -69,25 +67,25 @@ impl Service {
 		receiver.await.context("Failed receiving add address response")?
 	}
 
-	/// Bootstraps the kademlia protocol.
-	pub async fn bootstrap(&self) -> anyhow::Result<()> {
-		let (sender, receiver) = oneshot::channel();
-		self.to_worker.clone().send(Command::Bootstrap { sender }).await?;
-		receiver.await.context("Failed receiving bootstrap response")?
-	}
-
-	// 需要接受验证函数并传输到底层，处理节点声誉
+	/// Asynchronously gets the value corresponding to `key` from the Kademlia network. This will return a vector 
+	/// of multiple results, which need to be verified manually.
 	pub async fn get_value(&self, key: KademliaKey) -> anyhow::Result<Vec<Vec<u8>>> {
 		let records = self.get_kad_record(key).await?;
 		Ok(records.into_iter().map(|r| r.value).collect())
 	}
 
+	/// Asynchronously puts data into the Kademlia network.
 	pub async fn put_value(&self, key: KademliaKey, value: Vec<u8>) -> anyhow::Result<()> {
 		let record = Record::new(key as record::Key, value);
 		self.put_kad_record(record, Quorum::All).await
 	}
 
-	pub async fn get_values(&self, keys: &[KademliaKey]) -> anyhow::Result<Vec<Option<Vec<Vec<u8>>>>> {
+	/// Asynchronously gets the values corresponding to multiple `keys` from the Kademlia network. This will return 
+	/// a vector of multiple results, which need to be verified manually.
+	pub async fn get_values(
+		&self,
+		keys: &[KademliaKey],
+	) -> anyhow::Result<Vec<Option<Vec<Vec<u8>>>>> {
 		let mut results = Vec::with_capacity(keys.len());
 
 		for chunk in keys.chunks(self.parallel_limit) {
@@ -95,8 +93,7 @@ impl Service {
 			let chunk_results = join_all(futures).await;
 			for res in chunk_results {
 				match res {
-					Ok(v) =>
-						results.push(Some(v)),
+					Ok(v) => results.push(Some(v)),
 					Err(_) => results.push(None),
 				}
 			}
@@ -105,10 +102,12 @@ impl Service {
 		Ok(results)
 	}
 
-	pub async fn put_values(&self, keys_and_values: Vec<(KademliaKey, Vec<u8>)>) -> anyhow::Result<()> {
-		let futures = keys_and_values
-			.into_iter()
-			.map(|(key, value)| self.put_value(key, value));
+	/// Asynchronously puts multiple data into the Kademlia network.
+	pub async fn put_values(
+		&self,
+		keys_and_values: Vec<(KademliaKey, Vec<u8>)>,
+	) -> anyhow::Result<()> {
+		let futures = keys_and_values.into_iter().map(|(key, value)| self.put_value(key, value));
 		join_all(futures).await;
 		Ok(())
 	}
@@ -130,31 +129,34 @@ impl Service {
 		receiver.await.context("Failed receiving put record response")?
 	}
 
+	/// Asynchronously removes the values corresponding to multiple `keys` from the local storage, including values stored 
+	/// as storage nodes.
 	pub async fn remove_records(&self, keys: &[KademliaKey]) -> anyhow::Result<()> {
 		let (sender, receiver) = oneshot::channel();
-		self.to_worker.clone().send(Command::RemoveRecords { keys: keys.to_vec(), sender }).await?;
+		self.to_worker
+			.clone()
+			.send(Command::RemoveRecords { keys: keys.to_vec(), sender })
+			.await?;
 		receiver.await.context("Failed receiving remove records response")?
 	}
 }
 
-#[async_trait]
-pub trait DasNetworkDiscovery {
-	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()>;
-	async fn connect_to_bootstrap_node(
-		&self,
-		addr_str: &str,
-		config: &DasNetworkConfig,
-	) -> anyhow::Result<()>;
-}
-
+/// Configuration for the DAS network service.
 #[derive(Clone, Debug)]
 pub struct DasNetworkConfig {
+	/// The IP address to listen on.
 	pub listen_addr: String,
+	/// The port to listen on.
 	pub listen_port: u16,
+	/// List of bootstrap nodes to connect to.
 	pub bootstrap_nodes: Vec<String>,
+	/// Maximum number of retries when connecting to a node.
 	pub max_retries: usize,
+	/// Delay between retries when connecting to a node.
 	pub retry_delay: Duration,
+	/// Timeout for bootstrapping the network.
 	pub bootstrap_timeout: Duration,
+	/// Maximum number of parallel connections to maintain.
 	pub parallel_limit: usize,
 }
 
@@ -169,93 +171,5 @@ impl Default for DasNetworkConfig {
 			bootstrap_timeout: Duration::from_secs(60),
 			parallel_limit: 10,
 		}
-	}
-}
-
-#[async_trait]
-impl DasNetworkDiscovery for Service {
-	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()> {
-		let address_string = format!("/ip4/{}/tcp/{}", config.listen_addr, config.listen_port);
-		let listen_address: Multiaddr = address_string.parse().expect("Invalid address format");
-
-		self.start_listening(listen_address).await?;
-
-		let mut rng = StdRng::from_entropy();
-		let mut shuffled_nodes = config.bootstrap_nodes.clone();
-		shuffled_nodes.shuffle(&mut rng);
-
-		// Connect to a limited number of bootstrap nodes, for example, up to 3.
-		for addr in shuffled_nodes.iter().take(3) {
-			self.connect_to_bootstrap_node(addr, config).await?;
-		}
-
-		// Initiate bootstrap with a timeout
-		let bootstrap_fut = self.bootstrap().boxed();
-		let timeout_fut = tokio::time::sleep(config.bootstrap_timeout).boxed();
-		futures::pin_mut!(bootstrap_fut, timeout_fut);
-
-		match futures::future::select(bootstrap_fut, timeout_fut).await {
-			futures::future::Either::Left((Ok(_), _)) => {
-				log::info!("Successfully bootstrapped to the network.");
-				Ok(())
-			},
-			futures::future::Either::Left((Err(e), _)) => {
-				log::error!("Failed to bootstrap to the network. Error: {}", e);
-				Err(e)
-			},
-			futures::future::Either::Right(_) => {
-				log::error!(
-					"Bootstrap to the network timed out after {:?}",
-					config.bootstrap_timeout
-				);
-				Err(anyhow::anyhow!(
-					"Bootstrap to the network timed out after {:?}",
-					config.bootstrap_timeout
-				))
-			},
-		}
-	}
-
-	async fn connect_to_bootstrap_node(
-		&self,
-		addr_str: &str,
-		config: &DasNetworkConfig,
-	) -> anyhow::Result<()> {
-		let addr: Multiaddr = addr_str.parse().context("Failed parsing bootstrap node address")?;
-		let peer_id = match addr.iter().last() {
-			Some(libp2p::multiaddr::Protocol::P2p(hash)) =>
-				PeerId::from_multihash(hash).expect("Invalid peer multiaddress."),
-			_ => return Err(anyhow::anyhow!("Failed extracting PeerId from address")),
-		};
-
-		for i in 0..config.max_retries {
-			match self.add_address(peer_id, addr.clone()).await {
-				Ok(_) => {
-					log::info!("Successfully connected to bootstrap node: {}", addr_str);
-					break
-				},
-				Err(_) if i < config.max_retries - 1 => {
-					log::warn!(
-						"Failed to connect to bootstrap node: {}. Retry {}/{} in {:?}",
-						addr_str,
-						i + 1,
-						config.max_retries,
-						config.retry_delay
-					);
-					tokio::time::sleep(config.retry_delay).await;
-				},
-				Err(e) => {
-					log::error!(
-						"Failed to connect to bootstrap node: {} after {} retries. Error: {}",
-						addr_str,
-						config.max_retries,
-						e
-					);
-					return Err(e)
-				},
-			}
-		}
-
-		Ok(())
 	}
 }

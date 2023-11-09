@@ -29,6 +29,15 @@ mod rpc;
 
 use finalized_headers::finalized_headers;
 
+/// Runs the Melodot Light Client with the given configuration.
+/// 
+/// # Arguments
+/// 
+/// * `config` - A reference to the configuration object.
+/// 
+/// # Returns
+/// 
+/// Returns `Ok(())` if the client runs successfully, otherwise returns an `anyhow::Error`.
 pub async fn run(config: &cli::Config) -> anyhow::Result<()> {
 	logger::init_logger().unwrap();
 

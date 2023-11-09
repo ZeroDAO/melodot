@@ -30,16 +30,45 @@ pub use sc_rpc_api::DenyUnsafe;
 /// Defines the Das API's functionalities.
 #[rpc(client, server, namespace = "das")]
 pub trait ConfidenceApi<DB, Hash, DN> {
+	/// Returns the confidence of a block.
+	/// If the block is not in the database, returns `None`.
+	///
+	/// # Arguments
+	///
+	/// * `block_hash` - A hash of the block.
+	///
+	/// # Returns
+	///
+	/// Returns the confidence of the block as an `Option<u32>`. If the block is not in the database, returns `None`.
 	#[method(name = "blockConfidence")]
 	async fn block_confidence(&self, block_hash: Hash) -> RpcResult<Option<u32>>;
 
+	/// Returns whether the block is available.
+	///
+	/// # Arguments
+	///
+	/// * `block_hash` - A hash of the block.
+	///
+	/// # Returns
+	///
+	/// Returns whether the block is available as an `Option<bool>`. If the block is not in the database, returns `None`.
 	#[method(name = "isAvailable")]
 	async fn is_available(&self, block_hash: Hash) -> RpcResult<Option<bool>>;
 
+	/// Removes records from the local node.
+	///
+	/// # Arguments
+	///
+	/// * `keys` - A vector of bytes representing the keys to remove.
+	///
+	/// # Returns
+	///
+	/// Returns `()` if the records were successfully removed.
 	#[method(name = "removeRecords")]
 	async fn remove_records(&self, keys: Vec<Bytes>) -> RpcResult<()>;
 }
 
+/// The Das API's implementation.
 pub struct Confidence<DB, Hash, DN> {
 	database: Arc<Mutex<DB>>,
 	das_network: Arc<DN>,
@@ -51,10 +80,12 @@ where
 	Hash: AsRef<[u8]> + Send + Sync + 'static,
 	DB: DasKv + 'static,
 {
+	/// Creates a new [`Confidence`] instance.
 	pub fn new(database: &Arc<Mutex<DB>>, das_network: &Arc<DN>) -> Self {
 		Self { database: database.clone(), das_network: das_network.clone(), _marker: PhantomData }
 	}
 
+	/// Returns the confidence of a block.
 	pub async fn confidence(&self, block_hash: Hash) -> Option<Reliability> {
 		let confidence_id = ReliabilityId::block_confidence(block_hash.as_ref());
 		let mut db = self.database.lock().await;

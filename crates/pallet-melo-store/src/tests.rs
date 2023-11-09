@@ -251,7 +251,7 @@ fn should_report_unavailable_data_successfully_with_multiple_app_id_and_data() {
 		for app_id in 1..=10u32 {
 			assert_ok!(MeloStore::register_app(RuntimeOrigin::signed(app_id as u64)));
 
-			for _ in 1..=10 {
+			for nonce in 1..=10 {
 				let bytes_len = 10;
 				let (commitments, proofs) = commits_and_proofs(bytes_len, 0);
 
@@ -260,7 +260,7 @@ fn should_report_unavailable_data_successfully_with_multiple_app_id_and_data() {
 					SidecarMetadata::new(
 						app_id,
 						bytes_len,
-						1,
+						nonce as u32,
 						commitments.clone(),
 						proofs.clone()
 					)
@@ -401,7 +401,7 @@ fn should_fail_when_submitting_empty_data() {
 				RuntimeOrigin::signed(2),
 				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
-			Error::<Runtime>::SubmittedDataIsEmpty
+			Error::<Runtime>::SubmittedDataIsInvalid
 		);
 	});
 }
@@ -420,7 +420,7 @@ fn should_fail_with_mismatched_commitments_count() {
 				RuntimeOrigin::signed(2),
 				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
-			Error::<Runtime>::MismatchedCommitmentsCount
+			Error::<Runtime>::SubmittedDataIsInvalid
 		);
 	});
 }
@@ -442,7 +442,7 @@ fn should_fail_with_mismatched_proofs_count() {
 				RuntimeOrigin::signed(2),
 				SidecarMetadata::new(app_id, bytes_len, 1, commitments.clone(), proofs.clone()),
 			),
-			Error::<Runtime>::MismatchedProofsCount
+			Error::<Runtime>::SubmittedDataIsInvalid
 		);
 	});
 }

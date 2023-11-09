@@ -124,6 +124,22 @@ pub fn bytes_to_blobs(bytes: &[u8], field_elements_per_blob: usize) -> Result<Ve
 	Ok(blobs)
 }
 
+/// Converts a byte slice into a vector of segments.
+///
+/// # Arguments
+///
+/// * `bytes` - A slice of bytes to be converted into segments.
+/// * `field_elements_per_blob` - The number of field elements per blob.
+/// * `field_elements_per_segment` - The number of field elements per segment.
+/// * `kzg` - A reference to a KZG instance.
+///
+/// # Errors
+///
+/// Returns an error if the byte slice is empty or if the number of bytes per blob cannot be determined.
+///
+/// # Returns
+///
+/// A vector of segments.
 pub fn bytes_to_segments(
 	bytes: &[u8],
 	field_elements_per_blob: usize,
