@@ -43,7 +43,7 @@ pub trait Sampling {
 		&self,
 		app_id: u32,
 		nonce: u32,
-		commitments: &Vec<KZGCommitment>,
+		commitments: &[KZGCommitment],
 	) -> Result<()>;
 
 	async fn sample_block<Header>(&self, header: &Header) -> Result<()>
@@ -99,7 +99,7 @@ where
 
 		if should_update {
 			let encoded = last.encode();
-			let _ = db_guard.set(LAST_AT_KEY, &encoded);
+			db_guard.set(LAST_AT_KEY, &encoded);
 		}
 	}
 }
@@ -112,19 +112,18 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		let mut db_guard = self.database.lock().await;
 		db_guard
 			.get(LAST_AT_KEY)
-			.map(|bytes| Decode::decode(&mut &bytes[..]).ok())
-			.flatten()
-			.unwrap_or_else(|| 0u32)
+			.and_then(|bytes| Decode::decode(&mut &bytes[..]).ok())
+			.unwrap_or(0u32)
 	}
 
 	async fn sample_application(
 		&self,
 		app_id: u32,
 		nonce: u32,
-		commitments: &Vec<KZGCommitment>,
+		commitments: &[KZGCommitment],
 	) -> Result<()> {
 		let id = ReliabilityId::app_confidence(app_id, nonce);
-		let mut confidence = Reliability::new(ReliabilityType::App, &commitments);
+		let mut confidence = Reliability::new(ReliabilityType::App, commitments);
 		let blob_count = commitments.len();
 		let n = blob_count;
 		let app_lookups = vec![AppLookup { app_id, nonce, count: blob_count as u16 }];
@@ -141,7 +140,7 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		let id = ReliabilityId::block_confidence(&block_hash);
 		let commitments = header.commitments().context("Commitments not found in the header")?;
 
-		if commitments.len() > 0 {
+		if !commitments.is_empty() {
 			info!("🌈 Sampling block {}, ID: {:?}", header.number(), id);
 
 			let extended_commits =

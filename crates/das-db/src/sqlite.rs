@@ -35,7 +35,7 @@ impl SqliteDasDb {
 impl Default for SqliteDasDb {
 	fn default() -> Self {
 		let default_path = PathBuf::from("./melodot_light_client.sqlite3");
-		Self::new(&default_path.to_str().unwrap()).expect("Default database path should be valid")
+		Self::new(default_path.to_str().unwrap()).expect("Default database path should be valid")
 	}
 }
 

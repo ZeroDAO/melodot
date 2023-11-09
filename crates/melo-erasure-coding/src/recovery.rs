@@ -122,7 +122,7 @@ pub fn recovery_order_row_from_segments(
 
 	let segment_datas = order_segments
 		.iter()
-		.map(|s| if let Some(segment) = s { Some(segment.content.clone()) } else { None })
+		.map(|s| s.as_ref().map(|segment| segment.content.clone()))
 		.collect::<Vec<_>>();
 
 	let segments_size =

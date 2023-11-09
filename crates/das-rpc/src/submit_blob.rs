@@ -123,7 +123,7 @@ where
 
 		// Validate the length of the data.
 		if !metadata.check() || data.len() != (metadata.bytes_len as usize) {
-			return Err(Error::DataLengthError.into())
+			return Err(Error::DataLength.into())
 		}
 
 		let mut err_msg = None;

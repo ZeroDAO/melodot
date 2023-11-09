@@ -63,11 +63,11 @@ pub trait DasNetworkOperations {
 	where
 		Header: HeaderWithCommitment + HeaderT;
 
-	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>>;
+	fn extend_segments_col(&self, segments: &[Segment]) -> Result<Vec<Segment>>;
 
 	fn recovery_order_row_from_segments(
 		&self,
-		segments: &Vec<Option<Segment>>,
+		segments: &[Option<Segment>],
 	) -> Result<Vec<Segment>>;
 
 	fn kzg(&self) -> Arc<KZG>;
@@ -133,13 +133,13 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		self.kzg.clone()
 	}
 	
-	fn extend_segments_col(&self, segments: &Vec<Segment>) -> Result<Vec<Segment>> {
-		extend(&self.kzg.get_fs(), segments).map_err(|e| anyhow!(e))
+	fn extend_segments_col(&self, segments: &[Segment]) -> Result<Vec<Segment>> {
+		extend(self.kzg.get_fs(), &segments.to_vec()).map_err(|e| anyhow!(e))
 	}
 
 	fn recovery_order_row_from_segments(
 		&self,
-		segments: &Vec<Option<Segment>>,
+		segments: &[Option<Segment>],
 	) -> Result<Vec<Segment>> {
 		recovery(segments, &self.kzg).map_err(|e| anyhow!(e))
 	}
@@ -203,7 +203,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		sample: &Sample,
 		commitment: &KZGCommitment,
 	) -> Option<SegmentData> {
-		self.fetch_value(&sample.get_id(), &sample.position, commitment).await
+		self.fetch_value(sample.get_id(), &sample.position, commitment).await
 	}
 
 	async fn fetch_block<Header>(
@@ -231,15 +231,15 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 }
 
 fn values_set_handler(
-	values_set: &Vec<Option<Vec<Vec<u8>>>>,
-	commitments: &Vec<KZGCommitment>,
+	values_set: &[Option<Vec<Vec<u8>>>],
+	commitments: &[KZGCommitment],
 	kzg: &KZG,
 ) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)> {
 	let mut need_reconstruct = vec![];
 	let mut is_availability = true;
 
 	let all_segments: Vec<Option<Segment>> = values_set
-		.into_iter()
+		.iter()
 		.chunks(EXTENDED_SEGMENTS_PER_BLOB)
 		.into_iter()
 		.enumerate()
@@ -253,7 +253,7 @@ fn values_set_handler(
 				.map(|(x, values)| match values {
 					Some(values) => verify_values(
 						kzg,
-						&values,
+						values,
 						&commitments[y],
 						&Position { x: x as u32, y: y as u32 },
 					),
@@ -288,7 +288,7 @@ fn verify_values(
 		.filter_map(|value| {
 			if let core::result::Result::Ok(segment_data) = SegmentData::decode(&mut &value[..]) {
 				let segment = Segment { position: position.clone(), content: segment_data };
-				if segment.checked().unwrap().verify(&kzg, &commitment, segment.size()).is_ok() {
+				if segment.checked().unwrap().verify(kzg, commitment, segment.size()).is_ok() {
 					return Some(segment)
 				}
 			}

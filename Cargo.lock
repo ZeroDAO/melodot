@@ -4795,6 +4795,7 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "substrate-prometheus-endpoint",
  "tokio",
  "tokio-stream",
  "tracing",

@@ -44,9 +44,9 @@ use sp_runtime::{
 use sp_std::prelude::*;
 
 use melo_core_primitives::{
-	reliability::{ReliabilityId, ReliabilityManager},
 	config::{BLOCK_SAMPLE_LIMIT, MAX_UNAVAILABLE_BLOCK_INTERVAL},
 	extension::AppLookup,
+	reliability::{ReliabilityId, ReliabilityManager},
 	traits::HeaderCommitList,
 	SidecarMetadata,
 };
@@ -308,9 +308,7 @@ pub mod pallet {
 			ensure!(params.app_id <= current_app_id, Error::<T>::AppIdError);
 
 			// Check if the nonce is valid.
-			let current_nonce = Nonces::<T>::get(
-				&current_app_id,
-			);
+			let current_nonce = Nonces::<T>::get(current_app_id);
 
 			ensure!(params.nonce == current_nonce.saturating_add(1), Error::<T>::NonceError);
 
@@ -345,10 +343,7 @@ pub mod pallet {
 				metadata_vec.try_push(metadata).map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)
 			})?;
 
-			Nonces::<T>::mutate(
-				&current_app_id,
-				|nonce| *nonce = params.nonce,
-			);
+			Nonces::<T>::mutate(current_app_id, |nonce| *nonce = params.nonce);
 
 			Self::deposit_event(Event::DataReceived {
 				bytes_len: params.bytes_len,
@@ -556,16 +551,15 @@ impl<T: Config> Pallet<T> {
 
 		for i in 0..BLOCK_SAMPLE_LIMIT {
 			let process_block = last + i.into();
-			if process_block >= now.into() {
+			if process_block >= now {
 				break
 			}
 
 			let maybe_avail = {
 				let block_hash = <frame_system::Pallet<T>>::block_hash(process_block);
-				match ReliabilityId::block_confidence(block_hash.as_ref()).get_confidence(&mut db) {
-					Some(confidence) => Some(confidence.is_availability()),
-					None => None,
-				}
+				ReliabilityId::block_confidence(block_hash.as_ref())
+					.get_confidence(&mut db)
+					.map(|confidence| confidence.is_availability())
 			};
 
 			if let Some(avail) = maybe_avail {

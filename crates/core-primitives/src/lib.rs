@@ -31,9 +31,9 @@ pub use header::*;
 pub mod sidecar;
 pub use sidecar::*;
 
-pub mod reliability;
 pub mod config;
 pub mod localstorage;
+pub mod reliability;
 pub mod traits;
 
 #[cfg(feature = "std")]
@@ -61,7 +61,7 @@ impl SubmitDataParams {
 
 	pub fn check(&self) -> bool {
 		self.commitments.len() == self.proofs.len() &&
-			self.commitments.len() > 0 &&
+			!self.commitments.is_empty() &&
 			self.bytes_len > 0
 	}
 }

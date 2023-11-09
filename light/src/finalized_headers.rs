@@ -52,7 +52,7 @@ pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 		if let Ok(block) = message {
 			let header = block.header().clone();
 
-			let block_number = header.number.clone();
+			let block_number = header.number;
 
 			info!("✅ Received finalized block header #{}", block_number.clone());
 
@@ -61,7 +61,7 @@ pub async fn finalized_headers<H: HeaderWithCommitment + Sync>(
 				error!("❌ Fail to process finalized block header: {error}");
 			}
 
-			match client.sample_block::<Header>(&header.into()).await {
+			match client.sample_block::<Header>(&header).await {
 				Ok(_) => debug!("🔍 Sampled block header #{}", block_number),
 				Err(e) => {
 					error!("⚠️ Sampling error: {:?}", e);

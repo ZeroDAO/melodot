@@ -23,15 +23,18 @@ use libp2p::{
 		QueryId, QueryResult, Record,
 	},
 	mdns::Event as MdnsEvent,
-	metrics::Metrics,
 	multiaddr::Protocol,
 	swarm::{ConnectionError, Swarm, SwarmEvent},
-	Multiaddr, PeerId,
+	Multiaddr,
+	PeerId,
 };
 use log::{debug, error, info, trace, warn};
+use prometheus_endpoint::{register, Counter, CounterVec, Gauge, Opts, U64};
 use std::{collections::HashMap, fmt::Debug};
 
 const MAX_RETRIES: u8 = 3;
+
+const LOG_TARGET: &str = "melo-das-network-worker";
 
 enum QueryResultSender {
 	PutRecord(oneshot::Sender<Result<(), anyhow::Error>>),
@@ -56,7 +59,7 @@ pub struct DasNetwork {
 	query_id_receivers: HashMap<QueryId, QueryResultSender>,
 	pending_routing: HashMap<PeerId, QueryResultSender>,
 	retry_counts: HashMap<PeerId, u8>,
-	metrics: Metrics,
+	metrics: Option<Metrics>,
 	known_addresses: HashMap<PeerId, Vec<String>>,
 }
 
@@ -64,7 +67,7 @@ impl DasNetwork {
 	pub fn new(
 		swarm: Swarm<Behavior>,
 		command_receiver: mpsc::Receiver<Command>,
-		metrics: Metrics,
+		prometheus_registry: Option<prometheus_endpoint::Registry>,
 		config: &DasNetworkConfig,
 	) -> Self {
 		let mut swarm = swarm;
@@ -96,6 +99,17 @@ impl DasNetwork {
 		if let Err(e) = Swarm::listen_on(&mut swarm, listen_addr.parse().unwrap()) {
 			error!("Error starting to listen on {}: {}", listen_addr, e);
 		}
+
+		let metrics = match prometheus_registry {
+			Some(registry) => match Metrics::register(&registry) {
+				Ok(metrics) => Some(metrics),
+				Err(e) => {
+					error!(target: LOG_TARGET, "Failed to register metrics: {}", e);
+					None
+				},
+			},
+			None => None,
+		};
 
 		Self {
 			swarm,
@@ -137,7 +151,30 @@ impl DasNetwork {
 		}
 	}
 
+	fn handle_retry_connection(&mut self, peer_id: PeerId) {
+		let should_remove = {
+			let retry_count = self.retry_counts.entry(peer_id).or_insert(0);
+			if *retry_count < MAX_RETRIES {
+				*retry_count += 1;
+				debug!("Will retry connection with peer {:?} (attempt {})", peer_id, *retry_count);
+				// Optionally: Add logic to delay the next connection attempt
+				false
+			} else {
+				debug!("Removed peer {:?} after {} failed attempts", peer_id, *retry_count);
+				true
+			}
+		};
+
+		if should_remove {
+			self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
+			self.retry_counts.remove(&peer_id);
+		}
+	}
+
 	async fn handle_swarm_event<E: Debug>(&mut self, event: SwarmEvent<BehaviourEvent, E>) {
+		if let Some(metrics) = &self.metrics {
+			metrics.dht_event_received.with_label_values(&["event_received"]).inc();
+		}
 		match event {
 			SwarmEvent::Behaviour(BehaviourEvent::Kademlia(event)) =>
 				self.handle_kademlia_event(event).await,
@@ -145,7 +182,7 @@ impl DasNetwork {
 				self.handle_identify_event(event).await,
 			SwarmEvent::NewListenAddr { address, .. } => {
 				let peer_id = self.swarm.local_peer_id();
-				let address_with_peer = address.with(Protocol::P2p(peer_id.clone().into()));
+				let address_with_peer = address.with(Protocol::P2p((*peer_id).into()));
 				debug!("Local node is listening on {:?}", address_with_peer);
 			},
 			SwarmEvent::Behaviour(BehaviourEvent::Mdns(event)) => {
@@ -176,34 +213,23 @@ impl DasNetwork {
 			},
 			SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
 				debug!("Connection closed with peer {:?}", peer_id);
+
+				if let Some(metrics) = &self.metrics {
+					let label = match &cause {
+						Some(ConnectionError::IO(_)) => "connection_closed_io",
+						Some(ConnectionError::Handler(_)) => "connection_closed_handler",
+						_ => "connection_closed_other",
+					};
+					metrics.dht_event_received.with_label_values(&[label]).inc();
+				}
+
 				if let Some(cause) = cause {
 					match cause {
-						ConnectionError::IO(_) | ConnectionError::Handler(_) => {
-							// Retry connection with peer
-							let should_remove = {
-								let retry_count =
-									self.retry_counts.entry(peer_id.clone()).or_insert(0);
-								if *retry_count < MAX_RETRIES {
-									*retry_count += 1;
-									debug!(
-										"Will retry connection with peer {:?} (attempt {})",
-										peer_id, *retry_count
-									);
-									// Optionally: Add logic to delay the next connection attempt
-									false
-								} else {
-									debug!(
-										"Removed peer {:?} after {} failed attempts",
-										peer_id, *retry_count
-									);
-									true
-								}
-							};
-
-							if should_remove {
-								self.swarm.behaviour_mut().kademlia.remove_peer(&peer_id);
-								self.retry_counts.remove(&peer_id);
-							}
+						ConnectionError::IO(_) => {
+							self.handle_retry_connection(peer_id);
+						},
+						ConnectionError::Handler(_) => {
+							self.handle_retry_connection(peer_id);
 						},
 						_ => {},
 					}
@@ -222,7 +248,7 @@ impl DasNetwork {
 					"Updated routing information. Affected Peer: {:?}. New Peer?: {:?}. Associated Addresses: {:?}. Previous Peer (if replaced): {:?}",
 					peer, is_new_peer, addresses, old_peer
 				);
-				let msg = self.pending_routing.remove(&peer.into());
+				let msg = self.pending_routing.remove(&peer);
 				handle_send!(Bootstrap, msg, Ok(()));
 			},
 			KademliaEvent::RoutablePeer { peer, address } => {
@@ -239,13 +265,12 @@ impl DasNetwork {
 			},
 			KademliaEvent::InboundRequest { request } => {
 				trace!("Received an inbound request: {:?}", request);
-				if let InboundRequest::PutRecord { source, record, .. } = request {
-					if let Some(block_ref) = record {
-						trace!(
-							"Received an inbound PUT request. Record Key: {:?}. Request Source: {:?}",
-							block_ref.key, source
-						);
-					}
+				if let InboundRequest::PutRecord { source, record: Some(block_ref), .. } = request {
+					trace!(
+						"Received an inbound PUT request. Record Key: {:?}. Request Source: {:?}",
+						block_ref.key,
+						source
+					);
 				}
 			},
 			KademliaEvent::OutboundQueryProgressed { id, result, .. } => match result {
@@ -299,12 +324,35 @@ impl DasNetwork {
 	}
 
 	async fn handle_command(&mut self, command: Command) {
+		if let Some(metrics) = &self.metrics {
+			metrics.requests.inc();
+			metrics.requests_pending.inc();
+		}
+
+		if let Some(metrics) = &self.metrics {
+			metrics.requests.inc();
+		}
 		match command {
-			Command::StartListening { addr, sender } =>
+			Command::StartListening { addr, sender } => {
+				let result = self.swarm.listen_on(addr.clone());
+				if let Some(metrics) = &self.metrics {
+					match result {
+						Ok(_) => metrics
+							.requests_total
+							.with_label_values(&["start_listening_success"])
+							.inc(),
+						Err(_) => metrics
+							.requests_total
+							.with_label_values(&["start_listening_failure"])
+							.inc(),
+					}
+				}
 				_ = match self.swarm.listen_on(addr) {
 					Ok(_) => sender.send(Ok(())),
 					Err(e) => sender.send(Err(e.into())),
-				},
+				}
+			},
+
 			Command::AddAddress { peer_id, peer_addr, sender } => {
 				self.swarm.behaviour_mut().kademlia.add_address(&peer_id, peer_addr.clone());
 				self.pending_routing.insert(peer_id, QueryResultSender::Bootstrap(sender));
@@ -324,6 +372,13 @@ impl DasNetwork {
 				self.query_id_receivers.insert(query_id, QueryResultSender::GetRecord(sender));
 			},
 			Command::PutKadRecord { record, quorum, sender } => {
+				if let Some(metrics) = &self.metrics {
+					metrics.publish.inc();
+				}
+
+				if let Some(metrics) = &self.metrics {
+					metrics.publish.inc();
+				}
 				if let Ok(query_id) = self.swarm.behaviour_mut().kademlia.put_record(record, quorum)
 				{
 					self.query_id_receivers.insert(query_id, QueryResultSender::PutRecord(sender));
@@ -342,5 +397,64 @@ impl DasNetwork {
 				});
 			},
 		}
+	}
+}
+
+#[derive(Clone)]
+pub(crate) struct Metrics {
+	publish: Counter<U64>,
+	requests: Counter<U64>,
+	requests_total: CounterVec<U64>,
+	requests_pending: Gauge<U64>,
+	dht_event_received: CounterVec<U64>,
+}
+
+impl Metrics {
+	pub(crate) fn register(
+		registry: &prometheus_endpoint::Registry,
+	) -> Result<Self, Box<dyn std::error::Error>> {
+		Ok(Self {
+			publish: register(
+				Counter::new(
+					"das_network_publish_total",
+					"Total number of published items in the DAS network",
+				)?,
+				registry,
+			)?,
+			requests: register(
+				Counter::new(
+					"das_network_requests_total",
+					"Total number of requests in the DAS network",
+				)?,
+				registry,
+			)?,
+			requests_total: register(
+				CounterVec::new(
+					Opts::new(
+						"das_network_requests_total",
+						"Total number of requests in the DAS network",
+					),
+					&["type"],
+				)?,
+				registry,
+			)?,
+			requests_pending: register(
+				Gauge::new(
+					"das_network_requests_pending",
+					"Number of pending requests in the DAS network",
+				)?,
+				registry,
+			)?,
+			dht_event_received: register(
+				CounterVec::new(
+					Opts::new(
+						"das_network_dht_event_received_total",
+						"Total number of DHT events received in the DAS network",
+					),
+					&["event"],
+				)?,
+				registry,
+			)?,
+		})
 	}
 }

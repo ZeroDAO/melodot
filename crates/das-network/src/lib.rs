@@ -26,7 +26,6 @@ use libp2p::{
 	identity,
 	identity::Keypair,
 	kad::{store::MemoryStore, KademliaConfig},
-	metrics::Metrics,
 	noise::NoiseAuthenticated,
 	swarm::SwarmBuilder,
 	tcp::{tokio::Transport as TokioTcpTransport, Config as GenTcpConfig},
@@ -34,7 +33,6 @@ use libp2p::{
 	Transport,
 };
 use melo_core_primitives::config;
-use prometheus_client::registry::Registry;
 
 pub use log::warn;
 
@@ -60,7 +58,7 @@ const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 5000;
 pub fn create(
 	keypair: identity::Keypair,
 	protocol_version: String,
-	metrics: Metrics,
+	prometheus_registry: Option<prometheus_endpoint::Registry>,
 	config: DasNetworkConfig,
 ) -> Result<(service::Service, worker::DasNetwork)> {
 	let local_peer_id = PeerId::from(keypair.public());
@@ -71,10 +69,10 @@ pub fn create(
 	let transport = build_transport(&keypair, true)?;
 
 	let behaviour = Behavior::new(BehaviorConfig {
-		peer_id: local_peer_id.clone(),
+		peer_id: local_peer_id,
 		identify,
 		kademlia: KademliaConfig::default(),
-		kad_store: MemoryStore::new(local_peer_id.clone()),
+		kad_store: MemoryStore::new(local_peer_id),
 	})?;
 
 	let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
@@ -85,7 +83,7 @@ pub fn create(
 
 	Ok((
 		service::Service::new(to_worker, config.parallel_limit),
-		worker::DasNetwork::new(swarm, from_service, metrics, &config),
+		worker::DasNetwork::new(swarm, from_service, prometheus_registry, &config),
 	))
 }
 
@@ -105,13 +103,12 @@ pub fn default(
 		None => DasNetworkConfig::default(),
 	};
 
-	let mut metric_registry = Registry::default();
-	let libp2p_metrics = Metrics::new(&mut metric_registry);
+	let metric_registry = prometheus_endpoint::Registry::default();
 
 	create(
 		keypair,
 		config::DAS_NETWORK_VERSION.to_string(),
-		libp2p_metrics,
+		Some(metric_registry),
 		config,
 	)
 }
@@ -120,7 +117,7 @@ fn build_transport(
 	key_pair: &Keypair,
 	port_reuse: bool,
 ) -> Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
-	let noise = NoiseAuthenticated::xx(&key_pair).unwrap();
+	let noise = NoiseAuthenticated::xx(key_pair).unwrap();
 	let dns_tcp = TokioDnsConfig::system(TokioTcpTransport::new(
 		GenTcpConfig::new().nodelay(true).port_reuse(port_reuse),
 	))?;

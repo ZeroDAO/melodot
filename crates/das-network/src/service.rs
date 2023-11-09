@@ -142,7 +142,7 @@ pub trait DasNetworkDiscovery {
 	async fn init(&self, config: &DasNetworkConfig) -> anyhow::Result<()>;
 	async fn connect_to_bootstrap_node(
 		&self,
-		addr_str: &String,
+		addr_str: &str,
 		config: &DasNetworkConfig,
 	) -> anyhow::Result<()>;
 }
@@ -218,7 +218,7 @@ impl DasNetworkDiscovery for Service {
 
 	async fn connect_to_bootstrap_node(
 		&self,
-		addr_str: &String,
+		addr_str: &str,
 		config: &DasNetworkConfig,
 	) -> anyhow::Result<()> {
 		let addr: Multiaddr = addr_str.parse().context("Failed parsing bootstrap node address")?;
@@ -229,7 +229,7 @@ impl DasNetworkDiscovery for Service {
 		};
 
 		for i in 0..config.max_retries {
-			match self.add_address(peer_id.clone(), addr.clone()).await {
+			match self.add_address(peer_id, addr.clone()).await {
 				Ok(_) => {
 					log::info!("Successfully connected to bootstrap node: {}", addr_str);
 					break

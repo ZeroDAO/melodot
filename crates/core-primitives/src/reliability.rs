@@ -136,16 +136,11 @@ impl Sample {
 	}
 }
 
-#[derive(Debug, Clone, Copy, Decode, Encode)]
+#[derive(Debug, Clone, Copy, Decode, Encode, Default)]
 pub enum ReliabilityType {
+	#[default]
 	App,
 	Block,
-}
-
-impl Default for ReliabilityType {
-	fn default() -> Self {
-		ReliabilityType::App
-	}
 }
 
 impl ReliabilityType {
@@ -271,12 +266,12 @@ impl ReliabilitySample for Reliability {
 
 		while positions.len() < n {
 			let x = rng.gen_range(0..EXTENDED_SEGMENTS_PER_BLOB) as u32;
-			let y = rng.gen_range(0..column_count as u32);
-
+			let y = rng.gen_range(0..column_count);
+		
 			let pos = Position { x, y };
-
+		
 			if !positions.contains(&pos) {
-				commitments.push(self.commitments[pos.y as usize].clone());
+				commitments.push(self.commitments[pos.y as usize]);
 				positions.push(pos);
 			}
 		}
@@ -302,15 +297,15 @@ impl ReliabilitySample for Reliability {
 						if pos.y < column_count / 2 {
 							AppLookup::get_lookup(app_lookups, pos.y)
 								.ok_or_else(|| "AppLookup not found for position".to_string())
-								.and_then(|(lookup, relative_y)| {
+								.map(|(lookup, relative_y)| {
 									let relative_pos = Position { x: pos.x, y: relative_y };
 									let key =
 										sample_key(lookup.app_id, lookup.nonce, &relative_pos);
-									Ok(Sample {
+									Sample {
 										id: SampleId(key),
 										position: pos,
 										is_availability: false,
-									})
+									}
 								})
 						} else {
 							let key = sample_key_from_block(block_hash, &pos);

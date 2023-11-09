@@ -133,7 +133,7 @@ impl ClientSync for Client {
 		}
 	
 		let hex_bytes = to_hex_string(&bytes);
-		let hex_extrinsic = to_hex_string(&extrinsic.encoded());
+		let hex_extrinsic = to_hex_string(extrinsic.encoded());
 	
 		Ok((hex_bytes, hex_extrinsic))
 	}

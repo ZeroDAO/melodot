@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-	String, Vec,
-	reliability::ReliabilityId,
-};
-use crate::TypeInfo;
+use crate::{reliability::ReliabilityId, String, TypeInfo, Vec};
 use alloc::format;
 use codec::{Decode, Encode};
 use melo_das_primitives::{Blob, KZGCommitment, KZGProof, KZG};
@@ -68,7 +64,7 @@ impl SidecarMetadata {
 
 	pub fn check(&self) -> bool {
 		self.commitments.len() == self.proofs.len() &&
-			self.commitments.len() > 0 &&
+			!self.commitments.is_empty() &&
 			self.bytes_len > 0
 	}
 
