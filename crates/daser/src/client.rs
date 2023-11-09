@@ -18,7 +18,7 @@ use crate::{
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
-use log::info;
+use log::{info, debug};
 use melo_core_primitives::{
 	reliability::{ReliabilitySample, ReliabilityType},
 	traits::HeaderWithCommitment,
@@ -103,7 +103,7 @@ where
 			if self.network.fetch_sample(sample, commitment).await.is_some() {
 				sample.set_success();
 			} else {
-				info!("❌ Sampled failed: {:?}", sample.id);
+				debug!("Sampled failed: {:?}", sample.id);
 			}
 		}
 
@@ -177,7 +177,7 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		let commitments = header.commitments().context("Commitments not found in the header")?;
 
 		if !commitments.is_empty() {
-			info!("🌈 Sampling block {}, ID: {:?}", header.number(), id);
+			info!("🌈 Sampling block {}", header.number());
 
 			let extended_commits =
 				extend_fs_g1(self.network.kzg().get_fs(), &commitments).map_err(|e| anyhow!(e))?;

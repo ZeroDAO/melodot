@@ -105,14 +105,12 @@ impl DasNetwork {
 		if let Err(e) = Swarm::listen_on(&mut swarm, listen_addr.parse().unwrap()) {
 			error!("Error starting to listen on {}: {}", listen_addr, e);
 		}
-
-		let metrics = match prometheus_registry {
-			Some(registry) => match Metrics::register(&registry) {
-				Ok(metrics) => Some(metrics),
-				Err(e) => {
-					error!(target: LOG_TARGET, "Failed to register metrics: {}", e);
-					None
-				},
+		
+		let metrics = match prometheus_registry.as_ref().map(Metrics::register) {
+			Some(Ok(metrics)) => Some(metrics),
+			Some(Err(e)) => {
+				debug!(target: LOG_TARGET, "Failed to register metrics: {:?}", e);
+				None
 			},
 			None => None,
 		};
