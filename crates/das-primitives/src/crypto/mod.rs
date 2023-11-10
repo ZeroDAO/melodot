@@ -18,13 +18,16 @@ use alloc::{
 	sync::Arc,
 	vec::Vec,
 };
-use core::hash::{Hash, Hasher};
-use core::mem;
-use core::ptr;
-use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
-use kzg::eip_4844::{BYTES_PER_G1, BYTES_PER_G2};
-use kzg::{FFTSettings, FK20MultiSettings, Fr, KZGSettings, G1, G2};
 use codec::{Decode, Encode, EncodeLike, Input, MaxEncodedLen};
+use core::{
+	hash::{Hash, Hasher},
+	mem, ptr,
+};
+use derive_more::{AsMut, AsRef, Deref, DerefMut, From, Into};
+use kzg::{
+	eip_4844::{BYTES_PER_G1, BYTES_PER_G2},
+	FFTSettings, FK20MultiSettings, Fr, KZGSettings, G1, G2,
+};
 
 use rust_kzg_blst::types::{
 	fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
@@ -45,9 +48,9 @@ use super::{
 };
 // The kzg_type_with_size macro is inspired by
 // https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs.
-// This macro is used to wrap multiple core types of the underlying KZG, with the ultimate goal of minimizing
-// the exposure of low-level KZG domain knowledge while allowing for a more convenient implementation of a rich
-// type system.
+// This macro is used to wrap multiple core types of the underlying KZG, with the ultimate goal of
+// minimizing the exposure of low-level KZG domain knowledge while allowing for a more convenient
+// implementation of a rich type system.
 // But we use macros instead of separate implementations for each type.
 macro_rules! kzg_type_with_size {
 	($name:ident, $type:ty, $size:expr, $docs:tt, $type_name:tt) => {
@@ -179,20 +182,8 @@ macro_rules! kzg_type_with_size {
 }
 
 // TODO: Automatic size reading
-kzg_type_with_size!(
-	KZGCommitment,
-	FsG1,
-	BYTES_PER_G1,
-	"Commitment to polynomial",
-	"G1Affine"
-);
-kzg_type_with_size!(
-	KZGProof,
-	FsG1,
-	BYTES_PER_G1,
-	"Proof of polynomial",
-	"G1Affine"
-);
+kzg_type_with_size!(KZGCommitment, FsG1, BYTES_PER_G1, "Commitment to polynomial", "G1Affine");
+kzg_type_with_size!(KZGProof, FsG1, BYTES_PER_G1, "Proof of polynomial", "G1Affine");
 kzg_type_with_size!(BlsScalar, FsFr, BYTES_PER_FIELD_ELEMENT, "Scalar", "Fr");
 
 /// The `ReprConvert` trait defines methods for converting between types `Self` and `T`.
@@ -201,41 +192,46 @@ pub trait ReprConvert<T>: Sized {
 	///
 	/// # Safety
 	/// This method uses `unsafe` code because it transmutes the pointer from `&[Self]` to `&[T]`.
-	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T`
+	/// have the same memory layout.
 	fn slice_to_repr(value: &[Self]) -> &[T];
 
 	/// Convert a slice of type `T` to a slice of type `Self`.
 	///
 	/// # Safety
 	/// This method uses `unsafe` code because it transmutes the pointer from `&[T]` to `&[Self]`.
-	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T`
+	/// have the same memory layout.
 	fn slice_from_repr(value: &[T]) -> &[Self];
 
 	/// Convert a `Vec` of type `Self` to a `Vec` of type `T`.
 	///
 	/// # Safety
-	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<Self>` to `Vec<T>`.
-	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<Self>` to
+	/// `Vec<T>`. Calling this method requires ensuring that the conversion is safe and that `Self`
+	/// and `T` have the same memory layout.
 	fn vec_to_repr(value: Vec<Self>) -> Vec<T>;
 
 	/// Convert a `Vec` of type `T` to a `Vec` of type `Self`.
 	///
 	/// # Safety
-	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<T>` to `Vec<Self>`.
-	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	/// This method uses `unsafe` code because it transmutes the pointer from `Vec<T>` to
+	/// `Vec<Self>`. Calling this method requires ensuring that the conversion is safe and that
+	/// `Self` and `T` have the same memory layout.
 	fn vec_from_repr(value: Vec<T>) -> Vec<Self>;
 
 	/// Convert a slice of `Option<Self>` to a slice of `Option<T>`.
 	///
 	/// # Safety
-	/// This method uses `unsafe` code because it transmutes the pointer from `&[Option<Self>]` to `&[Option<T>]`.
-	/// Calling this method requires ensuring that the conversion is safe and that `Self` and `T` have the same memory layout.
+	/// This method uses `unsafe` code because it transmutes the pointer from `&[Option<Self>]` to
+	/// `&[Option<T>]`. Calling this method requires ensuring that the conversion is safe and that
+	/// `Self` and `T` have the same memory layout.
 	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
 }
 
 /// This macro provides a convenient way to convert a slice of the underlying representation to a
-/// commitment for efficiency purposes. To ensure safe conversion, the #[repr(transparent)] attribute
-/// must be implemented.
+/// commitment for efficiency purposes. To ensure safe conversion, the #[repr(transparent)]
+/// attribute must be implemented.
 macro_rules! repr_convertible {
 	($name:ident, $type:ty) => {
 		impl ReprConvert<$type> for $name {
@@ -360,8 +356,8 @@ pub const NUM_G1_POWERS: usize = 4_096;
 pub const NUM_G2_POWERS: usize = 65;
 
 // This function is derived and modified from `https://github.com/sifraitech/rust-kzg/blob/main/blst/src/eip_4844.rs#L75` .
-// The original function only supported G1 with a specific length. Here, we modified it to be configurable, allowing it to adapt to
-// different environments and the needs of various projects.
+// The original function only supported G1 with a specific length. Here, we modified it to be
+// configurable, allowing it to adapt to different environments and the needs of various projects.
 pub fn bytes_to_kzg_settings(
 	g1_bytes: &[u8],
 	g2_bytes: &[u8],
@@ -371,7 +367,7 @@ pub fn bytes_to_kzg_settings(
 	let num_g1_points = g1_bytes.len() / BYTES_PER_G1;
 
 	if num_g1_points != num_g1_powers || num_g2_powers != g2_bytes.len() / BYTES_PER_G2 {
-		return Err("Invalid bytes length".to_string());
+		return Err("Invalid bytes length".to_string())
 	}
 
 	let g1_values = g1_bytes
@@ -384,13 +380,12 @@ pub fn bytes_to_kzg_settings(
 		.map(FsG2::from_bytes)
 		.collect::<Result<Vec<_>, _>>()?;
 
-	let fs = FsFFTSettings::new(
-		num_g1_powers
-			.checked_sub(1)
-			.expect("Checked to be not empty above; qed")
-			.ilog2() as usize,
-	)
-	.expect("Scale is within allowed bounds; qed");
+	let mut max_scale: usize = 0;
+	while (1 << max_scale) < num_g1_powers {
+		max_scale += 1;
+	}
+
+	let fs = FsFFTSettings::new(max_scale).expect("Scale is within allowed bounds; qed");
 
 	Ok(FsKZGSettings { secret_g1: g1_values, secret_g2: g2_values, fs })
 }
@@ -412,18 +407,20 @@ impl KZG {
 		self.ks.fs.max_width
 	}
 
-	/// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the required data
-	/// using `scripts/process_data.sh`.
+	/// Embedded KZG settings, currently using the trusted setup of Ethereum. You can generate the
+	/// required data using `scripts/process_data.sh`.
 	///
 	/// ```bash
 	/// ./scripts/process_data.sh 4096
 	/// ```
 	///
-	/// Changing `4096` will generate data of different lengths. There are several options: `["4096" "8192" "16384" "32768"]`.
-	// Using direct strings is too large for the no-std environment. We referred to the design in subspace at
-	// https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101, where we directly
-	// save the values in binary format and load them into the program using an embedded approach. The side effect is a slight
-	// increase in the size of the compiled binary file, but it remains well within acceptable limits.
+	/// Changing `4096` will generate data of different lengths. There are several options: `["4096"
+	/// "8192" "16384" "32768"]`.
+	// Using direct strings is too large for the no-std environment. We referred to the design in
+	// subspace at https://github.com/subspace/subspace/blob/main/crates/subspace-core-primitives/src/crypto/kzg.rs#L101, where we directly
+	// save the values in binary format and load them into the program using an embedded approach.
+	// The side effect is a slight increase in the size of the compiled binary file, but it remains
+	// well within acceptable limits.
 	//
 	// We modified its design, allowing users to configure their own embedded files.
 	pub fn embedded_kzg_settings(

@@ -19,6 +19,8 @@ use meloxt::sidecar_metadata_runtime;
 use meloxt::{melodot, ClientBuilder};
 use subxt_signer::sr25519::dev::{self};
 
+use meloxt::ClientSync;
+
 #[tokio::main]
 pub async fn main() {
 	init_logger().unwrap();
@@ -34,13 +36,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 	client.set_signer(dev::bob());
 
 	let app_id = 1;
-	let bytes_len = 121; // Exceeding the limit
-	let (commitments, proofs, data_hash, _) = sidecar_metadata_runtime(bytes_len);
+	let bytes_len = 121;
+
+	let nonce = client.nonce(app_id).await?;
+
+	let (sidecar_metadata, _) = sidecar_metadata_runtime(bytes_len, app_id, nonce + 1);
 
 	let submit_data_tx =
 		melodot::tx()
 			.melo_store()
-			.submit_data(app_id, bytes_len, data_hash, commitments, proofs);
+			.submit_data(sidecar_metadata);
 
 	let block_hash = client
 		.api

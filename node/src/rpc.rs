@@ -9,17 +9,12 @@ use std::sync::Arc;
 
 use jsonrpsee::RpcModule;
 use melo_core_primitives::traits::AppDataApi;
-use melo_das_network_protocol::DasDht;
+use melo_daser::DasNetworkOperations;
 pub use node_primitives::Signature;
+use futures::lock::Mutex;
 
-use melodot_runtime::{
-	AccountId,
-	Balance,
-	BlockNumber,
-	Hash,
-	Index,
-	NodeBlock as Block,
-};
+use melodot_runtime::{AccountId, Balance, BlockNumber, Hash, Index, NodeBlock as Block};
+use melo_das_db::traits::DasKv;
 
 use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
@@ -62,7 +57,7 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, DDS> {
+pub struct FullDeps<C, P, SC, B, D, DB> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -77,13 +72,15 @@ pub struct FullDeps<C, P, SC, B, DDS> {
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
-	///
-	pub dht_service: DDS,
+	/// DAS network service.
+	pub das_network: Arc<D>,
+	/// DAS database.
+	pub das_db: Arc<Mutex<DB>>,
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, DDS>(
-	deps: FullDeps<C, P, SC, B, DDS>,
+pub fn create_full<C, P, SC, B, D, DB>(
+	deps: FullDeps<C, P, SC, B, D, DB>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
@@ -103,10 +100,12 @@ where
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	DDS: DasDht + Sync + Send + 'static + Clone,
 	P: TransactionPool<Block = Block> + Sync + Send + 'static,
+	D: DasNetworkOperations + Sync + Send + 'static + Clone,
+	DB: DasKv + Send + Sync + 'static,
 {
-	use melo_das_rpc::{Das, DasApiServer};
+	use melo_das_rpc::{SubmitBlob, SubmitBlobApiServer};
+	use melo_das_rpc::{Confidence, ConfidenceApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
@@ -122,7 +121,8 @@ where
 		select_chain,
 		babe,
 		grandpa,
-		dht_service,
+		das_network,
+		das_db,
 	} = deps;
 
 	let BabeDeps { babe_worker_handle, keystore } = babe;
@@ -155,7 +155,9 @@ where
 			.into_rpc(),
 	)?;
 
-	module.merge(Das::new(client.clone(), pool, dht_service).into_rpc())?;
+	module.merge(SubmitBlob::new(client.clone(), pool, das_network.clone()).into_rpc())?;
+
+	module.merge(Confidence::<DB, Hash, D>::new(&das_db, &das_network).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed

@@ -12,100 +12,123 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Necessary imports for the module.
-use futures::{
-	channel::{mpsc, oneshot},
-	Stream,
+use anyhow::{Ok, Result};
+use futures::channel::mpsc;
+use libp2p::{
+	core::{
+		muxing::StreamMuxerBox,
+		transport::{self},
+		upgrade::Version,
+		PeerId,
+	},
+	dns::TokioDnsConfig,
+	identify::Config as IdentifyConfig,
+	identity,
+	identity::Keypair,
+	kad::{store::MemoryStore, KademliaConfig},
+	noise::NoiseAuthenticated,
+	swarm::SwarmBuilder,
+	tcp::{tokio::Transport as TokioTcpTransport, Config as GenTcpConfig},
+	yamux::YamuxConfig,
+	Transport,
 };
-// Logging macro.
+use melo_core_primitives::config;
+
 pub use log::warn;
-// Common primitives and traits.
+
 pub use node_primitives::AccountId;
 pub use sc_client_api::Backend;
 pub use sc_network::{DhtEvent, KademliaKey, NetworkDHTProvider, NetworkSigner, NetworkStateInfo};
-pub use sc_offchain::OffchainDb;
 pub use sp_runtime::traits::{Block, Header};
 pub use std::sync::Arc;
+use std::time::Duration;
 
-// Internal module imports.
-pub use crate::{dht_work::Worker, service::Service};
+pub use behaviour::{Behavior, BehaviorConfig, BehaviourEvent};
+pub use service::{DasNetworkConfig, Service};
+pub use shared::Command;
+pub use worker::DasNetwork;
 
-mod dht_work;
+mod behaviour;
 mod service;
-mod tx_pool_listener;
+mod shared;
+mod worker;
 
-pub use tx_pool_listener::{start_tx_pool_listener, TPListenerParams};
+const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 5000;
 
-/// Trait to encapsulate necessary network-related operations.
-pub trait NetworkProvider: NetworkDHTProvider + NetworkStateInfo + NetworkSigner {}
-impl<T> NetworkProvider for T where T: NetworkDHTProvider + NetworkStateInfo + NetworkSigner {}
+/// Creates a new [`DasNetwork`] instance.
+/// The [`DasNetwork`] instance is composed of a [`Service`] and a [`Worker`].
+pub fn create(
+	keypair: identity::Keypair,
+	protocol_version: String,
+	prometheus_registry: Option<prometheus_endpoint::Registry>,
+	config: DasNetworkConfig,
+) -> Result<(service::Service, worker::DasNetwork)> {
+	let local_peer_id = PeerId::from(keypair.public());
 
-// Import core primitives related to sidecars.
-pub use melo_core_primitives::{Sidecar, SidecarMetadata, SidecarStatus};
-use sp_core::H256;
+	let protocol_version = format!("/melodot-das/{}", protocol_version);
+	let identify = IdentifyConfig::new(protocol_version.clone(), keypair.public());
 
-/// Instantiates a new DHT Worker with the given parameters.
-pub fn new_worker<B, Client, Network, DhtEventStream, BE>(
-	client: Arc<Client>,
-	network: Arc<Network>,
-	backend: Arc<BE>,
-	from_service: mpsc::Receiver<ServicetoWorkerMsg>,
-	dht_event_rx: DhtEventStream,
-) -> Option<Worker<B, Client, Network, DhtEventStream, BE>>
-where
-	B: Block,
-	Network: NetworkProvider,
-	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
-	BE: Backend<B>,
-{
-	Worker::try_build(from_service, client, backend, network, dht_event_rx)
+	let transport = build_transport(&keypair, true)?;
+
+	let behaviour = Behavior::new(BehaviorConfig {
+		peer_id: local_peer_id,
+		identify,
+		kademlia: KademliaConfig::default(),
+		kad_store: MemoryStore::new(local_peer_id),
+	})?;
+
+	let swarm = SwarmBuilder::with_tokio_executor(transport, behaviour, local_peer_id)
+		.max_negotiating_inbound_streams(SWARM_MAX_NEGOTIATING_INBOUND_STREAMS)
+		.build();
+
+	let (to_worker, from_service) = mpsc::channel(8);
+
+	Ok((
+		service::Service::new(to_worker, config.parallel_limit),
+		worker::DasNetwork::new(swarm, from_service, prometheus_registry, &config),
+	))
 }
 
-/// Creates a new channel for communication between the service and worker.
-pub fn new_workgroup() -> (mpsc::Sender<ServicetoWorkerMsg>, mpsc::Receiver<ServicetoWorkerMsg>) {
-	mpsc::channel(0)
+/// Creates a new [`DasNetwork`] instance with default configuration.
+pub fn default(
+	config: Option<DasNetworkConfig>,
+	keypair: Option<identity::Keypair>,
+) -> Result<(service::Service, worker::DasNetwork)> {
+	let keypair = match keypair {
+		Some(keypair) => keypair,
+		None => {
+			identity::Keypair::generate_ed25519()
+		}
+	};
+
+	let config = match config {
+		Some(config) => config,
+		None => DasNetworkConfig::default(),
+	};
+
+	let metric_registry = prometheus_endpoint::Registry::default();
+
+	create(
+		keypair,
+		config::DAS_NETWORK_VERSION.to_string(),
+		Some(metric_registry),
+		config,
+	)
 }
 
-/// Initializes a new Service instance with the specified communication channel.
-pub fn new_service(to_worker: mpsc::Sender<ServicetoWorkerMsg>) -> Service {
-	Service::new(to_worker)
-}
+fn build_transport(
+	key_pair: &Keypair,
+	port_reuse: bool,
+) -> Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
+	let noise = NoiseAuthenticated::xx(key_pair).unwrap();
+	let dns_tcp = TokioDnsConfig::system(TokioTcpTransport::new(
+		GenTcpConfig::new().nodelay(true).port_reuse(port_reuse),
+	))?;
 
-/// Conveniently creates both a Worker and Service with the given parameters.
-#[allow(clippy::type_complexity)]
-pub fn new_worker_and_service<B, Client, Network, DhtEventStream, BE>(
-	client: Arc<Client>,
-	network: Arc<Network>,
-	dht_event_rx: DhtEventStream,
-	backend: Arc<BE>,
-) -> Option<(Worker<B, Client, Network, DhtEventStream, BE>, Service)>
-where
-	B: Block,
-	Network: NetworkProvider,
-	DhtEventStream: Stream<Item = DhtEvent> + Unpin,
-	BE: Backend<B>,
-{
-	let (to_worker, from_service) = mpsc::channel(0);
-
-	let worker = Worker::try_build(from_service, client, backend, network, dht_event_rx)?;
-	let service = Service::new(to_worker);
-
-	Some((worker, service))
-}
-
-/// Converts a sidecar instance into a Kademlia key.
-pub fn sidecar_kademlia_key(sidecar: &Sidecar) -> KademliaKey {
-	KademliaKey::from(Vec::from(sidecar.id()))
-}
-
-/// Converts a sidecar ID into a Kademlia key.
-pub fn kademlia_key_from_sidecar_id(sidecar_id: &H256) -> KademliaKey {
-	KademliaKey::from(Vec::from(&sidecar_id[..]))
-}
-
-/// Enumerated messages that can be sent from the Service to the Worker.
-pub enum ServicetoWorkerMsg {
-	/// Request to insert a value into the DHT.
-	/// Contains the key for insertion, the data to insert, and a sender to acknowledge completion.
-	PutValueToDht(KademliaKey, Vec<u8>, oneshot::Sender<Option<()>>),
+	Ok(dns_tcp
+		.upgrade(Version::V1)
+		.authenticate(noise)
+		.multiplex(YamuxConfig::default())
+		.timeout(Duration::from_secs(20))
+		.boxed())
 }

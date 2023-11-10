@@ -18,24 +18,23 @@ async-trait = "0.1.56"
 futures = "0.3.21"
 tracing = "0.1.37"
 log = "0.4"
+rand = "0.8"
+derive_more = "0.99.17"
+anyhow = "1.0.66"
+libp2p = { version = "0.50.0", features = ["dns", "metrics", "identify", "kad", "macros", "mdns", "mplex", "noise", "ping", "tcp",  "tokio", "yamux", "websocket"] }
+tokio-stream = { version = "0.1" }
+tokio = { version = "1.21.2", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+prometheus-client = "0.18.1"
 
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sc-network = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-node-primitives = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-api = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-sp-blockchain = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sc-network = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+node-primitives = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-client-api = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sc-offchain = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
-
-[features]
-default = ["std"]
-std = [
-	"frame-system/std",
-	"sp-core/std",
-	"melo-erasure-coding/std",
-	"melo-das-primitives/std",
-]
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }

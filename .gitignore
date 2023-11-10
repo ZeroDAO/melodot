@@ -6,6 +6,8 @@
 
 .cargo/
 
+**.sqlite3
+
 .DS_Store
 
 # direnv files

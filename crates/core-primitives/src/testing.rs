@@ -16,10 +16,10 @@
 // limitations under the License.
 
 //! Testing utilities.
-use crate::traits::ExtendedHeader;
-use crate::traits::HeaderCommitList;
-use crate::Header as HeaderT;
-use crate::HeaderExtension;
+use crate::{
+	traits::{ExtendedHeader, HeaderCommitList},
+	AppLookup, Header as HeaderT, HeaderExtension,
+};
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
 
@@ -47,14 +47,14 @@ use std::{
 };
 
 lazy_static! {
-		/// A static reference containing test commitments.
+	/// A static reference containing test commitments.
 	pub static ref TEST_COMMITMENTS: Vec<KZGCommitment> = vec![
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
-		KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
+		// KZGCommitment::rand(),
 	];
 }
 
@@ -63,18 +63,19 @@ pub struct CommitListTest();
 
 impl HeaderCommitList for CommitListTest {
 	// Always returns an empty list of `KZGCommitment`.
-	fn last() -> Vec<KZGCommitment> {
-		vec![]
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>) {
+		(vec![], vec![])
 	}
 }
 
-/// `CommitListTestWithData` is a mock structure that implements `HeaderCommitList` with predefined data.
+/// `CommitListTestWithData` is a mock structure that implements `HeaderCommitList` with predefined
+/// data.
 pub struct CommitListTestWithData();
 
 impl HeaderCommitList for CommitListTestWithData {
 	// Returns a predefined list of `KZGCommitment` for testing.
-	fn last() -> Vec<KZGCommitment> {
-		TEST_COMMITMENTS.to_vec()
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>) {
+		(TEST_COMMITMENTS.to_vec(), vec![])
 	}
 }
 
@@ -86,10 +87,9 @@ impl CommitListTestWithData {
 
 	/// Creates a `HeaderExtension` with the bytes representation of `TEST_COMMITMENTS`.
 	pub fn header_extension() -> HeaderExtension {
-		HeaderExtension { commitments_bytes: Self::commit_bytes() }
+		HeaderExtension { commitments_bytes: Self::commit_bytes(), app_lookup: Vec::new() }
 	}
 }
-
 
 /// From substrate sp_runtime test utils
 /// A dummy type which can be used instead of regular cryptographic primitives.

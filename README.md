@@ -38,6 +38,8 @@ mac
 brew install cmake pkg-config openssl git llvm
 ```
 
+已知问题： 目前无法在 mac 上编译，我们稍后解决这个问题。
+
 Linux
 
 ```bash
@@ -48,8 +50,16 @@ More：Melodot is based on Substrate, for more information please go to [Substr
 
 ### Build
 
+1. 编译 melodot-node
+
 ```bash
-make build-release
+make build-default
+```
+
+2. 编译轻节点，这可能会自动安装 sqlite 数据库
+
+```bash
+make build-light
 ```
 
 ## 3. Run
@@ -58,6 +68,12 @@ You can start a development chain with:
 
 ```bash
 make run-dev
+```
+
+启动轻节点
+
+```bash
+make run-light-dev
 ```
 
 ## 4. Development
@@ -70,7 +86,7 @@ Use the following command to run all tests:
 make test
 ```
 
-You can learn more detailed testing methods from the [testing guide](./TESTING.md).
+You can learn more detailed testing methods from the [testing guide](./TESTING.md) and [light client testing guide](./LIGHT_TESTING.md).
 
 ## 5. Docker
 
@@ -80,7 +96,7 @@ Start a Docker container:
 ./scripts/docker_run.sh
 ```
 
-You can learn more about Docker examples from the [testing guide](./TESTING.md).
+You can learn more about Docker examples from the [testing guide](./TESTING.md) and [light client testing guide](./LIGHT_TESTING.md).
 
 ## Reference
 

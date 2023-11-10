@@ -18,14 +18,17 @@ use melo_das_primitives::{
 };
 use rust_kzg_blst::types::fft_settings::FsFFTSettings;
 
-use crate::erasure_coding::{extend, extend_fs_g1};
-use crate::{String, ToString, Vec};
+use crate::{
+	erasure_coding::{extend, extend_fs_g1},
+	String, ToString, Vec,
+};
 
 /// Extends the segments in a column using FFT settings.
 ///
-/// It extends the `segments` in the original column to twice their size, and also extends the `proof` in each
-/// `Segment`.The homomorphic property of KZG commitments is used to extend the proof to the correct commitment of the
-/// row where the data is located. This avoids the cost of recalculating commitments and proofs.
+/// It extends the `segments` in the original column to twice their size, and also extends the
+/// `proof` in each `Segment`.The homomorphic property of KZG commitments is used to extend the
+/// proof to the correct commitment of the row where the data is located. This avoids the cost of
+/// recalculating commitments and proofs.
 ///
 /// # Arguments
 ///
@@ -34,28 +37,33 @@ use crate::{String, ToString, Vec};
 ///
 /// # Returns
 ///
-/// * `Result<Vec<Segment>, String>` - A vector of extended segments, or an error message if the extension fails.
+/// * `Result<Vec<Segment>, String>` - A vector of extended segments, or an error message if the
+///   extension fails.
 ///
 /// # Notes
 ///
-/// * The extended `Vec<Segment>` is not interleaved with parity data, and the `y` value of the `Position` in the original
+/// * The extended `Vec<Segment>` is not interleaved with parity data, and the `y` value of the
+///   `Position` in the original
 /// data is not changed. This is to avoid confusion during the erasure coding process.
 pub fn extend_segments_col(
 	fs: &FsFFTSettings,
 	segments: &Vec<Segment>,
 ) -> Result<Vec<Segment>, String> {
 	let k = segments.len();
+	if k == 0 {
+		return Ok(Vec::default())
+	}
 	let x = segments[0].position.x;
 	let segment_size = segments[0].size();
 
 	// Check if all segments are from the same column
 	if segments.iter().any(|s| s.position.x != x) {
-		return Err("segments are not from the same column".to_string());
+		return Err("segments are not from the same column".to_string())
 	}
 
 	// Check if k and segment_size are powers of two
 	if !k.is_power_of_two() || !segment_size.is_power_of_two() {
-		return Err("number of segments and segment size must be powers of two".to_string());
+		return Err("number of segments and segment size must be powers of two".to_string())
 	}
 
 	let mut proofs = Vec::default();
@@ -77,7 +85,7 @@ pub fn extend_segments_col(
 
 	// Check if the number of elements after sorting is equal to k * segment_size
 	if sorted_rows.len() != k * segment_size {
-		return Err("mismatch in the number of elements after sorting".to_string());
+		return Err("mismatch in the number of elements after sorting".to_string())
 	}
 
 	// Extend the proofs using FFT

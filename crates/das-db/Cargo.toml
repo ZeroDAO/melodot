@@ -19,17 +19,20 @@ sc-offchain = { git = "https://github.com/paritytech/substrate.git", branch = "p
 
 rusqlite = { version = "0.28.0", optional = true }
 
-[dev-dependencies]
-
 [features]
-default = ["std"]
+default = ["std","outside"]
 std = [
     "sp-core/std",
     "sp-io/std",
     "sp-runtime/std",
-    "rusqlite",
 ]
 outside = [
 	"sc-client-api",
 	"sc-offchain",
+]
+sqlite = [
+    "sp-core/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "rusqlite",
 ]

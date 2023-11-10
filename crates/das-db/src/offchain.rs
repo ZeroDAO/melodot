@@ -18,6 +18,7 @@ use crate::Vec;
 use sp_core::offchain::StorageKind;
 
 // Implementation for the non-outside environment
+#[derive(Debug, Clone, Default)]
 pub struct OffchainKv {
     prefix: Vec<u8>,
 }

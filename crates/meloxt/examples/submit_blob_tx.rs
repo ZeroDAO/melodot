@@ -14,12 +14,12 @@
 
 use futures::StreamExt;
 use log::{debug, error, info};
-use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
+use melo_core_primitives::SidecarMetadata;
 use melo_das_rpc::BlobTxSatus;
-use meloxt::info_msg::*;
-use meloxt::Client;
-use meloxt::{commitments_to_runtime, init_logger, proofs_to_runtime, sidecar_metadata};
-use meloxt::{melodot, ClientBuilder};
+use meloxt::{
+	commitments_to_runtime, info_msg::*, init_logger, melodot, sidecar_metadata,
+	sidecar_metadata_to_runtime, Client, ClientBuilder, ClientSync,
+};
 use primitive_types::H256;
 use subxt::rpc::rpc_params;
 
@@ -42,7 +42,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	let app_id = 1;
 	let bytes_len = 123; // Exceeding the limit
-	let (commitments_t, proofs_t, data_hash, bytes) = sidecar_metadata(bytes_len);
+
+	let nonce = client.nonce(app_id).await?;
+
+	let (sidecar_metadata, bytes) = sidecar_metadata(bytes_len, app_id, nonce + 1);
+
+	let commitments_t = sidecar_metadata.commitments.clone();
 
 	let commitments = commitments_to_runtime(commitments_t.clone());
 
@@ -51,15 +56,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	info!("{}: Commitments bytes: {:?}", SUCCESS, commitments_bytes);
 
-	let (hex_bytes, hex_extrinsic) = create_params(
-		&client,
-		commitments_t,
-		proofs_t,
-		data_hash,
-		bytes_len,
-		bytes,
-		app_id,
-	).await?;
+	let (hex_bytes, hex_extrinsic) =
+		create_params(&client, &sidecar_metadata.clone(), bytes).await?;
 
 	let params = rpc_params![hex_bytes, hex_extrinsic];
 	debug!("Params of das_submitBlobTx: {:?}", params.clone().build().unwrap().get());
@@ -72,7 +70,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 	if let Some(err) = res.err {
 		error!("{} : Failed to submit blob transaction: {:?}", ERROR, err);
-		return Err("Failed to submit blob transaction".into());
+		return Err("Failed to submit blob transaction".into())
 	}
 
 	let mut blocks_sub = client.api.blocks().subscribe_best().await?;
@@ -89,7 +87,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 				"{} Data should have been verified by the validators at: {:?}",
 				SUCCESS, block_number
 			);
-			break;
+			break
 		} else {
 			info!("{} Data not verified yet, current block number: {:?}", HOURGLASS, block_number);
 			debug!(
@@ -100,7 +98,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 		if max_loop == 0 {
 			error!("{} Data not verified after {} blocks", ERROR, DELAY_CHECK_THRESHOLD);
-			return Err("Data not verified after {} blocks".into());
+			return Err("Data not verified after {} blocks".into())
 		}
 
 		max_loop -= 1;
@@ -113,19 +111,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn create_params(
 	client: &Client,
-	commitments: Vec<KZGCommitmentT>,
-	proofs: Vec<KZGProofT>,
-	data_hash: H256,
-	bytes_len: u32,
+	metadata: &SidecarMetadata,
 	bytes: Vec<u8>,
-	app_id: u32,
 ) -> Result<(String, String), Box<dyn std::error::Error>> {
-	let commitments = commitments_to_runtime(commitments);
-	let proofs = proofs_to_runtime(proofs);
-	let submit_data_tx =
-		melodot::tx()
-			.melo_store()
-			.submit_data(app_id, bytes_len, data_hash, commitments, proofs);
+	let submit_data_tx = melodot::tx()
+		.melo_store()
+		.submit_data(sidecar_metadata_to_runtime(&metadata.clone()));
 
 	let extrinsic = client
 		.api

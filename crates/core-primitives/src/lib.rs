@@ -17,10 +17,12 @@
 extern crate alloc;
 pub use alloc::{
 	string::{String, ToString},
-	vec::Vec,
 	vec,
+	vec::Vec,
 };
 
+pub use melo_das_primitives::{KZGCommitment, KZGProof, Position};
+use sp_core::RuntimeDebug;
 use sp_runtime::generic::Digest;
 
 pub mod header;
@@ -29,9 +31,48 @@ pub use header::*;
 pub mod sidecar;
 pub use sidecar::*;
 
-pub mod localstorage;
-pub mod confidence;
+pub mod config;
+pub mod reliability;
 pub mod traits;
 
 #[cfg(feature = "std")]
 pub mod testing;
+
+/// The SubmitDataParams struct represents parameters for submitting data.
+/// It includes the app id, the length of the data, a nonce, a list of commitments, and a list of proofs.
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct SubmitDataParams {
+	/// The id of the app.
+	pub app_id: u32,
+	/// The length of the data to be submitted.
+	pub bytes_len: u32,
+	/// A nonce for this submission.
+	pub nonce: u32,
+	/// A list of commitments for this submission.
+	pub commitments: Vec<KZGCommitment>,
+	/// A list of proofs for this submission.
+	pub proofs: Vec<KZGProof>,
+}
+
+impl SubmitDataParams {
+	/// Creates a new SubmitDataParams with the given parameters.
+	pub fn new(
+		app_id: u32,
+		bytes_len: u32,
+		nonce: u32,
+		commitments: Vec<KZGCommitment>,
+		proofs: Vec<KZGProof>,
+	) -> Self {
+		Self { app_id, bytes_len, nonce, commitments, proofs }
+	}
+
+	/// Checks the validity of the SubmitDataParams.
+    /// Returns true if the number of commitments equals the number of proofs,
+    /// the commitments are not empty, and the length of the data is greater than 0.
+    /// Otherwise, it returns false.
+	pub fn check(&self) -> bool {
+		self.commitments.len() == self.proofs.len() &&
+			!self.commitments.is_empty() &&
+			self.bytes_len > 0
+	}
+}

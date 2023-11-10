@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Digest, HeaderExtension, Vec};
-use codec::Encode;
-use melo_das_primitives::{KZGCommitment, KZGProof};
-use sp_core::H256;
+use core::fmt::Display;
 
+use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
+use codec::{Encode, Decode};
+use sp_runtime::traits::{Hash, MaybeSerialize};
 pub trait ExtendedHeader {
 	/// Header number.
 	type Number;
@@ -38,10 +38,7 @@ pub trait ExtendedHeader {
 	fn extension(&self) -> &HeaderExtension;
 
 	/// Set the header extension.
-	fn set_extension(&mut self, extension: HeaderExtension);
-
-	/// Set the commitment of root.
-	fn set_commitments(&mut self, commitment_set: &[KZGCommitment]);
+	fn set_extension(&mut self, extension_data: &(Vec<KZGCommitment>, Vec<AppLookup>));
 
 	/// Returns the commitments.
 	fn commitments(&self) -> Option<Vec<KZGCommitment>>;
@@ -58,7 +55,37 @@ pub trait HeaderCommitList {
 	///
 	/// Note that they are not related to data availability, but rather to the validator's
 	/// initial confirmation of the probability of availability.
-	fn last() -> Vec<KZGCommitment>;
+	fn last() -> (Vec<KZGCommitment>, Vec<AppLookup>);
+}
+
+pub trait HeaderWithCommitment: MaybeSerialize + Encode + Sized {
+	/// Header number.
+	type Number: PartialOrd + Send + Encode + Decode + Copy + Display + Ord;
+
+	/// Header hash type
+	type Hash: Encode;
+
+	/// Hashing algorithm
+	type Hashing: Hash<Output = Self::Hash>;
+
+	/// Returns the header extension.
+	fn extension(&self) -> &HeaderExtension;
+
+	/// Returns the commitments.
+	fn commitments(&self) -> Option<Vec<KZGCommitment>>;
+
+	/// Returns the commitments set bytes.
+	fn commitments_bytes(&self) -> &[u8];
+
+	/// Returns the number of columns.
+	fn col_num(&self) -> Option<u32>;
+
+	fn number(&self) -> &Self::Number;
+
+	/// Returns the hash of the header.
+	fn hash(&self) -> Self::Hash {
+		<Self::Hashing as Hash>::hash_of(self)
+	}
 }
 
 sp_api::decl_runtime_apis! {
@@ -68,7 +95,7 @@ sp_api::decl_runtime_apis! {
 		fn extract(
 			extrinsic: &Vec<u8>,
 			// (data_hash, bytes_len, commitments, proofs)
-		) -> Option<Vec<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>>;
+		) -> Option<Vec<SidecarMetadata>>;
 	}
 }
 
@@ -77,6 +104,6 @@ sp_api::decl_runtime_apis! {
 	where RuntimeCall: Encode {
 		fn get_blob_tx_param(
 			function: &RuntimeCall,
-		) -> Option<(H256, u32, Vec<KZGCommitment>, Vec<KZGProof>)>;
+		) -> Option<SidecarMetadata>;
 	}
 }
