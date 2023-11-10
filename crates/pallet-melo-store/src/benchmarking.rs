@@ -18,11 +18,7 @@ use crate::Pallet as MeloStore;
 use frame_benchmarking::v1::{benchmarks, whitelisted_caller};
 use frame_support::{traits::UnfilteredDispatchable, WeakBoundedVec};
 use frame_system::RawOrigin;
-use sp_core::H256;
-use sp_runtime::{
-	traits::{ValidateUnsigned, Zero},
-	transaction_validity::TransactionSource,
-};
+use sp_runtime::{traits::ValidateUnsigned, transaction_validity::TransactionSource};
 
 const MAX_KEYS: u32 = 1000;
 const MAX_BLOB_INDEX: u32 = 100;
@@ -60,7 +56,7 @@ pub fn create_report<T: Config>(
 	let at_block = current_block_number;
 
 	let mut metadata_list = Vec::new();
-	for _ in 0..MAX_BLOB_INDEX {
+	for i in 0..MAX_BLOB_INDEX {
 		let blob_metadata = BlobMetadata::<T> {
 			app_id,
 			from: caller.clone(),
@@ -69,8 +65,8 @@ pub fn create_report<T: Config>(
 			proofs: BoundedVec::<_, T::MaxBlobNum>::try_from(proofs.clone())
 				.map_err(|_| "proofs Vec too large")?,
 			bytes_len: 10u32,
-			data_hash: H256::default(),
 			is_available: true,
+			nonce: i + 1,
 		};
 
 		metadata_list.push(blob_metadata.clone());
@@ -112,10 +108,17 @@ benchmarks! {
 		let proofs: Vec<KZGProof> = vec![Default::default(); k as usize];
 
 		let bytes_len = (k * BYTES_PER_BLOB as u32) as u32;
-		let data_hash = H256::default();
 		let app_id = 1u32;
 
-	}: _(RawOrigin::Signed(caller.clone()), app_id, bytes_len, data_hash, commitments.clone(), proofs.clone())
+		let params = SidecarMetadata {
+			app_id,
+			commitments: commitments.clone(),
+			proofs: proofs.clone(),
+			bytes_len,
+			nonce: k,
+		};
+
+	}: _(RawOrigin::Signed(caller.clone()), params)
 	verify {
 		let current_block_number = <frame_system::Pallet<T>>::block_number();
 		let metadata_list = Metadata::<T>::get(&current_block_number);
@@ -126,7 +129,7 @@ benchmarks! {
 		ensure!(metadata.commitments == commitments, "Unexpected commitments in metadata.");
 		ensure!(metadata.proofs == proofs, "Unexpected proofs in metadata.");
 		ensure!(metadata.bytes_len == bytes_len, "Unexpected bytes_len in metadata.");
-		ensure!(metadata.data_hash == data_hash, "Unexpected data_hash in metadata.");
+		ensure!(metadata.nonce == k, "Unexpected nonce in metadata.");
 	}
 
 	#[extra]
