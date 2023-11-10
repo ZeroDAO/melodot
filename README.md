@@ -38,7 +38,7 @@ mac
 brew install cmake pkg-config openssl git llvm
 ```
 
-已知问题： 目前无法在 mac 上编译，我们稍后解决这个问题。
+Known Issue: Currently, it is not possible to compile on Mac. We will address this issue later.
 
 Linux
 
@@ -50,13 +50,13 @@ More：Melodot is based on Substrate, for more information please go to [Substr
 
 ### Build
 
-1. 编译 melodot-node
+1. Compile the melodot-node
 
 ```bash
 make build-default
 ```
 
-2. 编译轻节点，这可能会自动安装 sqlite 数据库
+2. Compile the light node, which may automatically install the sqlite database:
 
 ```bash
 make build-light
@@ -70,7 +70,7 @@ You can start a development chain with:
 make run-dev
 ```
 
-启动轻节点
+To launch a light node:
 
 ```bash
 make run-light-dev
