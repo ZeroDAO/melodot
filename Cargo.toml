@@ -15,6 +15,7 @@ members = [
     "crates/daser",
     "crates/das-db",
     "crates/meloxt",
+    "crates/proof-of-space",
     "light",
     "light/e2e",
     "runtime",

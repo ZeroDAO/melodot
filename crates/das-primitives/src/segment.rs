@@ -27,7 +27,7 @@ use derive_more::{AsMut, AsRef, From};
 use rust_kzg_blst::utils::reverse_bit_order;
 
 /// This struct represents a segment of data with a position and content.
-#[derive(Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
+#[derive(Debug, Default, Decode, Encode, Clone, PartialEq, Eq, From, AsRef, AsMut)]
 pub struct Segment {
 	/// The position of the segment.
 	pub position: Position,
