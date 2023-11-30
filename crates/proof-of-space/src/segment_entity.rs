@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 use crate::{get_record_id, DasKv, Encode, Decode, FarmerId, Segment, Table};
 use core::marker::PhantomData; // Used for type safety without storing actual data.
 use sp_runtime::traits::Hash as HashT; // Importing Hash trait for cryptographic operations.

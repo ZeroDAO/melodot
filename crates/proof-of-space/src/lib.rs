@@ -11,8 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-// This line specifies that the crate should not use the Rust standard library
-// if the "std" feature is not enabled. This is common in no-std environments like embedded systems.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
