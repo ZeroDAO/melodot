@@ -6029,6 +6029,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-farmers-fortune"
+version = "0.0.1"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "melo-core-primitives",
+ "melo-proof-of-space",
+ "parity-scale-codec 3.6.4",
+ "scale-info",
+]
+
+[[package]]
 name = "pallet-grandpa"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.42#ff24c60ac7d9f87727ecdd0ded9a80c56e4f4b65"

@@ -19,9 +19,10 @@ use crate::{
 use melo_core_primitives::config::FIELD_ELEMENTS_PER_SEGMENT;
 use melo_das_primitives::{KZGCommitment, SafeScalar, KZG};
 use scale_info::TypeInfo;
+use sp_core::RuntimeDebug;
 
 /// `Cell` represents a unit of data in the system.
-#[derive(Debug, Default, Clone, Hash, TypeInfo)]
+#[derive(Encode, Decode, RuntimeDebug, Default, Clone, Hash, PartialEq, Eq, TypeInfo)]
 pub struct Cell {
 	// The index of the cell in the segment.
 	pub index: u32,
@@ -58,6 +59,25 @@ pub struct Solution<Hash: HashT> {
 }
 
 impl<Hash: HashT> Solution<Hash> {
+	/// Creates a new solution.
+	pub fn new(
+		block_hash: Hash::Output,
+		farmer_id: Hash::Output,
+		pre_cell: Cell,
+		win_cell: Cell,
+		nonce: u8,
+		win_block_hash: Hash::Output,
+	) -> Self {
+		Self {
+			block_hash,
+			farmer_id,
+			pre_cell,
+			win_cell,
+			nonce,
+			win_block_hash,
+		}
+	}
+
 	/// Verifies the correctness of the solution.
 	pub fn verify(
 		&self,
@@ -113,13 +133,13 @@ impl<Hash: HashT> Solution<Hash> {
 /// Finds solutions in the database and returns a tuple containing the winning cell and its nonce.
 /// The nonce is used to generate the key for the ChaCha8 stream cipher.
 /// The function returns a vector of tuples containing the winning cell and its nonce.
-/// 
+///
 /// Parameters:
 /// * `db`: A mutable reference to an object that implements the `DasKv` trait.
 /// * `farmer_id`: A reference to a `FarmerId`.
 /// * `block_num`: The block number of block that posted the solution.
 /// * `pre_cell`: A reference to the previous cell.
-/// 
+///
 /// Returns:
 /// A vector of tuples containing the winning cell and its nonce.
 pub fn find_solutions<DB: DasKv, Hash: HashT, BlockNumber>(
