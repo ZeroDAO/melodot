@@ -18,6 +18,7 @@ use frame_support::{pallet_prelude::*, sp_runtime::traits::Hash, traits::Currenc
 use frame_system::pallet_prelude::*;
 use melo_core_primitives::traits::CommitmentFromPosition;
 use melo_proof_of_space::{Cell, Solution};
+use sp_runtime::traits::BlakeTwo256;
 
 pub mod weights;
 pub use weights::*;
@@ -94,10 +95,10 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::claim())]
 		pub fn claim(
 			origin: OriginFor<T>,
-			pre_cell: Cell,
-			win_cell: Cell,
+			pre_cell: Cell<BlockNumberFor<T>>,
+			win_cell_left: Cell<BlockNumberFor<T>>,
+			win_cell_right: Cell<BlockNumberFor<T>>,
 			win_block_num: BlockNumberFor<T>,
-			nonce: u8,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -118,26 +119,49 @@ pub mod pallet {
 			let pre_block_hash = <frame_system::Pallet<T>>::block_hash(pre_block_num);
 			let win_block_hash = <frame_system::Pallet<T>>::block_hash(win_block_num);
 
+			let left_block_num = win_cell_left.metadata.block_number();
+			let right_block_num = win_cell_right.metadata.block_number();
+
 			// Get commitments from positions
-			let pre_commit =
-				T::CommitmentFromPosition::get_commitment(pre_block_num, &pre_cell.position)
-					.ok_or(Error::<T>::PreCommitNotFound)?;
-			let win_commit =
-				T::CommitmentFromPosition::get_commitment(win_block_num, &win_cell.position)
-					.ok_or(Error::<T>::WinCommitNotFound)?;
+			let pre_commit = T::CommitmentFromPosition::get_commitment(
+				pre_block_num,
+				&pre_cell.metadata.seg_position(),
+			)
+			.ok_or(Error::<T>::PreCommitNotFound)?;
 
-			let farmer_id = T::Hashing::hash_of(&who.clone());
+			let left_commit = T::CommitmentFromPosition::get_commitment(
+				left_block_num,
+				&win_cell_left.metadata.seg_position(),
+			)
+			.ok_or(Error::<T>::WinCommitNotFound)?;
 
-			let solution = Solution::<T::Hashing>::new(
-				pre_block_hash,
-				farmer_id,
-				pre_cell,
-				win_cell,
-				nonce,
-				win_block_hash,
+			let right_commit = T::CommitmentFromPosition::get_commitment(
+				right_block_num,
+				&win_cell_right.metadata.seg_position(),
+			)
+			.ok_or(Error::<T>::WinCommitNotFound)?;
+
+			let farmer_id = BlakeTwo256::hash_of(&who).into();
+
+			let solution = Solution::<T::Hashing, BlockNumberFor<T>>::new(
+				&pre_block_hash,
+				&farmer_id,
+				&pre_cell,
+				&win_cell_left,
+				&win_cell_right,
 			);
 
-			ensure!(solution.verify(&pre_commit, &win_commit, 1, 1), Error::<T>::InvalidSolution);
+			ensure!(
+				solution.verify(
+					&pre_commit,
+					&left_commit,
+					&right_commit,
+					&win_block_hash,
+					&win_block_hash,
+					1,
+				),
+				Error::<T>::InvalidSolution
+			);
 
 			claimants.try_push(who.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
 			ClaimantsForBlock::<T>::insert(now, claimants);

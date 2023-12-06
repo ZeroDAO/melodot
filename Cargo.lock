@@ -4926,6 +4926,7 @@ dependencies = [
 name = "melo-proof-of-space"
 version = "0.0.1"
 dependencies = [
+ "anyhow",
  "chacha20 0.9.1",
  "melo-core-primitives",
  "melo-das-db",
@@ -6039,6 +6040,7 @@ dependencies = [
  "melo-proof-of-space",
  "parity-scale-codec 3.6.4",
  "scale-info",
+ "sp-runtime",
 ]
 
 [[package]]
