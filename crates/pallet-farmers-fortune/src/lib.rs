@@ -123,19 +123,19 @@ pub mod pallet {
 			let right_block_num = win_cell_right.metadata.block_number();
 
 			// Get commitments from positions
-			let pre_commit = T::CommitmentFromPosition::get_commitment(
+			let pre_commit = T::CommitmentFromPosition::commitments(
 				pre_block_num,
 				&pre_cell.metadata.seg_position(),
 			)
 			.ok_or(Error::<T>::PreCommitNotFound)?;
 
-			let left_commit = T::CommitmentFromPosition::get_commitment(
+			let left_commit = T::CommitmentFromPosition::commitments(
 				left_block_num,
 				&win_cell_left.metadata.seg_position(),
 			)
 			.ok_or(Error::<T>::WinCommitNotFound)?;
 
-			let right_commit = T::CommitmentFromPosition::get_commitment(
+			let right_commit = T::CommitmentFromPosition::commitments(
 				right_block_num,
 				&win_cell_right.metadata.seg_position(),
 			)

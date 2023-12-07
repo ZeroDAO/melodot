@@ -33,6 +33,8 @@ use frame_system::{
 	pallet_prelude::*,
 };
 use melo_das_primitives::{blob::Blob, config::BYTES_PER_BLOB};
+use melo_erasure_coding::erasure_coding::extend_fs_g1;
+
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_application_crypto::RuntimeAppPublic;
@@ -47,11 +49,12 @@ use melo_core_primitives::{
 	config::{BLOCK_SAMPLE_LIMIT, MAX_UNAVAILABLE_BLOCK_INTERVAL},
 	extension::AppLookup,
 	reliability::{ReliabilityId, ReliabilityManager},
-	traits::HeaderCommitList,
+	traits::{CommitmentFromPosition, HeaderCommitList},
 	SidecarMetadata,
 };
+
 use melo_das_db::offchain::OffchainKv;
-use melo_das_primitives::crypto::{KZGCommitment, KZGProof};
+use melo_das_primitives::crypto::{KZGCommitment, KZGProof, Position, KZG};
 
 // A prefix constant used for the off-chain database.
 const DB_PREFIX: &[u8] = b"melodot/melo-store/unavailable-data-report";
@@ -129,6 +132,7 @@ pub mod pallet {
 
 	pub type KZGCommitmentListFor<T> = BoundedVec<KZGCommitment, <T as Config>::MaxBlobNum>;
 	pub type KZGProofListFor<T> = BoundedVec<KZGProof, <T as Config>::MaxBlobNum>;
+	pub type KZGCommitmentExtedListFor<T> = BoundedVec<KZGCommitment, <T as Config>::MaxExtedLen>;
 
 	/// Represents the metadata of a blob in the system.
 	#[derive(Clone, Eq, Default, PartialEq, Encode, Decode, MaxEncodedLen, TypeInfo)]
@@ -182,6 +186,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type MaxBlobNum: Get<u32>;
 
+		/// The maximum number of commitments that can be extended.
+		#[pallet::constant]
+		type MaxExtedLen: Get<u32>;
+
 		/// This defines the priority for unsigned transactions in the Melo context.
 		#[pallet::constant]
 		type MeloUnsignedPriority: Get<TransactionPriority>;
@@ -200,6 +208,15 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// Stores the extended commitments, filtering out invalid data.
+	/// This storage maps block numbers to an optional list of KZG commitments.
+	/// The `ValueQuery` ensures that even if a value is not set for a specific block number,
+	/// a default value (in this case `None`) is provided.
+	#[pallet::storage]
+	#[pallet::getter(fn commitments_ext)]
+	pub(super) type CommitmentsExt<T: Config> =
+		StorageMap<_, Twox64Concat, BlockNumberFor<T>, Option<KZGCommitmentListFor<T>>, ValueQuery>;
+
 	/// Contains the keys for this pallet's use.
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
@@ -211,6 +228,7 @@ pub mod pallet {
 	#[pallet::getter(fn app_id)]
 	pub(super) type AppId<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// Holds the nonce for the application using this pallet.
 	#[pallet::storage]
 	#[pallet::getter(fn nonce)]
 	pub(super) type Nonces<T: Config> = StorageMap<_, Twox64Concat, u32, u32, ValueQuery>;
@@ -528,8 +546,8 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>()
 	}
 
-	/// Fetches the list of unavailable blocks by checking the confidence of each block hash in the chain.
-	/// Returns a vector of block numbers representing the unavailable blocks.
+	/// Fetches the list of unavailable blocks by checking the confidence of each block hash in the
+	/// chain. Returns a vector of block numbers representing the unavailable blocks.
 	pub fn fetch_unavailability_blocks() -> Vec<BlockNumberFor<T>> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let mut db = OffchainKv::new(Some(DB_PREFIX));
@@ -566,29 +584,49 @@ impl<T: Config> Pallet<T> {
 		unavail_blocks
 	}
 
-	/// Fetch the list of commitments and app lookups at a given block.
+	fn iter_metadata(at_block: BlockNumberFor<T>) -> impl Iterator<Item = BlobMetadata<T>> {
+		Metadata::<T>::get(at_block)
+			.into_iter()
+			.filter(|metadata| metadata.is_available) // 过滤 is_available 为 false 的 metadata
+	}
+
+	/// Fetch the list of commitments and app lookups at a given block,
+	/// filtering out Metadata records where is_available is false.
 	///
 	/// # Arguments
 	/// * `at_block` - The block number to fetch commitments from.
 	pub fn get_commitments_and_app_lookups(
 		at_block: BlockNumberFor<T>,
 	) -> (Vec<KZGCommitment>, Vec<AppLookup>) {
-		let metadatas = Metadata::<T>::get(at_block);
-
-		let mut app_lookups = Vec::with_capacity(metadatas.len());
-		let commitments = metadatas
-			.iter()
-			.flat_map(|metadata| {
+		Self::iter_metadata(at_block).fold(
+			(Vec::new(), Vec::new()),
+			|(mut commitments, mut app_lookups), metadata| {
 				app_lookups.push(AppLookup {
 					app_id: metadata.app_id,
 					nonce: metadata.nonce,
 					count: metadata.commitments.len() as u16,
 				});
-				metadata.commitments.iter().cloned()
-			})
-			.collect::<Vec<_>>();
+				commitments.extend(metadata.commitments.iter().cloned());
+				(commitments, app_lookups)
+			},
+		)
+	}
 
-		(commitments, app_lookups)
+	/// Fetch the list of KZG commitments at a given block.
+	///
+	/// This function retrieves the KZG commitments associated with the specified block.
+	/// It filters out metadata entries where `is_available` is false, ensuring that
+	/// only available data is processed.
+	///
+	/// # Arguments
+	/// * `at_block` - The block number from which to fetch commitments.
+	///
+	/// # Returns
+	/// A vector of `KZGCommitment` associated with the given block.
+	pub fn get_commitments(at_block: BlockNumberFor<T>) -> Vec<KZGCommitment> {
+		Self::iter_metadata(at_block)
+			.flat_map(|metadata| metadata.commitments.into_iter())
+			.collect()
 	}
 
 	/// Assemble and send unavailability reports for any data that is unavailable.
@@ -784,6 +822,53 @@ impl<T: Config> HeaderCommitList for Pallet<T> {
 			(Vec::default(), Vec::default())
 		} else {
 			Self::get_commitments_and_app_lookups(now - DELAY_CHECK_THRESHOLD.into())
+		}
+	}
+}
+
+impl<T: Config> CommitmentFromPosition for Pallet<T> {
+	type BlockNumber = T::BlockNumber;
+
+	fn commitments(block_num: T::BlockNumber, position: &Position) -> Option<KZGCommitment> {
+		if block_num > <frame_system::Pallet<T>>::block_number() - DELAY_CHECK_THRESHOLD.into() {
+			return None
+		}
+
+		let y_usize = position.y as usize;
+
+		let commitments_ext = CommitmentsExt::<T>::get(block_num);
+		match &commitments_ext {
+			Some(ext) => {
+				if y_usize >= ext.len() {
+					return None
+				}
+				return ext.get(y_usize).cloned()
+			},
+			_ => {
+				let commitments = Self::get_commitments(block_num);
+				if y_usize < commitments.len() {
+					return commitments.get(y_usize).cloned()
+				}
+
+				let kzg = KZG::default_embedded();
+				match extend_fs_g1(kzg.get_fs(), &commitments) {
+					Ok(extended) => {
+						if y_usize < extended.len() {
+							match extended.clone().try_into() {
+								Ok(bounded_extended) => {
+									let extended_option: Option<KZGCommitmentListFor<T>> =
+										Some(bounded_extended);
+									CommitmentsExt::<T>::insert(block_num, extended_option);
+									return extended.get(y_usize).cloned()
+								},
+								Err(_) => return None,
+							}
+						}
+						None
+					},
+					Err(_) => None,
+				}
+			},
 		}
 	}
 }

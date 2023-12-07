@@ -6114,6 +6114,7 @@ dependencies = [
  "melo-core-primitives",
  "melo-das-db",
  "melo-das-primitives",
+ "melo-erasure-coding",
  "pallet-authorship",
  "pallet-im-online",
  "pallet-session",

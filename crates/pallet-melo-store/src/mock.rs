@@ -194,6 +194,7 @@ pub const MAX_BLOB_NUM: u32 = 10;
 
 parameter_types! {
 	pub const MaxBlobNum: u32 = MAX_BLOB_NUM;
+	pub const MaxExtedLen: u32 = MAX_BLOB_NUM * 2;
 }
 
 impl Config for Runtime {
@@ -202,6 +203,7 @@ impl Config for Runtime {
 	type AuthorityId = UintAuthorityId;
 	type MaxKeys = ConstU32<10_000>;
 	type MaxBlobNum = MaxBlobNum;
+	type MaxExtedLen = MaxExtedLen;
 	type MeloUnsignedPriority = ConstU64<{ 1 << 20 }>;
 }
 

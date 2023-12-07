@@ -828,6 +828,7 @@ impl frame_system_ext::Config for Runtime {
 impl pallet_melo_store::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type MaxBlobNum = system::MaxBlobNumber;
+	type MaxExtedLen = system::MaxExtedLen;
 	type WeightInfo = ();
 	type MeloUnsignedPriority = ();
 	type MaxKeys = consensus::MaxKeys;

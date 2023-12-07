@@ -18,18 +18,19 @@ pub use sp_arithmetic::Permill;
 
 use sp_arithmetic::traits::Saturating;
 
-use crate::{AppLookup, KZGCommitment, String};
+#[cfg(feature = "std")]
+use crate::config::EXTENDED_SEGMENTS_PER_BLOB;
+#[cfg(feature = "std")]
+use crate::AppLookup;
+use crate::{KZGCommitment, String};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+use melo_das_db::traits::DasKv;
+use melo_das_primitives::{Position, Segment, KZG};
 #[cfg(feature = "std")]
 use rand::Rng;
 
-use melo_das_db::traits::DasKv;
-use melo_das_primitives::{Position, Segment, KZG};
-
-use crate::config::{
-	BLOCK_AVAILABILITY_THRESHOLD, EXTENDED_SEGMENTS_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT,
-};
+use crate::config::{BLOCK_AVAILABILITY_THRESHOLD, FIELD_ELEMENTS_PER_SEGMENT};
 
 /// Application data is available if it is greater than this value. The application data sampling
 /// faces network issues, allowing a certain probability of failure. TODO: Should we use a binomial

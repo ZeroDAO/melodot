@@ -13,6 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false }
 melo-core-primitives = { version = "0.1.0", path = "../core-primitives", default-features = false }
 melo-das-db = { version = "0.0.1", path = "../das-db", default-features = false }
+melo-erasure-coding = { version = "0.1.0", path = "../melo-erasure-coding", default-features = false }
 
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
@@ -53,6 +54,7 @@ std = [
 	"pallet-session/std",
 	"melo-das-primitives/std",
 	"melo-core-primitives/std",
+	"melo-erasure-coding/std",
 ]
 serde = [
     "melo-das-primitives/serde",

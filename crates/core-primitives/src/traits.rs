@@ -113,6 +113,6 @@ sp_api::decl_runtime_apis! {
 pub trait CommitmentFromPosition {
 	type BlockNumber;
 
-	fn get_commitment(block_number: Self::BlockNumber, postion: &Position)
+	fn commitments(block_number: Self::BlockNumber, postion: &Position)
 		-> Option<KZGCommitment>;
 }
