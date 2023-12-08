@@ -17,7 +17,6 @@
 //! This module contains the DasNetworkServiceWrapper struct which wraps the DasNetworkService. It
 //! provides methods for fetching values, preparing keys, and verifying values.
 use codec::Encode;
-use itertools::Itertools;
 use melo_erasure_coding::{bytes_to_segments, erasure_coding::extend_and_reorder_elements};
 
 use crate::{
@@ -128,15 +127,7 @@ pub trait DasNetworkOperations {
 	/// # Type parameters
 	///
 	/// * `Header` - A type that implements `HeaderWithCommitment` and `HeaderT`.
-	///
-	/// # Returns
-	///
-	/// Returns a `Result` containing a tuple of the fetched segments, their positions, and a
-	/// boolean indicating whether the block is complete or not.
-	async fn fetch_block<Header>(
-		&self,
-		header: &Header,
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	async fn fetch_block<Header>(&self, header: &Header) -> Result<(Vec<Option<Segment>>, bool)>
 	where
 		Header: HeaderWithCommitment + HeaderT;
 
@@ -195,17 +186,12 @@ pub trait DasNetworkOperations {
 	/// A `Result` containing:
 	/// * A `Vec<Option<Segment>>` where each element represents a segment at the corresponding
 	///   index in `index`. If a segment is not available, the corresponding element is `None`.
-	/// * A `Vec<usize>` containing the indices of rows that need reconstruction.
 	/// * A `bool` flag indicating if all required segments are available (true if available).
-	///
-	/// # Errors
-	/// This function may return an error if fetching the segments fails, for example, due to
-	/// network issues or data unavailability.
 	async fn fetch_rows<Header>(
 		&self,
 		header: &Header,
 		index: &[u32],
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	) -> Result<(Vec<Option<Segment>>, bool)>
 	where
 		Header: HeaderWithCommitment + HeaderT;
 
@@ -462,10 +448,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		self.fetch_value(sample.get_id(), &sample.position, commitment).await
 	}
 
-	async fn fetch_block<Header>(
-		&self,
-		header: &Header,
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	async fn fetch_block<Header>(&self, header: &Header) -> Result<(Vec<Option<Segment>>, bool)>
 	where
 		Header: HeaderWithCommitment + HeaderT,
 	{
@@ -481,7 +464,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		&self,
 		header: &Header,
 		index: &[u32],
-	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	) -> Result<(Vec<Option<Segment>>, bool)>
 	where
 		Header: HeaderWithCommitment + HeaderT,
 	{
@@ -583,51 +566,70 @@ fn rows_values_set_handler(
 	commitments: &[KZGCommitment],
 	kzg: &KZG,
 	stop_on_unavailability: bool,
-) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)> {
+) -> Result<(Vec<Option<Segment>>, bool)> {
 	if values_set.is_empty() || commitments.is_empty() {
-		return Ok((vec![], vec![], false))
+		return Ok((vec![], true))
 	}
 
-	let mut need_reconstruct = vec![];
 	let mut is_availability = true;
 
 	let all_segments: Vec<Option<Segment>> = values_set
-		.iter()
 		.chunks(EXTENDED_SEGMENTS_PER_BLOB)
 		.into_iter()
 		.enumerate()
 		.flat_map(|(y, chunk)| {
 			if !is_availability && stop_on_unavailability {
 				return vec![None; EXTENDED_SEGMENTS_PER_BLOB]
+				
 			}
-
-			let segments = chunk
-				.enumerate()
-				.map(|(x, values)| match values {
-					Some(values) => verify_values(
-						kzg,
-						values,
-						&commitments[y],
-						&Position { x: x as u32, y: y as u32 },
-					),
-					None => None,
-				})
-				.collect::<Vec<_>>();
-
-			let available_segments = segments.iter().filter(|s| s.is_some()).count();
-
-			if available_segments >= SEGMENTS_PER_BLOB {
-				if available_segments < EXTENDED_SEGMENTS_PER_BLOB {
-					need_reconstruct.push(y);
-				}
-			} else {
-				is_availability = false;
-			}
+			let (segments, availability) = rows_values_handler(kzg, chunk, y, &commitments[y]);
+			is_availability = is_availability && availability;
 			segments
 		})
 		.collect();
 
-	Ok((all_segments, need_reconstruct, is_availability))
+	Ok((all_segments, is_availability))
+}
+
+fn rows_values_handler(
+	kzg: &KZG,
+	row: &[Option<Vec<Vec<u8>>>],
+	y: usize,
+	commitment: &KZGCommitment,
+) -> (Vec<Option<Segment>>, bool) {
+	let (segments, some_count) = row.iter().enumerate().fold(
+		(Vec::new(), 0),
+		|(mut acc, count), (x, values)| match values {
+			Some(values) => {
+				acc.push(verify_values(
+					kzg,
+					values,
+					commitment,
+					&Position { x: x as u32, y: y as u32 },
+				));
+				(acc, count + 1)
+			},
+			None => {
+				acc.push(None);
+				(acc, count)
+			},
+		},
+	);
+
+	let needs_recovery = some_count > segments.len() / 2 && some_count < segments.len();
+	let mut is_availability = some_count >= segments.len() / 2;
+
+	if needs_recovery {
+		let segments = recovery(&segments, kzg)
+			.map(|recovered_segments| recovered_segments.into_iter().map(Some).collect())
+			.unwrap_or_else(|_| {
+				is_availability = false;
+				segments
+			});
+		(segments, is_availability)
+	} else {
+		(segments, is_availability)
+	}
 }
 
 fn verify_values(
@@ -801,7 +803,7 @@ mod tests {
 
 		assert!(result.is_ok());
 
-		let (segments_res, need_reconstruct, is_availability) = result.unwrap();
+		let (segments_res, is_availability) = result.unwrap();
 
 		assert_eq!(segments.len(), segments_res.len());
 
@@ -810,7 +812,6 @@ mod tests {
 		}
 
 		assert_eq!(Some(segments[0].clone()), segments_res[0]);
-		assert_eq!(need_reconstruct.len(), 0);
 		assert!(is_availability);
 
 		for (segment, segment_res) in segments.iter().zip(segments_res.iter()) {
@@ -824,10 +825,8 @@ mod tests {
 
 		assert!(result.is_ok());
 
-		let (segments_res, need_reconstruct, is_availability) = result.unwrap();
+		let (segments_res, is_availability) = result.unwrap();
 
-		assert_eq!(need_reconstruct.len(), 1);
-		assert_eq!(need_reconstruct[0], 0);
 		assert_eq!(segments_res[0], None);
 
 		assert!(is_availability);
@@ -840,7 +839,7 @@ mod tests {
 
 		assert!(result.is_ok());
 
-		let (_, _, is_availability) = result.unwrap();
+		let (_, is_availability) = result.unwrap();
 
 		assert!(!is_availability);
 	}
@@ -853,9 +852,8 @@ mod tests {
 
 		let result = rows_values_set_handler(&values_set, &commitments, &kzg, true);
 		assert!(result.is_ok());
-		let (_, need_reconstruct, is_availability) = result.unwrap();
+		let (_, is_availability) = result.unwrap();
 
-		assert!(need_reconstruct.is_empty());
 		assert!(!is_availability);
 	}
 
@@ -885,7 +883,7 @@ mod tests {
 
 		let result = rows_values_set_handler(&values_set, &commitments, &kzg, true);
 		assert!(result.is_ok());
-		let (_, _, is_availability) = result.unwrap();
+		let (_, is_availability) = result.unwrap();
 
 		assert!(is_availability);
 
@@ -895,7 +893,7 @@ mod tests {
 
 		let result = rows_values_set_handler(&values_set, &commitments, &kzg, true);
 		assert!(result.is_ok());
-		let (_, _, is_availability) = result.unwrap();
+		let (_, is_availability) = result.unwrap();
 
 		assert!(!is_availability);
 	}

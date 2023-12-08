@@ -13,12 +13,12 @@
 // limitations under the License.
 
 //! Transaction pool listener.
-//! 
+//!
 //! This module is responsible for monitoring the transaction pool for incoming transactions and
 //! processing them accordingly.
-//! 
+//!
 //! The transaction pool listener is responsible for the following:
-//! 
+//!
 //! - Monitoring the transaction pool for incoming transactions and processing them accordingly.
 //! - Monitoring the network for new blocks and processing them accordingly.
 //! - Sampling blocks after finalization to determine block data availability.
@@ -28,12 +28,11 @@ use crate::{
 use futures::StreamExt;
 use log::{error, info, warn};
 use melo_core_primitives::{config::BLOCK_SAMPLE_LIMIT, traits::Extractor, Encode};
-use melo_das_primitives::Segment;
 use sc_client_api::{client::BlockchainEvents, HeaderBackend};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
-use std::{collections::HashMap, marker::PhantomData};
+use std::marker::PhantomData;
 
 use futures::stream::FuturesUnordered;
 use melo_core_primitives::traits::HeaderWithCommitment;
@@ -155,7 +154,7 @@ pub async fn start_tx_pool_listener<
 				}
 
 				let fetch_result = das_client.network.fetch_block(&header).await;
-				let (segments, need_reconstruct, is_availability) = match fetch_result {
+				let (segments, is_availability) = match fetch_result {
 					Ok(data) => data,
 					Err(e) => {
 						tracing::error!(target: LOG_TARGET, "Error fetching block: {:?}", e);
@@ -168,30 +167,8 @@ pub async fn start_tx_pool_listener<
 					continue
 				}
 
-				let reconstructed_rows: HashMap<usize, Vec<Segment>> = need_reconstruct
-					.iter()
-					.filter_map(|&row_index| {
-						// Use the `row` helper function
-						match row(&segments, row_index, EXTENDED_SEGMENTS_PER_BLOB) {
-							Ok(row) => {
-								match das_client.network.recovery_order_row_from_segments(&row) {
-									Ok(recovered) => Some((row_index, recovered)),
-									Err(err) => {
-										tracing::error!("Row {:?} recovery err: {:?}", row_index, err);
-										None
-									},
-								}
-							},
-							Err(err) => {
-								tracing::error!("Row {:?} fetch err: {:?}", row_index, err);
-								None
-							},
-						}
-					})
-					.collect();
-
 				for x in 0..EXTENDED_SEGMENTS_PER_BLOB {
-					match full_col(&segments, x, &reconstructed_rows, EXTENDED_SEGMENTS_PER_BLOB) {
+					match full_col(&segments, x, EXTENDED_SEGMENTS_PER_BLOB) {
 						Ok(col) => {
 							match das_client.network.extend_segments_col(&col) {
 								Ok(col_ext) => {
@@ -268,84 +245,41 @@ pub async fn start_tx_pool_listener<
 	}
 }
 
-fn row<T>(segments: &[Option<T>], index: usize, len: usize) -> Result<Vec<Option<T>>, String>
+fn full_col<T>(segments: &[Option<T>], index: usize, len: usize) -> Result<Vec<T>, String>
 where
 	T: Clone,
 {
-	let stop = index * len + len;
-	if stop > segments.len() {
-		return Err("Index out of range".into())
-	}
-	let row = segments[index * len..(index + 1) * len].to_vec();
-	Ok(row)
-}
-
-fn full_col<T>(
-	segments: &[Option<T>],
-	index: usize,
-	reconstructed_rows: &HashMap<usize, Vec<T>>,
-	len: usize,
-) -> Result<Vec<T>, String>
-where
-	T: Clone,
-{
-	let col_result = segments.iter().skip(index).step_by(len).enumerate().try_fold(
-		Vec::new(),
-		|mut col, (y, maybe_segment)| {
-			let segment = match maybe_segment {
-				Some(segment) => segment,
-				None => &reconstructed_rows.get(&y)?[index],
-			};
-			col.push(segment.clone());
-			Some(col)
-		},
-	);
-	match col_result {
-		Some(col) => Ok(col),
-		None => Err("Col is not available".into()),
-	}
+	segments
+		.iter()
+		.skip(index)
+		.step_by(len)
+		.try_fold(Vec::new(), |mut col, maybe_segment| {
+			match maybe_segment {
+				Some(segment) => col.push(segment.clone()),
+				None => return Err("Col is not available".into()),
+			}
+			Ok(col)
+		})
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::collections::HashMap;
-
-	#[test]
-	fn test_row_success() {
-		let segments = vec![Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)];
-		let result = row(&segments, 1, 3);
-		assert_eq!(result, Ok(vec![Some(4), Some(5), Some(6)]));
-	}
-
-	#[test]
-	fn test_row_out_of_range() {
-		let segments = vec![Some(1), Some(2), Some(3)];
-		let result = row(&segments, 1, 3);
-		assert!(result.is_err());
-	}
 
 	#[test]
 	fn test_full_col_success() {
 		// 1 2
 		// 3 4
 		// 5 6
-		let segments = vec![Some(1), None, Some(3), None, Some(5), None];
-		let mut reconstructed_rows = HashMap::new();
-		reconstructed_rows.insert(0, vec![1, 2]);
-		reconstructed_rows.insert(1, vec![3, 4]);
-		reconstructed_rows.insert(2, vec![5, 6]);
-
-		let result = full_col(&segments, 1, &reconstructed_rows, 2);
-		assert_eq!(result, Ok(vec![2, 4, 6]));
+		let segments = vec![Some(1), Some(2), Some(3), Some(4), Some(5), Some(6)];
+		let result = full_col(&segments, 0, 2);
+		assert_eq!(result, Ok(vec![1, 3, 5]));
 	}
 
 	#[test]
 	fn test_full_col_missing_data() {
-		let segments = vec![Some(1), None, Some(3), None];
-		let reconstructed_rows = HashMap::new(); // Missing data for reconstruction
-
-		let result = full_col(&segments, 1, &reconstructed_rows, 2);
+		let segments = vec![Some(1), None, Some(3), Some(4)];
+		let result = full_col(&segments, 1, 2);
 		assert!(result.is_err());
 	}
 }
