@@ -18,7 +18,7 @@ use crate::{
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
-use log::{info, debug};
+use log::{debug, info};
 use melo_core_primitives::{
 	reliability::{ReliabilitySample, ReliabilityType},
 	traits::HeaderWithCommitment,
@@ -81,6 +81,21 @@ pub trait Sampling {
 	///
 	/// Returns the last block number sampled.
 	async fn last_at(&self) -> u32;
+}
+
+#[async_trait::async_trait]
+pub trait FetchData {
+	async fn fetch_rows<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<()>;
+
+	async fn fetch_cols<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<()>;
 }
 
 impl<Header, DB: DasKv, DaserNetwork: DasNetworkOperations> SamplingClient<Header, DB, DaserNetwork>
