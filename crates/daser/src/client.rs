@@ -18,12 +18,13 @@ use crate::{
 
 use codec::{Decode, Encode};
 use futures::lock::Mutex;
-use log::{info, debug};
+use log::{debug, info};
 use melo_core_primitives::{
 	reliability::{ReliabilitySample, ReliabilityType},
 	traits::HeaderWithCommitment,
 	AppLookup,
 };
+use melo_das_primitives::Segment;
 use melo_erasure_coding::erasure_coding::extend_fs_g1;
 use std::marker::PhantomData;
 
@@ -81,6 +82,25 @@ pub trait Sampling {
 	///
 	/// Returns the last block number sampled.
 	async fn last_at(&self) -> u32;
+}
+
+#[async_trait::async_trait]
+pub trait FetchData {
+	async fn fetch_rows<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<(Vec<Option<Segment>>, bool)>
+	where
+		Header: HeaderWithCommitment + Sync;
+
+	async fn fetch_cols<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	where
+		Header: HeaderWithCommitment + Sync;
 }
 
 impl<Header, DB: DasKv, DaserNetwork: DasNetworkOperations> SamplingClient<Header, DB, DaserNetwork>
@@ -195,5 +215,32 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		let at = header.number();
 		self.set_last_at::<<Header as HeaderWithCommitment>::Number>(*at).await;
 		Ok(())
+	}
+}
+
+#[async_trait::async_trait]
+impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations + Sync> FetchData
+	for SamplingClient<H, DB, D>
+{
+	async fn fetch_rows<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<(Vec<Option<Segment>>, bool)>
+	where
+		Header: HeaderWithCommitment + Sync,
+	{
+		self.network.fetch_rows(header, inds).await
+	}
+
+	async fn fetch_cols<Header>(
+		&self,
+		header: &Header,
+		inds: &[u32],
+	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
+	where
+		Header: HeaderWithCommitment + Sync,
+	{
+		self.network.fetch_cols(header, inds).await
 	}
 }

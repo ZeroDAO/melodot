@@ -30,3 +30,6 @@ pub const EXTENDED_SEGMENTS_PER_BLOB: usize = SEGMENTS_PER_BLOB * 2;
 pub const BLOCK_AVAILABILITY_THRESHOLD: u32 = 5;
 /// The number of samples per block.
 pub const SAMPLES_PER_BLOCK: usize = 8;
+
+/// The number of leading zeros required for the pre-cell.
+pub const PRE_CELL_LEADING_ZEROS: u8 = 2;

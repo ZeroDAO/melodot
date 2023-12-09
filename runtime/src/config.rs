@@ -116,6 +116,7 @@ pub mod system {
 		pub const Version: RuntimeVersion = VERSION;
 
 		pub MaxBlobNumber: u32 = core::MAX_BLOB_NUMBER;
+		pub MaxExtedLen: u32 = core::MAX_BLOB_NUMBER * 2;
 		pub RuntimeBlockLength: BlockLength =
 			BlockLength::max_with_normal_ratio(5 * 1024 * 1024, core::NORMAL_DISPATCH_RATIO);
 

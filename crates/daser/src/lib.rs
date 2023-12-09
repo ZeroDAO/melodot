@@ -28,6 +28,6 @@ pub mod client;
 pub mod network;
 pub mod tx_pool_handler;
 
-pub use client::{Sampling, SamplingClient};
+pub use client::{Sampling, SamplingClient, FetchData};
 pub use network::{DasNetworkOperations, DasNetworkServiceWrapper};
 pub use tx_pool_handler::{start_tx_pool_listener, TPListenerParams};

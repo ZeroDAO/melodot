@@ -15,8 +15,10 @@
 use core::fmt::Display;
 
 use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
+use melo_das_primitives::Position;
 use sp_runtime::traits::{Hash, MaybeSerialize};
+
 pub trait ExtendedHeader {
 	/// Header number.
 	type Number;
@@ -106,4 +108,11 @@ sp_api::decl_runtime_apis! {
 			function: &RuntimeCall,
 		) -> Option<SidecarMetadata>;
 	}
+}
+
+pub trait CommitmentFromPosition {
+	type BlockNumber;
+
+	fn commitments(block_number: Self::BlockNumber, postion: &Position)
+		-> Option<KZGCommitment>;
 }

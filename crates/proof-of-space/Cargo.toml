@@ -1,0 +1,44 @@
+[package]
+name = "melo-proof-of-space"
+description = "Melodot proof of space implementation"
+license = "Apache-2.0"
+version = "0.0.1"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+anyhow = "1.0.66"
+chacha20 = { version = "0.9.1", default-features = false}
+
+scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
+	"derive", "max-encoded-len"
+] }
+
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+node-primitives = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+melo-das-primitives = { default-features = false, path = "../das-primitives" }
+melo-das-db = { default-features = false, path = "../das-db" }
+melo-core-primitives = { default-features = false, path = "../core-primitives" }
+
+[features]
+default = ["std"]
+std = [
+    "chacha20/std",
+    "codec/std",
+    "sp-core/std",
+    "node-primitives/std",
+    "sp-runtime/std",
+    "melo-das-primitives/std",
+    "melo-das-primitives/serde",
+    "scale-info/std",
+    "melo-das-db/std",
+    "melo-core-primitives/std",
+    "sp-std/std"
+]

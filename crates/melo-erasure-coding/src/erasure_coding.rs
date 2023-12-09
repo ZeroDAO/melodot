@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use kzg::{FFTFr, Fr, PolyRecover, DAS, FFTG1, G1};
-use melo_das_primitives::crypto::BlsScalar;
-use melo_das_primitives::crypto::ReprConvert;
-use melo_das_primitives::polynomial::Polynomial;
+use melo_das_primitives::{
+	crypto::{BlsScalar, ReprConvert},
+	polynomial::Polynomial,
+};
 
 use rust_kzg_blst::{
 	types::{fft_settings::FsFFTSettings, fr::FsFr, g1::FsG1, poly::FsPoly},
@@ -26,8 +27,8 @@ use crate::{String, Vec};
 
 /// Extends the given `source` slice using the provided `FsFFTSettings`.
 ///
-/// It will return an parity data number of elements of the same length because it will use the FFT to
-/// expand the input to 2n elements.
+/// It will return an parity data number of elements of the same length because it will use the FFT
+/// to expand the input to 2n elements.
 ///
 /// # Arguments
 ///
@@ -44,8 +45,8 @@ pub fn extend(fs: &FsFFTSettings, source: &[BlsScalar]) -> Result<Vec<BlsScalar>
 
 /// Extends the given `Polynomial` instance using the provided `FsFFTSettings`.
 ///
-/// It returns data that has been extended to twice its length and has been processed with `reverse_bit_order`,
-/// making it directly applicable to data sampling.
+/// It returns data that has been extended to twice its length and has been processed with
+/// `reverse_bit_order`, making it directly applicable to data sampling.
 ///
 /// # Arguments
 ///
@@ -63,11 +64,12 @@ pub fn extend_poly(fs: &FsFFTSettings, poly: &Polynomial) -> Result<Vec<BlsScala
 	Ok(BlsScalar::vec_from_repr(extended_coeffs_fft))
 }
 
-/// Extends the given slice of `T` instances using the provided `FsFFTSettings` and `FsG1` scalar field.
+/// Extends the given slice of `T` instances using the provided `FsFFTSettings` and `FsG1` scalar
+/// field.
 ///
-/// This is used to extend data for `KZGCommitment` and `KZGProof`, both of which are of type `FsG1`.
-/// It returns a result that interleaves the original data with parity data, so column extensions need
-/// to be handled separately.
+/// This is used to extend data for `KZGCommitment` and `KZGProof`, both of which are of type
+/// `FsG1`. It returns a result that interleaves the original data with parity data, so column
+/// extensions need to be handled separately.
 ///
 /// # Arguments
 ///
@@ -84,6 +86,45 @@ pub fn extend_fs_g1<T: ReprConvert<FsG1>>(
 	let mut coeffs = fs.fft_g1(T::slice_to_repr(source), true)?;
 	coeffs.resize(coeffs.len() * 2, FsG1::identity());
 	fs.fft_g1(&coeffs, false).map(T::vec_from_repr)
+}
+
+/// Extends an array of elements by doubling its size using FFT and then reorders
+/// the extended array such that original elements are followed by the extended elements.
+///
+/// # Arguments
+///
+/// * `fs`: Reference to the `FsFFTSettings` which contains the FFT settings.
+/// * `elements`: A slice of type `T` which implements `ReprConvert<FsG1>`. This represents the
+///   original elements to be extended and reordered.
+///
+/// # Returns
+///
+/// This function returns a `Result` which, on success, contains a `Vec<T>` representing
+/// the reordered elements with the original data followed by the extended data.
+/// On failure, it returns a `String` describing the error.
+///
+/// # Errors
+///
+/// This function will return an error if the extension and reordering of elements fails,
+/// typically due to issues within the FFT process or invalid input data.
+pub fn extend_and_reorder_elements<T: ReprConvert<FsG1>>(
+	fs: &FsFFTSettings,
+	elements: &[T],
+) -> Result<Vec<T>, String> {
+	// Extend the elements to double their size using FFT.
+	let extended = extend_fs_g1(fs, elements)?;
+
+	// Split the extended data into two vectors: one for original and one for extended elements.
+	// Original data is at even indices, and extended data is at odd indices.
+	let (originals, extensions): (Vec<_>, Vec<_>) =
+		extended.into_iter().enumerate().partition(|&(i, _)| i % 2 == 0);
+
+	// Reorder the elements by concatenating the original and extended data.
+	Ok(originals
+		.into_iter()
+		.map(|(_, e)| e)
+		.chain(extensions.into_iter().map(|(_, e)| e))
+		.collect())
 }
 
 /// Recovers the original data from the given `shards` slice using the provided `FsFFTSettings`.
@@ -116,8 +157,8 @@ pub fn recover(fs: &FsFFTSettings, shards: &[Option<BlsScalar>]) -> Result<Vec<B
 
 /// Recovers a polynomial from the given shards using the provided FFT settings.
 ///
-/// It checks if `shards` contains no `None` values, and if so, directly computes the polynomial using FFT.
-/// This also prevents errors when `shards` contains no `None` values.
+/// It checks if `shards` contains no `None` values, and if so, directly computes the polynomial
+/// using FFT. This also prevents errors when `shards` contains no `None` values.
 ///
 /// # Arguments
 ///
