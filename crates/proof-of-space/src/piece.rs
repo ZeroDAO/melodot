@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::{
-	BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, KZGCommitment, KZGProof, Segment,
-	YPos, XValueManager, ZValueManager, FIELD_ELEMENTS_PER_SEGMENT,
+	BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, KZGProof, Segment,
+	XValueManager, YPos, ZValueManager, FIELD_ELEMENTS_PER_SEGMENT,
 };
-use scale_info::TypeInfo;
 use anyhow::{anyhow, Ok, Result};
+use melo_das_primitives::Position;
+use scale_info::TypeInfo;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Piece<BlockNumber>
@@ -25,7 +26,6 @@ where
 {
 	pub metadata: PieceMetadata<BlockNumber>,
 	pub segments: Vec<Segment>,
-	pub commitments: Option<KZGCommitment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
@@ -40,6 +40,14 @@ impl PiecePosition {
 			PiecePosition::Row(row) => *row,
 			PiecePosition::Column(column) => *column,
 		}
+	}
+
+	pub fn from_row(position: &Position) -> Self {
+		Self::Row(position.x)
+	}
+
+	pub fn from_column(position: &Position) -> Self {
+		Self::Column(position.y)
 	}
 }
 
@@ -73,6 +81,11 @@ where
 {
 	pub fn key(&self) -> Vec<u8> {
 		Encode::encode(&self.metadata)
+	}
+
+	pub fn new(blcok_num: BlockNumber, pos: PiecePosition, segments: &[Segment]) -> Self {
+		let metadata = PieceMetadata { block_num: blcok_num, pos };
+		Self { metadata, segments: segments.to_vec() }
 	}
 
 	pub fn x_values_iterator<'a>(

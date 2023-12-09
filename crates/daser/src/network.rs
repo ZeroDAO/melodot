@@ -193,7 +193,7 @@ pub trait DasNetworkOperations {
 		index: &[u32],
 	) -> Result<(Vec<Option<Segment>>, bool)>
 	where
-		Header: HeaderWithCommitment + HeaderT;
+		Header: HeaderWithCommitment + std::marker::Sync;
 
 	/// Fetches column segments based on the specified header and index.
 	///
@@ -223,7 +223,7 @@ pub trait DasNetworkOperations {
 		index: &[u32],
 	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
 	where
-		Header: HeaderWithCommitment + HeaderT;
+		Header: HeaderWithCommitment + std::marker::Sync;
 }
 
 /// DasNetworkServiceWrapper is a struct that wraps the DasNetworkService and KZG structs.
@@ -255,7 +255,7 @@ impl DasNetworkServiceWrapper {
 	/// Prepares keys for a given header.
 	pub fn prepare_keys<Header>(&self, header: &Header) -> Result<Vec<KademliaKey>>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment,
 	{
 		let keys = header
 			.extension()
@@ -281,7 +281,7 @@ impl DasNetworkServiceWrapper {
 		row_count: u32,
 	) -> Result<Vec<KademliaKey>>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment,
 	{
 		if index.is_empty() {
 			return Ok(vec![])
@@ -307,10 +307,10 @@ impl DasNetworkServiceWrapper {
 				if idx >= row_count * 2 {
 					return Err(anyhow!("prepare_rows_keys: idx is too large"))
 				}
-				let block_hash = HeaderT::hash(header);
+				let block_hash = HeaderWithCommitment::hash(header);
 				for x in 0..EXTENDED_SEGMENTS_PER_BLOB {
 					let position = Position { x: x as u32, y: idx };
-					let key = sample_key_from_block(&block_hash.as_ref(), &position);
+					let key = sample_key_from_block(&block_hash.encode(), &position);
 					keys.push(KademliaKey::new(&key));
 				}
 			}
@@ -326,13 +326,13 @@ impl DasNetworkServiceWrapper {
 		row_count: u32,
 	) -> Result<Vec<KademliaKey>>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment,
 	{
 		if index.is_empty() {
 			return Ok(vec![])
 		}
 
-		let block_hash = HeaderT::hash(header);
+		let block_hash = HeaderWithCommitment::hash(header);
 		let extension = header.extension();
 		let mut keys = Vec::new();
 
@@ -350,7 +350,7 @@ impl DasNetworkServiceWrapper {
 
 			for y in row_count..(row_count * 2) {
 				let position = Position { x: idx, y };
-				let key = sample_key_from_block(block_hash.as_ref(), &position);
+				let key = sample_key_from_block(&block_hash.encode(), &position);
 				keys.push(KademliaKey::new(&key));
 			}
 		}
@@ -450,7 +450,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 
 	async fn fetch_block<Header>(&self, header: &Header) -> Result<(Vec<Option<Segment>>, bool)>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment + std::marker::Sync,
 	{
 		let commitments = header.commitments().context("Header does not contain commitments.")?;
 		let keys = self.prepare_keys(header)?;
@@ -466,7 +466,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		index: &[u32],
 	) -> Result<(Vec<Option<Segment>>, bool)>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment + std::marker::Sync,
 	{
 		let commitments = header.commitments().context("Header does not contain commitments.")?;
 
@@ -486,7 +486,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 		index: &[u32],
 	) -> Result<(Vec<Option<Segment>>, Vec<usize>, bool)>
 	where
-		Header: HeaderWithCommitment + HeaderT,
+		Header: HeaderWithCommitment + std::marker::Sync,
 	{
 		let commitments = header.commitments().context("Header does not contain commitments.")?;
 
@@ -580,7 +580,6 @@ fn rows_values_set_handler(
 		.flat_map(|(y, chunk)| {
 			if !is_availability && stop_on_unavailability {
 				return vec![None; EXTENDED_SEGMENTS_PER_BLOB]
-				
 			}
 			let (segments, availability) = rows_values_handler(kzg, chunk, y, &commitments[y]);
 			is_availability = is_availability && availability;

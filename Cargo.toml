@@ -17,6 +17,7 @@ members = [
     "crates/das-db",
     "crates/meloxt",
     "crates/proof-of-space",
+    "farmer",
     "light",
     "light/e2e",
     "runtime",

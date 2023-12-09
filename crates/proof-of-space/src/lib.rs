@@ -23,7 +23,7 @@ pub(crate) use chacha20::{
 use codec::{Decode, Encode};
 use melo_core_primitives::config::FIELD_ELEMENTS_PER_SEGMENT;
 use melo_das_db::traits::DasKv;
-use melo_das_primitives::{BlsScalar, KZGCommitment, KZGProof, Position, Segment};
+use melo_das_primitives::{BlsScalar, KZGProof, Position, Segment};
 pub use sp_core::H256;
 
 pub(crate) use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
@@ -35,7 +35,7 @@ pub mod utils;
 pub mod y_value_manager;
 pub mod z_value_manager;
 
-pub use cell::{Cell, CellMetadata};
+pub use cell::{Cell, PreCell, CellMetadata};
 pub use piece::{Piece, PieceMetadata, PiecePosition};
 pub use solution::{find_solutions, Solution};
 pub use y_value_manager::{XValueManager, YPos};

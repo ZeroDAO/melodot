@@ -1,0 +1,44 @@
+[package]
+name = "melodot-farmer-client"
+version = "0.0.1"
+description = "Melodot farmer client"
+authors = ["DKLee <xiuerdwy@gmail.com>"]
+repository = "https://github.com/ZeroDAO/melodot"
+keywords = ["substrate"]
+edition = "2021"
+license = "Apache-2.0"
+build = "build.rs"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[bin]]
+name = "melodot-farmer"
+path = "src/main.rs"
+
+[dependencies]
+melo-proof-of-space = { path = "../crates/proof-of-space" }
+melo-daser = { path = "../crates/daser" }
+
+melo-das-primitives = { path = "../crates/das-primitives" }
+melo-core-primitives = { path = "../crates/core-primitives" }
+melo-das-db = { path = "../crates/das-db", features = ["sqlite"] }
+melo-das-network = { path = "../crates/das-network" }
+meloxt = { path = "../crates/meloxt" }
+
+subxt = { version = "0.31.0"}
+
+clap = { version = "4.0.9", features = ["derive","env"] }
+anyhow = "1.0.66"
+tracing = "0.1.37"
+tokio-stream = { version = "0.1" }
+tracing-subscriber = { version = "0.2.25", features = ["json"] }
+tokio = { version = "1.21.2", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+jsonrpsee = { version = "0.16.2", features = ["full"] }
+futures = "0.3.21"
+log = "0.4"
+
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[features]

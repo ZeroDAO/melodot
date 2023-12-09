@@ -16,8 +16,8 @@
 
 use frame_support::{pallet_prelude::*, sp_runtime::traits::Hash, traits::Currency};
 use frame_system::pallet_prelude::*;
-use melo_core_primitives::traits::CommitmentFromPosition;
-use melo_proof_of_space::{Cell, Solution};
+use melo_core_primitives::{traits::CommitmentFromPosition, config::PRE_CELL_LEADING_ZEROS};
+use melo_proof_of_space::{Cell, Solution, PreCell};
 use sp_runtime::traits::BlakeTwo256;
 
 pub mod weights;
@@ -95,7 +95,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::claim())]
 		pub fn claim(
 			origin: OriginFor<T>,
-			pre_cell: Cell<BlockNumberFor<T>>,
+			pre_cell: PreCell,
 			win_cell_left: Cell<BlockNumberFor<T>>,
 			win_cell_right: Cell<BlockNumberFor<T>>,
 			win_block_num: BlockNumberFor<T>,
@@ -125,7 +125,7 @@ pub mod pallet {
 			// Get commitments from positions
 			let pre_commit = T::CommitmentFromPosition::commitments(
 				pre_block_num,
-				&pre_cell.metadata.seg_position(),
+				&pre_cell.seg_position(),
 			)
 			.ok_or(Error::<T>::PreCommitNotFound)?;
 
@@ -143,7 +143,7 @@ pub mod pallet {
 
 			let farmer_id = BlakeTwo256::hash_of(&who).into();
 
-			let solution = Solution::<T::Hashing, BlockNumberFor<T>>::new(
+			let solution = Solution::<T::Hash, BlockNumberFor<T>>::new(
 				&pre_block_hash,
 				&farmer_id,
 				&pre_cell,
@@ -158,6 +158,7 @@ pub mod pallet {
 					&right_commit,
 					&win_block_hash,
 					&win_block_hash,
+					PRE_CELL_LEADING_ZEROS,
 					1,
 				),
 				Error::<T>::InvalidSolution

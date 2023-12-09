@@ -12,39 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{utils, Cell, DasKv, Decode, Encode, FarmerId, HashT, Piece, ZValueManager};
+use crate::{
+	utils, BlakeTwo256, Cell, DasKv, Decode, Encode, FarmerId, HashT, Piece, PreCell, ZValueManager,
+};
 use anyhow::{Ok, Result};
 use melo_das_primitives::{KZGCommitment, KZG};
 use scale_info::TypeInfo;
 
 /// `Solution` represents a potential solution in the system.
 #[derive(Debug, Default, Clone, TypeInfo)]
-pub struct Solution<Hash: HashT, BlockNumber>
+pub struct Solution<Hash, BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
-	Hash::Output: PartialEq + Eq + sp_std::hash::Hash + 'static,
+	Hash: PartialEq + Eq + AsRef<[u8]> + 'static,
 {
 	// The hash of the block that posted the solution.
-	block_hash: Hash::Output,
+	block_hash: Hash,
 	// The ID of the farmer.
 	farmer_id: FarmerId,
 	// The previous cell. This is the cell that in the posted block.
-	pre_cell: Cell<BlockNumber>,
+	pre_cell: PreCell,
 	// The winning cell.
 	win_cell_left: Cell<BlockNumber>,
 	// The winning cell.
 	win_cell_right: Cell<BlockNumber>,
 }
 
-impl<Hash: HashT, BlockNumber> Solution<Hash, BlockNumber>
+impl<Hash, BlockNumber> Solution<Hash, BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
+	Hash: PartialEq + Eq + AsRef<[u8]> + Clone + 'static,
 {
 	/// Creates a new solution.
 	pub fn new(
-		block_hash: &Hash::Output,
+		block_hash: &Hash,
 		farmer_id: &FarmerId,
-		pre_cell: &Cell<BlockNumber>,
+		pre_cell: &PreCell,
 		win_cell_left: &Cell<BlockNumber>,
 		win_cell_right: &Cell<BlockNumber>,
 	) -> Self {
@@ -63,12 +66,22 @@ where
 		pre_commit: &KZGCommitment,
 		win_left_commit: &KZGCommitment,
 		win_right_commit: &KZGCommitment,
-		win_left_block_hash: &Hash::Output,
-		win_right_block_hash: &Hash::Output,
+		win_left_block_hash: &Hash,
+		win_right_block_hash: &Hash,
+		pre_cell_leading_zero: u8,
 		n: u32,
 	) -> bool {
-		self.validate_pre_cell(pre_commit, n) &&
+		let kzg = KZG::default_embedded();
+		Self::check_pre_cell(&self.pre_cell.data, &self.farmer_id, pre_cell_leading_zero) &&
+			Self::is_index_valid(
+				&self.farmer_id,
+				&self.block_hash,
+				self.pre_cell.piece_index() as usize,
+				32,
+				n,
+			) && self.pre_cell.verify_kzg_proof(&kzg, pre_commit) &&
 			self.validate_win_cell(
+				&kzg,
 				win_left_commit,
 				win_right_commit,
 				win_left_block_hash,
@@ -77,22 +90,71 @@ where
 			)
 	}
 
-	// Validates the previous cell.
-	fn validate_pre_cell(&self, pre_commit: &KZGCommitment, n: u32) -> bool {
-		let pre_cell_hash = Hash::hash_of(&self.pre_cell.data);
-		let xored_hash = utils::xor_byte_slices(self.farmer_id.as_ref(), pre_cell_hash.as_ref());
+	pub fn check_pre_cell(
+		cell_data: &[u8; 31],
+		farmer_id: &FarmerId,
+		pre_cell_leading_zero: u8,
+	) -> bool {
+		let pre_cell_hash = BlakeTwo256::hash_of(cell_data);
+		let xored_hash = utils::xor_byte_slices(farmer_id.as_ref(), pre_cell_hash.as_ref());
 
-		utils::is_index_valid(&xored_hash, self.pre_cell.piece_index() as usize, 32, n as usize) &&
-			self.verify_kzg_proof(pre_commit, &self.pre_cell)
+		utils::validate_leading_zeros(&xored_hash, pre_cell_leading_zero as u32)
+	}
+
+	pub fn is_index_valid(
+		farmer_id: &FarmerId,
+		block_hash: &Hash,
+		index: usize,
+		max_index: usize,
+		n: u32,
+	) -> bool {
+		let xored_hash = utils::xor_byte_slices(farmer_id.as_ref(), block_hash.as_ref());
+		utils::is_index_valid(&xored_hash, index, max_index, n as usize)
+	}
+
+	/// Selects a set of indices based on a XORed hash.
+	///
+	/// This function computes indices based on the XORed hash derived from
+	/// `farmer_id` and `block_hash`. The selection is influenced by the
+	/// 'stretch factor' `n`, with higher values of `n` resulting in a lower
+	/// probability of index selection. The `end` parameter determines the
+	/// maximum index that can be selected.
+	///
+	/// # Arguments
+	///
+	/// * `farmer_id` - A reference to the FarmerId, used as part of the hash input.
+	/// * `block_hash` - A reference to the Hash::Output, used as the other part of the hash input.
+	/// * `end` - The maximum index that can be considered for selection.
+	/// * `n` - The stretch factor. Higher values decrease the probability of each index being
+	///   selected.
+	///
+	/// # Returns
+	///
+	/// A vector of selected indices.
+	pub fn select_indices(
+		farmer_id: &FarmerId,
+		block_hash: &Hash,
+		end: usize,
+		n: usize,
+	) -> Vec<u32> {
+		utils::select_indices(
+			&utils::xor_byte_slices(farmer_id.as_ref(), block_hash.as_ref())
+				.try_into()
+				.expect("Expected a 32-byte array"),
+			0,
+			end,
+			n,
+		)
 	}
 
 	// Validates the winning cell.
 	fn validate_win_cell(
 		&self,
+		kzg: &KZG,
 		win_left_commit: &KZGCommitment,
 		win_right_commit: &KZGCommitment,
-		win_left_block_hash: &Hash::Output,
-		win_right_block_hash: &Hash::Output,
+		win_left_block_hash: &Hash,
+		win_right_block_hash: &Hash,
 		n: u32,
 	) -> bool {
 		let z = ZValueManager::<BlockNumber>::get_challenge(self.block_hash.as_ref());
@@ -106,8 +168,8 @@ where
 			self.win_cell_right.piece_index() as usize,
 			32,
 			n as usize,
-		) && self.verify_kzg_proof(win_left_commit, &self.win_cell_left) &&
-			self.verify_kzg_proof(win_right_commit, &self.win_cell_right) &&
+		) && self.win_cell_left.verify_kzg_proof(kzg, win_left_commit) &&
+			self.win_cell_right.verify_kzg_proof(kzg, win_right_commit) &&
 			ZValueManager::<BlockNumber>::verify(
 				z,
 				&self.farmer_id,
@@ -116,13 +178,6 @@ where
 				&self.win_cell_left.metadata,
 				&self.win_cell_right.metadata,
 			)
-	}
-
-	// Validates the KZG proof.
-	fn verify_kzg_proof(&self, commit: &KZGCommitment, cell: &Cell<BlockNumber>) -> bool {
-		let kzg = KZG::default_embedded();
-		kzg.verify(commit, cell.index(), &cell.data.into(), &cell.proof)
-			.unwrap_or(false)
 	}
 }
 
@@ -138,14 +193,15 @@ where
 ///
 /// Returns:
 /// A vector of tuples containing the winning cell and its nonce.
-pub fn find_solutions<DB: DasKv, Hash: HashT, BlockNumber>(
+pub fn find_solutions<DB: DasKv, Hash, BlockNumber>(
 	db: &mut DB,
 	farmer_id: &FarmerId,
-	pre_cell: &Cell<BlockNumber>,
-	block_hash: &Hash::Output,
+	pre_cell: &PreCell,
+	block_hash: &Hash,
 ) -> Result<Vec<Solution<Hash, BlockNumber>>>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
+	Hash: PartialEq + Eq + AsRef<[u8]> + Clone + 'static,
 {
 	let z = ZValueManager::<BlockNumber>::get_challenge(block_hash.as_ref());
 	let cells = ZValueManager::get(db, z)?;

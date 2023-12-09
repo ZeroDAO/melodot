@@ -47,7 +47,7 @@ pub fn fold_hash(hash: &[u8]) -> u32 {
 ///
 /// Returns:
 /// A vector of indices where each index meets the specified bit criteria.
-pub fn select_indices(hash: &[u8; 32], start: usize, end: usize, n: usize) -> Vec<usize> {
+pub fn select_indices(hash: &[u8; 32], start: usize, end: usize, n: usize) -> Vec<u32> {
 	(start..end)
 		.flat_map(|i| (0..8).map(move |bit| (i, bit))) // Generate index-bit pairs.
 		.filter_map(|(i, bit)| {
@@ -58,7 +58,7 @@ pub fn select_indices(hash: &[u8; 32], start: usize, end: usize, n: usize) -> Ve
 
 				hash[next_byte_index] & (1 << next_bit_index) != 0
 			}) {
-				Some(i * 8 + bit)
+				Some((i * 8 + bit) as u32)
 			} else {
 				None
 			}

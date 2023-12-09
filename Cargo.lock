@@ -4940,6 +4940,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "melodot-farmer-client"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "clap 4.4.1",
+ "futures",
+ "jsonrpsee",
+ "log",
+ "melo-core-primitives",
+ "melo-das-db",
+ "melo-das-network",
+ "melo-das-primitives",
+ "melo-daser",
+ "melo-proof-of-space",
+ "meloxt",
+ "substrate-build-script-utils",
+ "subxt",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "melodot-light-client"
 version = "0.0.1"
 dependencies = [
