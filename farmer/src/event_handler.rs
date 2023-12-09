@@ -45,7 +45,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 		SamplingClient::new(network, database.clone());
 
 	let signer = rpc_client.signer.public_key();
-	let farmer_id = BlakeTwo256::hash(&signer.as_ref());
+	let farmer_id = BlakeTwo256::hash(signer.as_ref());
 
 	let mut new_heads_sub = match rpc_client.api.blocks().subscribe_best().await {
 		Ok(subscription) => {
@@ -64,7 +64,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 			let header = block.header().clone();
 
 			let block_number = header.number;
-			let block_hash = header.hash().clone();
+			let block_hash = header.hash();
 
 			let rows_count = header.col_num().unwrap_or_default();
 
@@ -116,7 +116,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 			let mut database_guard = database.lock().await;
 
 			pre_cells.iter().for_each(|pre_cell| {
-				match find_solutions(&mut *database_guard, &farmer_id, &pre_cell, &block_hash) {
+				match find_solutions(&mut *database_guard, &farmer_id, pre_cell, &block_hash) {
 					Ok(mut ss) => {
 						solutions.append(&mut ss);
 					},
@@ -152,7 +152,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 }
 
 fn process_segments<F>(
-	segments: &Vec<Option<Segment>>,
+	segments: &[Option<Segment>],
 	block_number: u32,
 	db: &mut impl DasKv,
 	farmer_id: &H256,
@@ -160,7 +160,7 @@ fn process_segments<F>(
 ) where
 	F: Fn(&Position) -> PiecePosition,
 {
-	segments.chunks(EXTENDED_SEGMENTS_PER_BLOB).into_iter().for_each(|chunk| {
+	segments.chunks(EXTENDED_SEGMENTS_PER_BLOB).for_each(|chunk| {
 		let segment_vec = chunk.iter().filter_map(|seg| seg.clone()).collect::<Vec<_>>();
 		if let Some(first_segment) = segment_vec.first() {
 			let piece_position = piece_position_fn(&first_segment.position);
@@ -192,7 +192,7 @@ fn process_segment_data<F>(
 				let offset = calculate_offset(&seg.position, i, &piece_position);
 				pre_cells.push(PreCell::new(
 					piece_position,
-					seg.content.proof.clone(),
+					seg.content.proof,
 					data,
 					offset,
 				));

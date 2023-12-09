@@ -39,7 +39,7 @@ where
 		let combined = [left_encoded, right_encoded].concat();
 
 		let hash = BlakeTwo256::hash(&combined);
-		utils::fold_hash(&hash.as_bytes())
+		utils::fold_hash(hash.as_bytes())
 	}
 
 	pub fn get_challenge(data: &[u8]) -> u32 {

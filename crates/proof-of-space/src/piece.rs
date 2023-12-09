@@ -107,7 +107,7 @@ where
 		}
 		let data_index = pos % FIELD_ELEMENTS_PER_SEGMENT as u32;
 		let segment = &self.segments[index as usize];
-		Some((segment.content.data[data_index as usize], segment.content.proof.clone()))
+		Some((segment.content.data[data_index as usize], segment.content.proof))
 	}
 
 	pub fn get_cell(

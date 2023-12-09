@@ -524,7 +524,6 @@ fn cols_values_set_handler(
 
 	let all_segments: Vec<Option<Segment>> = values_set
 		.chunks(segments_per_col_exted)
-		.into_iter()
 		.enumerate()
 		.flat_map(|(x, column_values)| {
 			if !is_availability && stop_on_unavailability {
@@ -575,7 +574,6 @@ fn rows_values_set_handler(
 
 	let all_segments: Vec<Option<Segment>> = values_set
 		.chunks(EXTENDED_SEGMENTS_PER_BLOB)
-		.into_iter()
 		.enumerate()
 		.flat_map(|(y, chunk)| {
 			if !is_availability && stop_on_unavailability {

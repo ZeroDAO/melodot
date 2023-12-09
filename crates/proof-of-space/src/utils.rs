@@ -22,8 +22,7 @@
 /// Returns:
 /// A 32-bit unsigned integer representing the folded hash.
 pub fn fold_hash(hash: &[u8]) -> u32 {
-	let hash_bytes = hash.as_ref(); // Convert the hash output to a byte array.
-	let (first_half, second_half) = hash_bytes.split_at(16); // Split the hash into two halves.
+	let (first_half, second_half) = hash.split_at(16); // Split the hash into two halves.
 
 	let mut folded = 0u32;
 	for i in 0..4 {

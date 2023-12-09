@@ -53,7 +53,7 @@ where
 	) -> Self {
 		Self {
 			block_hash: block_hash.clone(),
-			farmer_id: farmer_id.clone(),
+			farmer_id: *farmer_id,
 			pre_cell: pre_cell.clone(),
 			win_cell_left: win_cell_left.clone(),
 			win_cell_right: win_cell_right.clone(),
@@ -61,6 +61,7 @@ where
 	}
 
 	/// Verifies the correctness of the solution.
+	#[allow(clippy::too_many_arguments)]
 	pub fn verify(
 		&self,
 		pre_commit: &KZGCommitment,
@@ -213,13 +214,13 @@ where
 			let right_cell = Piece::get_cell(&right, db).ok()?;
 			if let (Some(left_cell_data), Some(right_cell_data)) = (left_cell, right_cell) {
 				let left_cell =
-					Cell::<BlockNumber>::new(left, left_cell_data.1.clone(), &left_cell_data.0);
+					Cell::<BlockNumber>::new(left, left_cell_data.1, &left_cell_data.0);
 				let right_cell =
-					Cell::<BlockNumber>::new(right, right_cell_data.1.clone(), &right_cell_data.0);
+					Cell::<BlockNumber>::new(right, right_cell_data.1, &right_cell_data.0);
 				Some(Solution::<Hash, BlockNumber>::new(
-					&block_hash,
-					&farmer_id,
-					&pre_cell,
+					block_hash,
+					farmer_id,
+					pre_cell,
 					&left_cell,
 					&right_cell,
 				))

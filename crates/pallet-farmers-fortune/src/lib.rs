@@ -93,6 +93,7 @@ pub mod pallet {
 		/// Claim a reward.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::claim())]
+		#[allow(clippy::large_enum_variant)]
 		pub fn claim(
 			origin: OriginFor<T>,
 			pre_cell: PreCell,
@@ -141,7 +142,7 @@ pub mod pallet {
 			)
 			.ok_or(Error::<T>::WinCommitNotFound)?;
 
-			let farmer_id = BlakeTwo256::hash_of(&who).into();
+			let farmer_id = BlakeTwo256::hash_of(&who);
 
 			let solution = Solution::<T::Hash, BlockNumberFor<T>>::new(
 				&pre_block_hash,
