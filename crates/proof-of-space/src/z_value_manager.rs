@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use crate::{
-	utils, BlakeTwo256, BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, HashT,
+	utils, BlakeTwo256, BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, HashT, Vec,
 	XValueManager,
 };
+#[cfg(feature = "std")]
 use anyhow::{Context, Result};
 
 #[derive(Default, Clone, PartialEq, Eq, Encode, Decode)]
@@ -56,6 +57,7 @@ where
 		Self { z, left: left.clone(), right: right.clone() }
 	}
 
+	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv) {
 		let key = Encode::encode(&self.z);
 		let existing_data = db.get(&key);
@@ -71,6 +73,7 @@ where
 		}
 	}
 
+	#[cfg(feature = "std")]
 	pub fn get(
 		db: &mut impl DasKv,
 		z: u32,

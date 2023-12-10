@@ -13,11 +13,13 @@
 // limitations under the License.
 
 use crate::{
-	utils, BlsScalar, CellMetadata, ChaCha8, DasKv, Decode, Encode, FarmerId, KeyIvInit, Nonce,
-	PieceMetadata, StreamCipher,
+	utils, BlsScalar, CellMetadata, ChaCha8, DasKv, Decode, Encode, FarmerId, KeyIvInit,
+	Nonce, PieceMetadata, StreamCipher, Vec,
 };
+#[cfg(feature = "std")]
 use anyhow::{Context, Result};
 use chacha20::cipher::generic_array::GenericArray;
+use alloc::vec;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum YPos {
@@ -104,6 +106,7 @@ where
 		key
 	}
 
+	#[cfg(feature = "std")]
 	pub fn match_cells(&self, db: &mut impl DasKv) -> Result<Vec<CellMetadata<BlockNumber>>> {
 		db.get(&Self::key_by_x_pos(&self.pos, self.y))
 			.map(|data| Decode::decode(&mut &data[..]))
@@ -112,6 +115,7 @@ where
 			.map(|opt| opt.unwrap_or_default())
 	}
 
+	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv) {
 		let key = self.key();
 		match db.get(&key) {

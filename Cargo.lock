@@ -5113,6 +5113,7 @@ dependencies = [
  "pallet-democracy",
  "pallet-election-provider-multi-phase",
  "pallet-elections-phragmen",
+ "pallet-farmers-fortune",
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-indices",

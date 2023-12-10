@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+use crate::Vec;
 
 /// Folds a hash output to a 32-bit unsigned integer.
 /// This function is useful for reducing a larger hash output to a smaller, manageable size.

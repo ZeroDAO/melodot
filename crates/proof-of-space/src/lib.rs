@@ -26,6 +26,7 @@ use melo_das_db::traits::DasKv;
 use melo_das_primitives::{BlsScalar, KZGProof, Position, Segment};
 pub use sp_core::H256;
 
+pub(crate) use alloc::vec::Vec;
 pub(crate) use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
 pub mod cell;
@@ -35,9 +36,11 @@ pub mod utils;
 pub mod y_value_manager;
 pub mod z_value_manager;
 
-pub use cell::{Cell, PreCell, CellMetadata};
+pub use cell::{Cell, CellMetadata, PreCell};
 pub use piece::{Piece, PieceMetadata, PiecePosition};
-pub use solution::{find_solutions, Solution};
+pub use solution::Solution;
+#[cfg(feature = "std")]
+pub use solution::find_solutions;
 pub use y_value_manager::{XValueManager, YPos};
 pub use z_value_manager::ZValueManager;
 

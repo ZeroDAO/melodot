@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use crate::{
-	utils, BlakeTwo256, Cell, DasKv, Decode, Encode, FarmerId, HashT, Piece, PreCell, ZValueManager,
+	utils, BlakeTwo256, Cell, DasKv, Decode, Encode, FarmerId, HashT, Piece, PreCell, ZValueManager, Vec,
 };
+#[cfg(feature = "std")]
 use anyhow::{Ok, Result};
 use melo_das_primitives::{KZGCommitment, KZG};
 use scale_info::TypeInfo;
@@ -194,6 +195,7 @@ where
 ///
 /// Returns:
 /// A vector of tuples containing the winning cell and its nonce.
+#[cfg(feature = "std")]
 pub fn find_solutions<DB: DasKv, Hash, BlockNumber>(
 	db: &mut DB,
 	farmer_id: &FarmerId,

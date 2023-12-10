@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use crate::{
-	BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, KZGProof, Segment,
+	BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, KZGProof, Segment, Vec,
 	XValueManager, YPos, ZValueManager, FIELD_ELEMENTS_PER_SEGMENT,
 };
+#[cfg(feature = "std")]
 use anyhow::{anyhow, Ok, Result};
 use melo_das_primitives::Position;
 use scale_info::TypeInfo;
@@ -110,6 +111,7 @@ where
 		Some((segment.content.data[data_index as usize], segment.content.proof))
 	}
 
+	#[cfg(feature = "std")]
 	pub fn get_cell(
 		metadata: &CellMetadata<BlockNumber>,
 		db: &mut impl DasKv,
@@ -124,6 +126,7 @@ where
 			.map(|opt| opt.flatten())
 	}
 
+	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv, farmer_id: &FarmerId) -> Result<()> {
 		let metadata_clone = self.metadata.clone();
 		self.x_values_iterator(farmer_id).enumerate().try_for_each(
