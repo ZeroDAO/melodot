@@ -41,8 +41,9 @@ pub mod voter_bags;
 
 use codec::{Decode, Encode};
 use melo_auto_config::auto_config;
-pub use node_primitives::{AccountId, Signature};
-pub use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
+pub use node_primitives::{
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Index, Moment, Signature,
+};
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 
 use sp_runtime::{
@@ -84,11 +85,10 @@ pub use frame_support::{
 	},
 	PalletId, StorageValue,
 };
-pub use frame_system::Call as SystemCall;
 pub use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	offchain::SendTransactionTypes,
-	EnsureRoot, EnsureSigned, EnsureSignedBy,
+	Call as SystemCall, EnsureRoot, EnsureSigned, EnsureSignedBy,
 };
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
@@ -105,9 +105,9 @@ pub use system::BlockHashCount;
 
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_runtime::generic::Era;
 use sp_runtime::{
 	create_runtime_str,
+	generic::Era,
 	traits::{self, NumberFor},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult,
@@ -492,8 +492,8 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 			max => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed")
-					% max.saturating_add(1);
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -834,6 +834,21 @@ impl pallet_melo_store::Config for Runtime {
 	type MaxKeys = consensus::MaxKeys;
 }
 
+parameter_types! {
+	pub const RewardAmount: Balance = 100 * DOLLARS;
+	pub const MaxClaimantsPerBlock: u32 = 100;
+}
+
+// #[auto_config(skip_weight, include_currency)]
+impl pallet_farmers_fortune::Config for Runtime {
+	type Currency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type CommitmentFromPosition = MeloStore;
+	type RewardAmount = RewardAmount;
+	type MaxClaimantsPerBlock = MaxClaimantsPerBlock;
+}
+
 use sp_runtime::OpaqueExtrinsic;
 /// Block type for the node
 pub type NodeBlock = generic::Block<Header, OpaqueExtrinsic>;
@@ -880,6 +895,7 @@ construct_runtime!(
 
 		// Melodot.
 		MeloStore: pallet_melo_store = 80,
+		FarmersFortune: pallet_farmers_fortune = 81,
 	}
 );
 

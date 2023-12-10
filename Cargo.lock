@@ -6066,6 +6066,7 @@ dependencies = [
  "parity-scale-codec 3.6.4",
  "scale-info",
  "sp-runtime",
+ "sp-std 5.0.0",
 ]
 
 [[package]]

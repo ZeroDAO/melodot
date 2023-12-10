@@ -14,11 +14,18 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{pallet_prelude::*, sp_runtime::traits::Hash, traits::Currency};
+use frame_support::{
+	pallet_prelude::*,
+	sp_runtime::traits::Hash,
+	traits::{Currency, Get},
+};
 use frame_system::pallet_prelude::*;
-use melo_core_primitives::{traits::CommitmentFromPosition, config::PRE_CELL_LEADING_ZEROS};
+use melo_core_primitives::{config::PRE_CELL_LEADING_ZEROS, traits::CommitmentFromPosition};
 use melo_proof_of_space::{Cell, Solution, PreCell};
 use sp_runtime::traits::BlakeTwo256;
+use sp_std::prelude::*;
+
+pub use pallet::*;
 
 pub mod weights;
 pub use weights::*;
@@ -27,11 +34,11 @@ pub use weights::*;
 pub mod pallet {
 	use super::*;
 
-	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
+
+	type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -55,6 +62,7 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
+	#[pallet::getter(fn claimants)]
 	pub type ClaimantsForBlock<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
@@ -177,3 +185,5 @@ pub mod pallet {
 		}
 	}
 }
+
+impl<T: Config> Pallet<T> {}
