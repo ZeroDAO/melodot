@@ -25,3 +25,5 @@ pub mod sqlite;
 pub mod offchain;
 #[cfg(feature = "outside")]
 pub mod offchain_outside;
+#[cfg(feature = "std")]
+pub mod mock_db;
