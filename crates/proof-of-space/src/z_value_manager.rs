@@ -47,6 +47,10 @@ where
 		utils::fold_hash(data)
 	}
 
+	pub fn get_z(&self) -> u32 {
+		self.z
+	}
+
 	pub fn new(
 		left: &CellMetadata<BlockNumber>,
 		right: &CellMetadata<BlockNumber>,
@@ -99,5 +103,130 @@ where
 		let is_y_equal = XValueManager::<BlockNumber>::calculate_y(farmer_id, left_cell) ==
 			XValueManager::<BlockNumber>::calculate_y(farmer_id, right_cell);
 		z == calculated_z && is_pair && is_y_equal
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{mock::*, BlsScalar, PiecePosition, PieceMetadata};
+	use melo_das_db::mock_db::MockDb;
+	
+	fn test_calculate_z_case(
+		left_cell: &[u8;31],
+		right_cell: &[u8;31],
+		expected_z: u32,
+	) {
+		let left_cell = BlsScalar::from(left_cell);
+		let right_cell = BlsScalar::from(right_cell);
+
+		let z = ZValueManager::<u32>::calculate_z(&left_cell, &right_cell);
+		assert_eq!(z, expected_z);
+	}
+
+	#[test]
+	fn test_calculate_z() {
+		test_calculate_z_case(&BLS_SCALAR11, &BLS_SCALAR12, Z1);
+		test_calculate_z_case(&BLS_SCALAR21, &BLS_SCALAR22, Z2);
+		test_calculate_z_case(&BLS_SCALAR31, &BLS_SCALAR32, Z3);
+	}
+
+	fn z_store(
+		left_cell: &[u8;31],
+		right_cell: &[u8;31],
+		expected_z: u32,
+		db: &mut impl DasKv,
+	) {
+		let left_cell = BlsScalar::from(left_cell);
+		let right_cell = BlsScalar::from(right_cell);
+
+		let left_metadata = CellMetadata::<u32>::default();
+		let right_metadata = CellMetadata::<u32>::default();
+
+		let zvm = ZValueManager::new(&left_metadata, &right_metadata, &left_cell, &right_cell);
+		assert_eq!(zvm.z, expected_z);
+		zvm.save(db);
+	}
+
+	#[test]
+	fn test_get() {
+		let mut db = MockDb::new();
+		z_store(&BLS_SCALAR11, &BLS_SCALAR12, Z1, &mut db);
+		let zvms = ZValueManager::<u32>::get(&mut db, Z1).unwrap();
+		assert_eq!(zvms.len(), 1);
+		z_store(&BLS_SCALAR21, &BLS_SCALAR22, Z2, &mut db);
+		let zvms = ZValueManager::<u32>::get(&mut db, Z2).unwrap();
+		assert_eq!(zvms.len(), 1);
+
+		let zvms = ZValueManager::<u32>::get(&mut db, Z3).unwrap();
+		assert_eq!(zvms.len(), 0);
+
+		z_store(&BLS_SCALAR31, &BLS_SCALAR32, Z3, &mut db);
+		let zvms = ZValueManager::<u32>::get(&mut db, Z3).unwrap();
+		assert_eq!(zvms.len(), 1);
+
+		let zvms = ZValueManager::<u32>::get(&mut db, 123).unwrap();
+		assert_eq!(zvms.len(), 0);
+	}
+
+	#[test]
+	fn test_verify() {
+		let farmer_id = FarmerId::default();
+
+		let position_left = PiecePosition::Row(0);
+		let position_right = PiecePosition::Row(0);
+
+		let left_cell = BlsScalar::from(BLS_SCALAR11);
+		let right_cell = BlsScalar::from(BLS_SCALAR12);
+
+		let piece_metadata_left = PieceMetadata::<u32>::new(2, position_left);
+		let piece_metadata_right = PieceMetadata::<u32>::new(1, position_right);
+
+		let left_metadata = CellMetadata::<u32>::new(piece_metadata_left, 0);
+		let right_metadata = CellMetadata::<u32>::new(piece_metadata_right,1);
+
+		let is_valid = ZValueManager::<u32>::verify(
+			123,
+			&farmer_id,
+			&left_cell,
+			&right_cell,
+			&left_metadata,
+			&right_metadata,
+		);
+		assert!(!is_valid);
+
+		let is_valid = ZValueManager::<u32>::verify(
+			u32::MAX,
+			&farmer_id,
+			&left_cell,
+			&right_cell,
+			&left_metadata,
+			&right_metadata,
+		);
+		assert!(!is_valid);
+
+		let is_valid = ZValueManager::<u32>::verify(
+			Z1,
+			&farmer_id,
+			&left_cell,
+			&right_cell,
+			&left_metadata,
+			&right_metadata,
+		);
+
+		assert!(is_valid);
+
+		let left_cell = BlsScalar::from(BLS_SCALAR21);
+
+		let is_valid = ZValueManager::<u32>::verify(
+			Z1,
+			&farmer_id,
+			&left_cell,
+			&right_cell,
+			&left_metadata,
+			&right_metadata,
+		);
+
+		assert!(!is_valid);
 	}
 }

@@ -148,39 +148,17 @@ pub fn xor_byte_slices(a: &[u8], b: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	pub use sp_core::H256;
-
-	// #[test]
-	// fn test_fold_hash_zero() {
-	// 	let hash = H256::from([0u8; 32]);
-	// 	let folded = fold_hash::<Keccak256>(&hash);
-	// 	assert_eq!(folded, 0);
-	// }
-
-	// #[test]
-	// fn test_fold_hash() {
-	// 	let hash = H256::from([
-	// 		50, 247, 15, 179, 42, 112, 214, 207, 137, 196, 15, 134, 193, 51, 85, 201, 156, 73, 1,
-	// 		241, 92, 100, 240, 102, 244, 51, 148, 70, 49, 75, 53, 215,
-	// 	]);
-	// 	let folded = fold_hash::<Keccak256>(&hash);
-	// 	assert_eq!(folded, 1428542261);
-	// }
-
-	// #[test]
-	// fn test_fold_hash_alternating() {
-	// 	let hash = H256::from([0xAAu8; 32]); // 10101010 repeated
-	// 	let folded = fold_hash::<Keccak256>(&hash);
-	// 	assert_eq!(folded, 0);
-	// }
-
-	// #[test]
-	// fn test_fold_hash_max() {
-	// 	let hash = H256::from([0xFFu8; 32]);
-	// 	let folded = fold_hash::<Keccak256>(&hash);
-	// 	assert_eq!(folded, 0);
-	// }
+	
+	#[test]
+	fn test_fold_hash() {
+		let hash = [
+			50, 247, 15, 179, 42, 112, 214, 207, 137, 196, 15, 134, 193, 51, 85, 201, 156, 73, 1,
+			241, 92, 100, 240, 102, 244, 51, 148, 70, 49, 75, 53, 215,
+		];
+		let folded = fold_hash(&hash);
+		assert_eq!(folded, 1428542261);
+	}
 
 	#[test]
 	fn test_select_indices() {

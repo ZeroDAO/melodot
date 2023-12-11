@@ -27,6 +27,10 @@ melo-das-primitives = { default-features = false, path = "../das-primitives" }
 melo-das-db = { default-features = false, path = "../das-db" }
 melo-core-primitives = { default-features = false, path = "../core-primitives" }
 
+[dev-dependencies]
+melo-das-primitives = { default-features = false, path = "../das-primitives", features = ["rand"] }
+rand = "0.8.5"
+
 [features]
 default = ["std"]
 std = [

@@ -29,6 +29,8 @@ pub use sp_core::H256;
 pub(crate) use alloc::vec::Vec;
 pub(crate) use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
+pub mod mock;
+
 pub mod cell;
 pub mod piece;
 pub mod solution;

@@ -33,6 +33,10 @@ impl<BlockNumber> CellMetadata<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
+	pub fn new(piece_metadata: PieceMetadata<BlockNumber>, pos: u32) -> Self {
+		Self { piece_metadata, pos }
+	}
+	
 	pub fn seg_position(&self) -> Position {
 		get_position(&self.piece_metadata.pos, self.pos)
 	}

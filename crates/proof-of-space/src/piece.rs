@@ -71,6 +71,10 @@ impl<BlockNumber> PieceMetadata<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode,
 {
+	pub fn new(block_num: BlockNumber, pos: PiecePosition) -> Self {
+		Self { block_num, pos }
+	}
+
 	pub fn key(&self) -> Vec<u8> {
 		Encode::encode(&self)
 	}
@@ -129,45 +133,109 @@ where
 	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv, farmer_id: &FarmerId) -> Result<()> {
 		let metadata_clone = self.metadata.clone();
+		db.set(&self.key(), &self.encode());
+
 		self.x_values_iterator(farmer_id).enumerate().try_for_each(
 			|(index, (x, bls_scalar_ref))| {
 				let cell_metadata =
 					CellMetadata { piece_metadata: metadata_clone.clone(), pos: index as u32 };
+
 				let x_value_manager =
 					XValueManager::<BlockNumber>::new(&metadata_clone, index as u32, x);
+
 				let x_pos = YPos::from_u32(index as u32);
 
 				x_value_manager.save(db);
+
 				let match_cells = x_value_manager.match_cells(db)?;
 
 				for mc in match_cells {
-					let (match_cell_data, _) = Self::get_cell(&mc, db)?
-						.ok_or_else(|| anyhow!("Matching cell data not found"))?;
-					match x_pos {
-						YPos::Left(_) => {
-							let z_value_manager = ZValueManager::new(
-								&cell_metadata,
-								&mc,
-								bls_scalar_ref,
-								&match_cell_data,
-							);
-							z_value_manager.save(db);
-						},
-						YPos::Right(_) => {
-							let z_value_manager = ZValueManager::new(
-								&cell_metadata,
-								&mc,
-								&match_cell_data,
-								bls_scalar_ref,
-							);
-							z_value_manager.save(db);
-						},
+					if let Some((match_cell_data, _)) = Self::get_cell(&mc, db)? {
+						match x_pos {
+							YPos::Left(_) => {
+								let z_value_manager = ZValueManager::new(
+									&cell_metadata,
+									&mc,
+									bls_scalar_ref,
+									&match_cell_data,
+								);
+								z_value_manager.save(db);
+							},
+							YPos::Right(_) => {
+								let z_value_manager = ZValueManager::new(
+									&cell_metadata,
+									&mc,
+									&match_cell_data,
+									bls_scalar_ref,
+								);
+								z_value_manager.save(db);
+							},
+						}
 					}
 				}
 				Ok(())
 			},
 		)?;
-		db.set(&self.key(), &self.encode());
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use melo_das_db::mock_db::MockDb;
+
+	#[test]
+	fn test_piece_creation_and_key() {
+		let block_num = 123;
+		let position = PiecePosition::Row(1);
+		let segment = Segment::default();
+		let piece = Piece::new(block_num, position.clone(), &[segment]);
+
+		assert_eq!(piece.metadata.block_num, block_num);
+		assert_eq!(piece.metadata.pos, position);
+		assert!(piece.segments.len() == 1);
+
+		let key = piece.key();
+		assert!(!key.is_empty());
+	}
+
+	#[test]
+	fn test_piece_position() {
+		let row_pos = PiecePosition::Row(10);
+		assert_eq!(row_pos.to_u32(), 10);
+
+		let col_pos = PiecePosition::Column(20);
+		assert_eq!(col_pos.to_u32(), 20);
+
+		let position = Position { x: 5, y: 15 };
+		let row_position = PiecePosition::from_row(&position);
+		assert_eq!(row_position, PiecePosition::Row(5));
+
+		let col_position = PiecePosition::from_column(&position);
+		assert_eq!(col_position, PiecePosition::Column(15));
+	}
+
+	#[test]
+	fn test_piece_save() {
+		let mut db = MockDb::new();
+		let block_num = 123;
+		let position = PiecePosition::Row(1);
+		let segment = Segment::default();
+		let piece = Piece::new(block_num, position, &[segment]);
+
+		let farmer_id = FarmerId::default();
+
+		assert!(piece.save(&mut db, &farmer_id).is_ok());
+
+		let key = piece.key();
+		assert!(db.contains(&key));
+
+		if let Some(encoded_data) = db.get(&key) {
+			let decoded_piece = Piece::<u32>::decode(&mut &encoded_data[..]).expect("Decode error");
+			assert_eq!(decoded_piece, piece);
+		} else {
+			panic!("Piece not found in database");
+		}
 	}
 }
