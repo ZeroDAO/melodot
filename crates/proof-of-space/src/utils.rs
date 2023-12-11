@@ -36,6 +36,12 @@ pub fn fold_hash(hash: &[u8]) -> u32 {
 	folded
 }
 
+pub fn hash_to_u16_xor(hash: &[u8]) -> u16 {
+    hash.chunks(2).fold(0u16, |acc, chunk| {
+        acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
+    })
+}
+
 /// Selects indices from a hash where a specified number of consecutive bits are 1.
 ///
 /// Parameters:
@@ -149,7 +155,7 @@ pub fn xor_byte_slices(a: &[u8], b: &[u8]) -> Vec<u8> {
 mod tests {
 	use super::*;
 	pub use sp_core::H256;
-	
+
 	#[test]
 	fn test_fold_hash() {
 		let hash = [

@@ -4933,6 +4933,7 @@ dependencies = [
  "melo-das-primitives",
  "node-primitives",
  "parity-scale-codec 3.6.4",
+ "rand 0.8.5",
  "scale-info",
  "sp-core",
  "sp-runtime",

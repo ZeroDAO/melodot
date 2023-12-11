@@ -162,7 +162,7 @@ where
 		win_left_block_hash: &Hash,
 		win_right_block_hash: &Hash,
 		n: u32,
-		z: u32,
+		z: u16,
 	) -> bool {
 		self.validate_win_cell(win_left_block_hash, win_right_block_hash, n, z) &&
 			self.win_cell_left.verify_kzg_proof(kzg, win_left_commit) &&
@@ -175,7 +175,7 @@ where
 		win_left_block_hash: &Hash,
 		win_right_block_hash: &Hash,
 		n: u32,
-		z: u32,
+		z: u16,
 	) -> bool {
 		// let z = ZValueManager::<BlockNumber>::get_challenge(self.block_hash.as_ref());
 		utils::is_index_valid(
@@ -232,7 +232,7 @@ fn find_solutions_with_z<DB: DasKv, Hash, BlockNumber>(
 	farmer_id: &FarmerId,
 	pre_cell: &PreCell,
 	block_hash: &Hash,
-	z: u32,
+	z: u16,
 ) -> Result<Vec<Solution<Hash, BlockNumber>>>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,

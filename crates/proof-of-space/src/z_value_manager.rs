@@ -24,7 +24,7 @@ pub struct ZValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
 {
-	z: u32,
+	z: u16,
 	left: CellMetadata<BlockNumber>,
 	right: CellMetadata<BlockNumber>,
 }
@@ -33,21 +33,21 @@ impl<BlockNumber> ZValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
 {
-	pub fn calculate_z(left_cell: &BlsScalar, right_cell: &BlsScalar) -> u32 {
+	pub fn calculate_z(left_cell: &BlsScalar, right_cell: &BlsScalar) -> u16 {
 		let left_encoded = Encode::encode(left_cell);
 		let right_encoded = Encode::encode(right_cell);
 
 		let combined = [left_encoded, right_encoded].concat();
 
 		let hash = BlakeTwo256::hash(&combined);
-		utils::fold_hash(hash.as_bytes())
+		utils::hash_to_u16_xor(hash.as_bytes())
 	}
 
-	pub fn get_challenge(data: &[u8]) -> u32 {
-		utils::fold_hash(data)
+	pub fn get_challenge(data: &[u8]) -> u16 {
+		utils::hash_to_u16_xor(data)
 	}
 
-	pub fn get_z(&self) -> u32 {
+	pub fn get_z(&self) -> u16 {
 		self.z
 	}
 
@@ -80,7 +80,7 @@ where
 	#[cfg(feature = "std")]
 	pub fn get(
 		db: &mut impl DasKv,
-		z: u32,
+		z: u16,
 	) -> Result<Vec<(CellMetadata<BlockNumber>, CellMetadata<BlockNumber>)>> {
 		let key = Encode::encode(&z);
 		db.get(&key)
@@ -91,7 +91,7 @@ where
 	}
 
 	pub fn verify(
-		z: u32,
+		z: u16,
 		farmer_id: &FarmerId,
 		left_cell: &BlsScalar,
 		right_cell: &BlsScalar,
@@ -115,12 +115,12 @@ mod tests {
 	fn test_calculate_z_case(
 		left_cell: &[u8;31],
 		right_cell: &[u8;31],
-		expected_z: u32,
+		expected_z: u16,
 	) {
 		let left_cell = BlsScalar::from(left_cell);
 		let right_cell = BlsScalar::from(right_cell);
 
-		let z = ZValueManager::<u32>::calculate_z(&left_cell, &right_cell);
+		let z = ZValueManager::<u16>::calculate_z(&left_cell, &right_cell);
 		assert_eq!(z, expected_z);
 	}
 
@@ -134,14 +134,14 @@ mod tests {
 	fn z_store(
 		left_cell: &[u8;31],
 		right_cell: &[u8;31],
-		expected_z: u32,
+		expected_z: u16,
 		db: &mut impl DasKv,
 	) {
 		let left_cell = BlsScalar::from(left_cell);
 		let right_cell = BlsScalar::from(right_cell);
 
-		let left_metadata = CellMetadata::<u32>::default();
-		let right_metadata = CellMetadata::<u32>::default();
+		let left_metadata = CellMetadata::<u16>::default();
+		let right_metadata = CellMetadata::<u16>::default();
 
 		let zvm = ZValueManager::new(&left_metadata, &right_metadata, &left_cell, &right_cell);
 		assert_eq!(zvm.z, expected_z);
@@ -152,20 +152,20 @@ mod tests {
 	fn test_get() {
 		let mut db = MockDb::new();
 		z_store(&BLS_SCALAR11, &BLS_SCALAR12, Z1, &mut db);
-		let zvms = ZValueManager::<u32>::get(&mut db, Z1).unwrap();
+		let zvms = ZValueManager::<u16>::get(&mut db, Z1).unwrap();
 		assert_eq!(zvms.len(), 1);
 		z_store(&BLS_SCALAR21, &BLS_SCALAR22, Z2, &mut db);
-		let zvms = ZValueManager::<u32>::get(&mut db, Z2).unwrap();
+		let zvms = ZValueManager::<u16>::get(&mut db, Z2).unwrap();
 		assert_eq!(zvms.len(), 1);
 
-		let zvms = ZValueManager::<u32>::get(&mut db, Z3).unwrap();
+		let zvms = ZValueManager::<u16>::get(&mut db, Z3).unwrap();
 		assert_eq!(zvms.len(), 0);
 
 		z_store(&BLS_SCALAR31, &BLS_SCALAR32, Z3, &mut db);
-		let zvms = ZValueManager::<u32>::get(&mut db, Z3).unwrap();
+		let zvms = ZValueManager::<u16>::get(&mut db, Z3).unwrap();
 		assert_eq!(zvms.len(), 1);
 
-		let zvms = ZValueManager::<u32>::get(&mut db, 123).unwrap();
+		let zvms = ZValueManager::<u16>::get(&mut db, 123).unwrap();
 		assert_eq!(zvms.len(), 0);
 	}
 
@@ -196,7 +196,7 @@ mod tests {
 		assert!(!is_valid);
 
 		let is_valid = ZValueManager::<u32>::verify(
-			u32::MAX,
+			u16::MAX,
 			&farmer_id,
 			&left_cell,
 			&right_cell,
