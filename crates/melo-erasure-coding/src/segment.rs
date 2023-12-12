@@ -139,6 +139,7 @@ pub fn poly_to_segment_vec(poly: &Polynomial, kzg: &KZG, y: usize, chunk_size: u
     let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly_len, chunk_size)?;
     let all_proofs = fk.data_availability(&poly.0)?;
     let extended_poly = extend_poly(&fk.kzg_settings.fs, poly)?;
+
     let segments = extended_poly
         .chunks(chunk_size)
         .enumerate()

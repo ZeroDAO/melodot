@@ -24,7 +24,6 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use derive_more::{AsMut, AsRef, From};
-use rust_kzg_blst::utils::reverse_bit_order;
 
 /// This struct represents a segment of data with a position and content.
 #[derive(Debug, Default, Decode, Encode, Clone, PartialEq, Eq, From, AsRef, AsMut)]
@@ -107,13 +106,11 @@ impl Segment {
 		commitment: &KZGCommitment,
 		count: usize,
 	) -> Result<bool, String> {
-		let mut ys = BlsScalar::vec_to_repr(self.content.data.clone());
-		reverse_bit_order(&mut ys);
 		kzg.check_proof_multi(
 			commitment,
 			self.position.x as usize,
 			count,
-			&ys,
+			&BlsScalar::vec_to_repr(self.content.data.clone()),
 			&self.content.proof,
 			self.size(),
 		)

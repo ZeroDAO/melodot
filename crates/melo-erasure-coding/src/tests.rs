@@ -4,7 +4,7 @@ use crate::{
 };
 
 use alloc::vec;
-use kzg::{FFTFr, Fr, G1};
+use kzg::{FFTFr, FK20MultiSettings, Fr, G1};
 
 use melo_das_primitives::{
 	blob::Blob,
@@ -16,7 +16,7 @@ use melo_das_primitives::{
 use rand::{seq::SliceRandom, Rng};
 
 use rust_kzg_blst::{
-	types::{fr::FsFr, g1::FsG1, poly::FsPoly},
+	types::{fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1, poly::FsPoly},
 	utils::reverse_bit_order,
 };
 
@@ -114,8 +114,7 @@ fn test_recover_poly() {
 		extended_poly.iter().map(|shard| Some(*shard)).collect();
 
 	// All shards are Some()
-	let mut shards_all_some = shards.clone();
-	reverse_bit_order(&mut shards_all_some);
+	let shards_all_some = shards.clone();
 	let recovered_poly_all_some = recover_poly(kzg.get_fs(), &shards_all_some).unwrap();
 
 	let random_positions = random_vec(num_shards * 3);
@@ -125,9 +124,7 @@ fn test_recover_poly() {
 			shards[i] = None;
 		}
 	}
-	// Reverse the shards
-	reverse_bit_order(&mut shards);
-	// Recover the polynomial
+
 	let recovered_poly = recover_poly(kzg.get_fs(), &shards).unwrap();
 	// Verify if it is correct
 	for i in 0..num_shards {
@@ -455,9 +452,9 @@ fn test_extend_poly() {
 		let position = random_positions[i];
 		cells[position] = Some(extended_poly[position]);
 	}
-	reverse_bit_order(&mut cells);
-	let mut recovered_poly = recover(kzg.get_fs(), &cells.as_slice()).unwrap();
-	reverse_bit_order(&mut recovered_poly);
+
+	let recovered_poly = recover(kzg.get_fs(), &cells.as_slice()).unwrap();
+
 	for i in 0..num_shards * 2 {
 		assert_eq!(recovered_poly[i].0, extended_poly[i].0);
 	}
@@ -564,7 +561,6 @@ fn test_proof_multi() {
 		for i in 0..chunk_len {
 			ys[i] = extended_coeffs_fft[chunk_len * pos + i].clone();
 		}
-		reverse_bit_order(&mut ys);
 
 		// Verify this proof
 		let result = kzg
@@ -618,7 +614,7 @@ fn test_extend_and_commit_multi() {
 		for i in 0..chunk_len {
 			ys[i] = BlsScalar::vec_to_repr(data.clone())[chunk_len * pos + i].clone();
 		}
-		reverse_bit_order(&mut ys);
+		// reverse_bit_order(&mut ys);
 
 		// Verify this proof
 		let result = kzg
@@ -763,7 +759,7 @@ fn test_bytes_to_segments_round_trip() {
 	let mut row = segment_datas_to_row(&segment_datas, chunk_len);
 	row[0] = None;
 	// Reverse row
-	reverse_bit_order(&mut row);
+	// reverse_bit_order(&mut row);
 	let poly2 = recover_poly(&kzg.get_fs(), &row).unwrap();
 	// Convert the polynomial to blob
 	let blob2 = poly2.to_blob();
@@ -853,10 +849,12 @@ fn test_bytes_to_segments_case(bytes_len: usize) {
 	assert_eq!(segments.len(), segment_count);
 
 	for i in 0..segment_count {
-        let blob_index = i / (field_elements_per_blob * 2 / field_elements_per_segment);
-        let commitment = &commitments[blob_index];
-        let verify = segments[i].verify(&kzg, commitment, field_elements_per_blob / field_elements_per_segment).unwrap();
-        assert!(verify);
+		let blob_index = i / (field_elements_per_blob * 2 / field_elements_per_segment);
+		let commitment = &commitments[blob_index];
+		let verify = segments[i]
+			.verify(&kzg, commitment, field_elements_per_blob / field_elements_per_segment)
+			.unwrap();
+		assert!(verify);
 	}
 }
 
@@ -873,4 +871,66 @@ fn test_bytes_to_segments() {
 	test_bytes_to_segments_case(16);
 	test_bytes_to_segments_case(8);
 	test_bytes_to_segments_case(1);
+}
+
+#[test]
+fn test_recover_poly_and_extend_poly() {
+	// Build a random polynomial+
+	let chunk_len: usize = 16;
+	let chunk_count: usize = 4;
+	let num_shards = chunk_len * chunk_count;
+
+	let kzg = KZG::default_embedded();
+
+	let data = (0..(num_shards / 2))
+		.map(|_| rand::random::<[u8; 31]>())
+		.map(BlsScalar::from)
+		.collect::<Vec<_>>();
+
+	let mut row = [None; 64];
+	for i in 0..num_shards / 2 {
+		row[i] = Some(data[i].clone());
+	}
+
+	let poly = recover_poly(kzg.get_fs(), &row).unwrap();
+
+	let commitment = kzg.commit(&poly).unwrap();
+
+	let fk = FsFK20MultiSettings::new(&kzg.ks, 2 * poly.0.coeffs.len(), chunk_len).unwrap();
+
+	let all_proofs = fk.data_availability(&poly.0).unwrap();
+
+	let fs = kzg.get_fs();
+
+	let recovery_row = extend_poly(fs, &poly).unwrap();
+
+	for i in 0..chunk_count {
+		let ys = (0..chunk_len)
+			.map(|j| recovery_row[i * chunk_len + j].clone())
+			.collect::<Vec<_>>();
+
+		let result = kzg
+			.check_proof_multi(
+				&commitment,
+				i,
+				chunk_count,
+				&BlsScalar::slice_to_repr(&ys),
+				&KZGProof(all_proofs[i]),
+				chunk_len,
+			)
+			.unwrap();
+		assert!(result);
+	}
+
+	for i in 0..num_shards {
+		if let Some(data) = row[i] {
+			assert_eq!(data, recovery_row[i]);
+		}
+	}
+
+	for i in 0..(num_shards / 2) {
+		if let Some(d) = row[i] {
+			assert_eq!(d, data[i]);
+		}
+	}
 }

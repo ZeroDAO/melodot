@@ -144,8 +144,11 @@ pub fn extend_and_reorder_elements<T: ReprConvert<FsG1>>(
 pub fn recover(fs: &FsFFTSettings, shards: &[Option<BlsScalar>]) -> Result<Vec<BlsScalar>, String> {
 	match shards.contains(&None) {
 		true => {
-			let poly =
-				FsPoly::recover_poly_from_samples(BlsScalar::slice_option_to_repr(shards), fs)?;
+			let mut shards_mut = shards.to_vec();
+			reverse_bit_order(&mut shards_mut);
+			let mut poly =
+				FsPoly::recover_poly_from_samples(BlsScalar::slice_option_to_repr(&shards_mut), fs)?;
+			reverse_bit_order(&mut poly.coeffs);
 			Ok(BlsScalar::vec_from_repr(poly.coeffs))
 		},
 		false => {
@@ -168,17 +171,20 @@ pub fn recover_poly(
 	fs: &FsFFTSettings,
 	shards: &[Option<BlsScalar>],
 ) -> Result<Polynomial, String> {
+	let mut shards_mut = shards.to_vec();
+	reverse_bit_order(&mut shards_mut);
+
 	let mut poly = match shards.contains(&None) {
 		true => {
 			let poly = FsPoly::recover_poly_coeffs_from_samples(
-				BlsScalar::slice_option_to_repr(shards),
+				BlsScalar::slice_option_to_repr(&shards_mut),
 				fs,
 			)?;
 			Polynomial::from(poly)
 		},
 		false => {
 			// shards does not contain None, it is safe
-			let data = shards.iter().map(|s| s.unwrap()).collect::<Vec<BlsScalar>>();
+			let data = shards_mut.iter().map(|s| s.unwrap()).collect::<Vec<BlsScalar>>();
 			let coeffs = fs.fft_fr(BlsScalar::slice_to_repr(&data), true).expect("");
 			Polynomial::from_coeffs(&coeffs)
 		},

@@ -29,10 +29,10 @@ use kzg::{
 	FFTSettings, FK20MultiSettings, Fr, KZGSettings, G1, G2,
 };
 
-use rust_kzg_blst::types::{
+use rust_kzg_blst::{types::{
 	fft_settings::FsFFTSettings, fk20_multi_settings::FsFK20MultiSettings, fr::FsFr, g1::FsG1,
 	g2::FsG2, kzg_settings::FsKZGSettings,
-};
+}, utils::reverse_bit_order};
 use scale_info::{Type, TypeInfo};
 // #[cfg(feature = "serde")]
 // use serde::de::Error;
@@ -227,6 +227,14 @@ pub trait ReprConvert<T>: Sized {
 	/// `&[Option<T>]`. Calling this method requires ensuring that the conversion is safe and that
 	/// `Self` and `T` have the same memory layout.
 	fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<T>];
+
+	/// Convert a mutable slice of `Option<Self>` to a mutable slice of `Option<T>`.
+	/// 
+	/// # Safety
+	/// This method uses `unsafe` code because it transmutes the pointer from `&mut [Option<Self>]`
+	/// to `&mut [Option<T>]`. Calling this method requires ensuring that the conversion is safe
+	/// and that `Self` and `T` have the same memory layout.
+	fn slice_option_mut_to_repr(value: &mut [Option<Self>]) -> &mut [Option<T>];
 }
 
 /// This macro provides a convenient way to convert a slice of the underlying representation to a
@@ -266,6 +274,11 @@ macro_rules! repr_convertible {
 			#[inline]
 			fn slice_option_to_repr(value: &[Option<Self>]) -> &[Option<$type>] {
 				unsafe { &*(value as *const [Option<Self>] as *const [Option<$type>]) }
+			}
+
+			#[inline]
+			fn slice_option_mut_to_repr(value: &mut [Option<Self>]) -> &mut [Option<$type>] {
+				unsafe { mem::transmute(value) }
 			}
 		}
 	};
@@ -528,9 +541,11 @@ impl KZG {
 		proof: &KZGProof,
 		chunk_size: usize,
 	) -> Result<bool, String> {
+		let mut ys = values.to_vec();
+		reverse_bit_order(&mut ys);
 		let pos = self.get_kzg_index(chunk_count, i, chunk_size);
 		let x = self.get_expanded_roots_of_unity_at(pos);
-		self.ks.check_proof_multi(&commitment.0, &proof.0, &x, values, chunk_size)
+		self.ks.check_proof_multi(&commitment.0, &proof.0, &x, &ys, chunk_size)
 	}
 
 	/// Compute a proof for the given polynomial and point index.

@@ -23,7 +23,6 @@ use melo_das_primitives::{
 	crypto::{Position, KZG},
 	segment::{Segment, SegmentData},
 };
-use rust_kzg_blst::utils::reverse_bit_order;
 
 use crate::{String, ToString, Vec};
 
@@ -47,8 +46,7 @@ pub fn recover_segment_datas(
 	y: u32,
 	segments_size: usize,
 ) -> Result<Vec<Segment>, String> {
-	let mut row = segment_datas_to_row(segment_datas, segments_size);
-	reverse_bit_order(&mut row);
+	let row = segment_datas_to_row(segment_datas, segments_size);
 	let poly = recover_poly(kzg.get_fs(), &row)?;
 
 	let recovery_row = extend_poly(kzg.get_fs(), &poly)?;
