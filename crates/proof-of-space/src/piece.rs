@@ -11,10 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-use crate::{
-	BlsScalar, CellMetadata, DasKv, Decode, Encode, FarmerId, KZGProof, Segment, Vec,
-	XValueManager, YPos, ZValueManager, FIELD_ELEMENTS_PER_SEGMENT,
-};
+#[cfg(feature = "std")]
+use crate::{CellMetadata, DasKv, YPos, ZValueManager};
+use crate::{Decode, Encode, FarmerId, Segment, Vec, XValueManager};
 #[cfg(feature = "std")]
 use anyhow::{anyhow, Ok, Result};
 use melo_das_primitives::Position;
@@ -96,35 +95,30 @@ where
 	pub fn x_values_iterator<'a>(
 		&'a self,
 		farmer_id: &'a FarmerId,
-	) -> impl Iterator<Item = (u32, &BlsScalar)> + 'a {
-		self.segments.iter().flat_map(move |segment| {
-			segment.content.data.iter().map(move |bls_scalar| {
-				let y = XValueManager::<BlockNumber>::calculate_y(farmer_id, bls_scalar);
-				(y, bls_scalar)
-			})
+	) -> impl Iterator<Item = (u32, &Segment)> + 'a {
+		self.segments.iter().map(move |segment| {
+			let y = XValueManager::<BlockNumber>::calculate_y(farmer_id, segment);
+			(y, segment)
 		})
 	}
 
-	pub fn cell(&self, pos: u32) -> Option<(BlsScalar, KZGProof)> {
-		let index = pos / FIELD_ELEMENTS_PER_SEGMENT as u32;
-		if index >= self.segments.len() as u32 {
+	pub fn cell(&self, pos: u32) -> Option<Segment> {
+		if pos >= self.segments.len() as u32 {
 			return None
 		}
-		let data_index = pos % FIELD_ELEMENTS_PER_SEGMENT as u32;
-		let segment = &self.segments[index as usize];
-		Some((segment.content.data[data_index as usize], segment.content.proof))
+		Some(self.segments[pos as usize].clone())
 	}
 
 	#[cfg(feature = "std")]
 	pub fn get_cell(
 		metadata: &CellMetadata<BlockNumber>,
 		db: &mut impl DasKv,
-	) -> Result<Option<(BlsScalar, KZGProof)>> {
+	) -> Result<Option<Segment>> {
 		db.get(&metadata.piece_metadata.key())
 			.map(|data| {
 				Decode::decode(&mut &data[..])
 					.map_err(|e| anyhow!("Failed to decode Piece from database: {}", e))
-					.map(|piece: Piece<BlockNumber>| piece.cell(metadata.pos))
+					.map(|piece: Piece<BlockNumber>| piece.cell(metadata.offset))
 			})
 			.transpose()
 			.map(|opt| opt.flatten())
@@ -138,7 +132,7 @@ where
 		self.x_values_iterator(farmer_id).enumerate().try_for_each(
 			|(index, (x, bls_scalar_ref))| {
 				let cell_metadata =
-					CellMetadata { piece_metadata: metadata_clone.clone(), pos: index as u32 };
+					CellMetadata { piece_metadata: metadata_clone.clone(), offset: index as u32 };
 
 				let x_value_manager =
 					XValueManager::<BlockNumber>::new(&metadata_clone, index as u32, x);
@@ -150,24 +144,16 @@ where
 				let match_cells = x_value_manager.match_cells(db)?;
 
 				for mc in match_cells {
-					if let Some((match_cell_data, _)) = Self::get_cell(&mc, db)? {
+					if let Some(seg) = Self::get_cell(&mc, db)? {
 						match x_pos {
 							YPos::Left(_) => {
-								let z_value_manager = ZValueManager::new(
-									&cell_metadata,
-									&mc,
-									bls_scalar_ref,
-									&match_cell_data,
-								);
+								let z_value_manager =
+									ZValueManager::new(&cell_metadata, &mc, bls_scalar_ref, &seg);
 								z_value_manager.save(db);
 							},
 							YPos::Right(_) => {
-								let z_value_manager = ZValueManager::new(
-									&cell_metadata,
-									&mc,
-									&match_cell_data,
-									bls_scalar_ref,
-								);
+								let z_value_manager =
+									ZValueManager::new(&cell_metadata, &mc, &seg, bls_scalar_ref);
 								z_value_manager.save(db);
 							},
 						}

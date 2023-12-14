@@ -21,14 +21,16 @@ pub(crate) use chacha20::{
 	ChaCha8, Nonce,
 };
 use codec::{Decode, Encode};
-use melo_core_primitives::config::FIELD_ELEMENTS_PER_SEGMENT;
+use melo_core_primitives::config::EXTENDED_SEGMENTS_PER_BLOB;
 use melo_das_db::traits::DasKv;
-use melo_das_primitives::{BlsScalar, KZGProof, Position, Segment};
+use melo_das_primitives::Segment;
+use scale_info::TypeInfo;
 pub use sp_core::H256;
 
 pub(crate) use alloc::vec::Vec;
 pub(crate) use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
+#[cfg(feature = "std")]
 pub mod mock;
 
 pub mod cell;
@@ -40,10 +42,53 @@ pub mod z_value_manager;
 
 pub use cell::{Cell, CellMetadata, PreCell};
 pub use piece::{Piece, PieceMetadata, PiecePosition};
-pub use solution::Solution;
 #[cfg(feature = "std")]
 pub use solution::find_solutions;
+pub use solution::Solution;
 pub use y_value_manager::{XValueManager, YPos};
 pub use z_value_manager::ZValueManager;
 
-pub type FarmerId = H256;
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct FarmerId(pub H256);
+
+impl From<H256> for FarmerId {
+	fn from(h: H256) -> Self {
+		Self(h)
+	}
+}
+
+impl From<FarmerId> for H256 {
+	fn from(f: FarmerId) -> Self {
+		f.0
+	}
+}
+
+impl Default for FarmerId {
+	fn default() -> Self {
+		Self(H256::default())
+	}
+}
+
+impl AsRef<H256> for FarmerId {
+	fn as_ref(&self) -> &H256 {
+		&self.0
+	}
+}
+
+impl AsRef<[u8]> for FarmerId {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_ref()
+	}
+}
+
+impl FarmerId {
+	pub fn new<T: Encode>(t: T) -> Self {
+		let encoded = t.encode();
+		if encoded.iter().all(|&byte| byte == 0) {
+			FarmerId(H256::default())
+		} else {
+			let h256 = BlakeTwo256::hash(&encoded);
+			FarmerId(h256)
+		}
+	}
+}

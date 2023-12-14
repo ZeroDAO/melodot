@@ -24,9 +24,10 @@ use alloc::{
 };
 use codec::{Decode, Encode};
 use derive_more::{AsMut, AsRef, From};
+use scale_info::TypeInfo;
 
 /// This struct represents a segment of data with a position and content.
-#[derive(Debug, Default, Decode, Encode, Clone, PartialEq, Eq, From, AsRef, AsMut)]
+#[derive(Debug, Default, Decode, Encode, Clone, PartialEq, Eq, From, AsRef, AsMut, TypeInfo)]
 pub struct Segment {
 	/// The position of the segment.
 	pub position: Position,
@@ -35,7 +36,7 @@ pub struct Segment {
 }
 
 /// This struct represents the data of a segment with a vector of BlsScalar and a KZGProof.
-#[derive(Decode, Encode, Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut)]
+#[derive(Decode, Encode, Debug, Default, Clone, PartialEq, Eq, From, AsRef, AsMut, TypeInfo)]
 pub struct SegmentData {
 	/// The data of the segment.
 	pub data: Vec<BlsScalar>,

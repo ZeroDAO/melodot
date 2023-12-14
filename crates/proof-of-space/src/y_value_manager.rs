@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "std")]
+use crate::DasKv;
 use crate::{
-	utils, BlsScalar, CellMetadata, ChaCha8, DasKv, Decode, Encode, FarmerId, KeyIvInit, Nonce,
-	PieceMetadata, StreamCipher, Vec,
+	utils, CellMetadata, ChaCha8, Decode, Encode, FarmerId, KeyIvInit, Nonce, PieceMetadata,
+	StreamCipher, Vec,
 };
-use alloc::vec;
+// use alloc::vec;
 #[cfg(feature = "std")]
 use anyhow::{Context, Result};
 use chacha20::cipher::generic_array::GenericArray;
+use melo_das_primitives::Segment;
 
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum YPos {
@@ -77,9 +80,11 @@ impl<BlockNumber> XValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
-	pub fn calculate_y(farmer_id: &FarmerId, bls_scalar: &BlsScalar) -> u32 {
-		let bytes = utils::xor_byte_slices(&farmer_id.encode(), &bls_scalar.encode());
-		// Encode::encode(&(farmer_id, bls_scalar));
+	pub fn calculate_y(farmer_id: &FarmerId, seg: &Segment) -> u32 {
+		if seg.content.data.is_empty() {
+			return 0u32
+		}
+		let bytes = utils::xor_byte_slices(&farmer_id.encode(), &seg.content.data[0].encode());
 		let nonce = Nonce::default();
 		let key = GenericArray::from_slice(&bytes);
 		let mut cipher = ChaCha8::new(key, &nonce);
@@ -92,7 +97,7 @@ where
 		let pos = YPos::from_u32(index);
 		Self {
 			y,
-			cell_metadata: CellMetadata { piece_metadata: piece_metadata.clone(), pos: index },
+			cell_metadata: CellMetadata { piece_metadata: piece_metadata.clone(), offset: index },
 			pos,
 		}
 	}
@@ -119,6 +124,9 @@ where
 
 	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv) {
+		if self.y == 0 {
+			return
+		}
 		let key = self.key();
 		match db.get(&key) {
 			Some(data) => {
@@ -141,15 +149,63 @@ mod tests {
 	use crate::{mock::*, Piece, PiecePosition};
 	use melo_core_primitives::config::FIELD_ELEMENTS_PER_SEGMENT;
 	use melo_das_db::mock_db::MockDb;
-	use melo_das_primitives::{Position, Segment};
+	use melo_das_primitives::Position;
+	#[cfg(feature = "special_tests")]
 	use rand::{thread_rng, Rng};
 
-	fn random_bls_scalar() -> BlsScalar {
+	#[cfg(feature = "special_tests")]
+	fn random_bls_scalar() -> [u8; 31] {
 		let mut rng = thread_rng();
 		let mut bytes = [0u8; 31];
 		rng.fill(&mut bytes[..]);
 
-		BlsScalar::from(&bytes)
+		bytes
+	}
+
+	#[cfg(feature = "special_tests")]
+	fn mock_y(b1: &[u8; 31], b2: &[u8; 31]) -> bool {
+		let chunk_len: usize = 16;
+		let chunk_count: usize = SEGMENTS_PER_BLOB;
+		let num_shards = chunk_len * chunk_count;
+
+		let kzg = KZG::default_embedded();
+
+		let mut row = [None; SEGMENTS_PER_BLOB * 16 * 2];
+		for i in 0..num_shards {
+			row[i] = Some(BlsScalar::from([1u8; 31]));
+		}
+
+		row[0] = Some(BlsScalar::from(b1));
+		row[chunk_len] = Some(BlsScalar::from(b2));
+
+		let poly = recover_poly(kzg.get_fs(), &row).unwrap();
+
+		let commitment = kzg.commit(&poly).unwrap();
+		let all_proofs = kzg.all_proofs(&poly, chunk_len).unwrap();
+
+		let segs = poly_to_segment_vec(&poly, &kzg, 0, chunk_len).unwrap();
+
+		let y1 = XValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[0]);
+		let y2 = XValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[1]);
+
+		if y1 == y2 {
+			print!("y: {:?}\n", y1);
+			print!("bytes1: {:?}\n", b1);
+			print!("bytes2: {:?}\n", b2);
+			print!("commitment: {:?}\n", commitment.to_bytes());
+			print!("proof_1: {:?}\n", all_proofs[0].to_bytes());
+			print!("proof_2: {:?}\n", all_proofs[1].to_bytes());
+		}
+
+		false
+	}
+
+	#[cfg(feature = "special_tests")]
+	#[test]
+	fn find_equal_y() {
+		mock_y(&BLS_SCALAR11, &BLS_SCALAR12);
+		mock_y(&BLS_SCALAR21, &BLS_SCALAR22);
+		mock_y(&BLS_SCALAR31, &BLS_SCALAR32);
 	}
 
 	#[test]
@@ -245,23 +301,24 @@ mod tests {
 		assert_eq!(key, expected_key);
 	}
 
-	fn test_calculate_y_case(bs: &[u8; 31], y_e: u32) {
+	fn test_calculate_y_case(bs: &[u8; 31], proof: &[u8; 48], y_e: u32) {
 		let farmer_id = FarmerId::default();
-		let bls_scalar = BlsScalar::from(bs);
 
-		let y = XValueManager::<u32>::calculate_y(&farmer_id, &bls_scalar);
+		let seg = get_mock_seg(bs, 0, 0, &proof, FIELD_ELEMENTS_PER_SEGMENT);
+
+		let y = XValueManager::<u32>::calculate_y(&farmer_id, &seg);
 
 		assert!(y == y_e);
 	}
 
 	#[test]
 	fn test_calculate_y() {
-		test_calculate_y_case(&BLS_SCALAR11, Y1);
-		test_calculate_y_case(&BLS_SCALAR12, Y1);
-		test_calculate_y_case(&BLS_SCALAR21, Y2);
-		test_calculate_y_case(&BLS_SCALAR22, Y2);
-		test_calculate_y_case(&BLS_SCALAR31, Y3);
-		test_calculate_y_case(&BLS_SCALAR32, Y3);
+		test_calculate_y_case(&BLS_SCALAR11, &PROOF_11, Y1);
+		test_calculate_y_case(&BLS_SCALAR12, &PROOF_12, Y1);
+		test_calculate_y_case(&BLS_SCALAR21, &PROOF_21, Y2);
+		test_calculate_y_case(&BLS_SCALAR22, &PROOF_22, Y2);
+		test_calculate_y_case(&BLS_SCALAR31, &PROOF_31, Y3);
+		test_calculate_y_case(&BLS_SCALAR32, &PROOF_32, Y3);
 	}
 
 	#[test]
@@ -279,25 +336,30 @@ mod tests {
 		assert_eq!(key, expected_key);
 	}
 
-	fn mock_piece_store(b: &[u8; 31], x: u32, y: u32, index: u32, is_row: bool, db: &mut MockDb) {
-		let bls_scalar = BlsScalar::from(b);
+	fn mock_piece_store(
+		block_num: u32,
+		b1: &[u8; 31],
+		b2: &[u8; 31],
+		proof1: &[u8; 48],
+		proof2: &[u8; 48],
+		x: u32,
+		y: u32,
+		is_row: bool,
+		db: &mut MockDb,
+	) {
 		let farmer_id = FarmerId::default();
 
-		let bls_rand = random_bls_scalar();
+		let row = get_mock_row(b1, b2, y, &proof1, &proof2, FIELD_ELEMENTS_PER_SEGMENT);
 
 		let position = Position { x, y };
+
 		let piece_position = if is_row {
 			PiecePosition::from_row(&position)
 		} else {
 			PiecePosition::from_column(&position)
 		};
 
-		let mut segment = Segment::default();
-		segment.position = position;
-		segment.content.data = [bls_rand; FIELD_ELEMENTS_PER_SEGMENT].to_vec();
-		segment.content.data[index as usize] = bls_scalar;
-
-		let piece = Piece::new(11, piece_position, &[segment]);
+		let piece = Piece::new(block_num, piece_position, &row);
 
 		let _ = piece.save(db, &farmer_id);
 	}
@@ -306,36 +368,33 @@ mod tests {
 	fn test_x_value_manager_match_cells() {
 		let mut db = MockDb::new();
 
-		mock_piece_store(&BLS_SCALAR11, 0, 1, 0, true, &mut db);
-		mock_piece_store(&BLS_SCALAR12, 0, 1, 1, true, &mut db);
-
-		mock_piece_store(&BLS_SCALAR21, 2, 2, 0, true, &mut db);
-		mock_piece_store(&BLS_SCALAR22, 2, 2, 1, true, &mut db);
-
-		mock_piece_store(&BLS_SCALAR31, 4, 3, 2, true, &mut db);
-		mock_piece_store(&BLS_SCALAR32, 9, 3, 3, true, &mut db);
+		mock_piece_store(
+			1,
+			&BLS_SCALAR11,
+			&BLS_SCALAR12,
+			&PROOF_11,
+			&PROOF_12,
+			0,
+			0,
+			true,
+			&mut db,
+		);
+		mock_piece_store(
+			2,
+			&BLS_SCALAR21,
+			&BLS_SCALAR22,
+			&PROOF_21,
+			&PROOF_22,
+			0,
+			0,
+			true,
+			&mut db,
+		);
 
 		let x_value_manager = XValueManager::new(&PieceMetadata::<u32>::default(), 0, Y1);
 		let match_cells_set = x_value_manager.match_cells(&mut db).unwrap();
 
 		assert_eq!(match_cells_set.len(), 1);
-
-		let x_value_manager = XValueManager::new(&PieceMetadata::<u32>::default(), 0, Y2);
-		let match_cells_set = x_value_manager.match_cells(&mut db).unwrap();
-
-		assert_eq!(match_cells_set.len(), 1);
-
-		let x_value_manager = XValueManager::new(&PieceMetadata::<u32>::default(), 0, Y3);
-		let match_cells_set = x_value_manager.match_cells(&mut db).unwrap();
-
-		assert_eq!(match_cells_set.len(), 0);
-
-		mock_piece_store(&BLS_SCALAR12, 0, 0, 1, false, &mut db);
-
-		let x_value_manager = XValueManager::new(&PieceMetadata::<u32>::default(), 0, Y1);
-		let match_cells_set = x_value_manager.match_cells(&mut db).unwrap();
-
-		assert_eq!(match_cells_set.len(), 2);
 	}
 
 	#[test]

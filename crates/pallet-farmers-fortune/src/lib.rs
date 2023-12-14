@@ -16,13 +16,12 @@
 
 use frame_support::{
 	pallet_prelude::*,
-	sp_runtime::traits::Hash,
+	sp_runtime::traits::CheckedSub,
 	traits::{Currency, Get},
 };
 use frame_system::pallet_prelude::*;
 use melo_core_primitives::{config::PRE_CELL_LEADING_ZEROS, traits::CommitmentFromPosition};
-use melo_proof_of_space::{Cell, Solution, PreCell};
-use sp_runtime::traits::BlakeTwo256;
+use melo_proof_of_space::{Cell, FarmerId, PreCell, Solution};
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -30,8 +29,12 @@ pub use pallet::*;
 pub mod weights;
 pub use weights::*;
 
+mod mock;
+mod test;
+
 #[frame_support::pallet]
 pub mod pallet {
+
 	use super::*;
 
 	#[pallet::pallet]
@@ -107,7 +110,6 @@ pub mod pallet {
 			pre_cell: PreCell,
 			win_cell_left: Cell<BlockNumberFor<T>>,
 			win_cell_right: Cell<BlockNumberFor<T>>,
-			win_block_num: BlockNumberFor<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -119,38 +121,37 @@ pub mod pallet {
 			);
 			ensure!(!claimants.contains(&who), Error::<T>::AlreadyClaimed);
 
-			let pre_block_num = frame_support::sp_runtime::traits::CheckedSub::checked_sub(
+			let pre_block_num = CheckedSub::checked_sub(
 				&now,
 				&T::BlockNumber::from(1u32),
 			)
 			.ok_or(Error::<T>::BlockNumberUnderflow)?;
 
 			let pre_block_hash = <frame_system::Pallet<T>>::block_hash(pre_block_num);
-			let win_block_hash = <frame_system::Pallet<T>>::block_hash(win_block_num);
+			let win_block_hash_left =
+				<frame_system::Pallet<T>>::block_hash(win_cell_left.metadata.block_number());
+			let win_block_hash_right =
+				<frame_system::Pallet<T>>::block_hash(win_cell_right.metadata.block_number());
 
 			let left_block_num = win_cell_left.metadata.block_number();
 			let right_block_num = win_cell_right.metadata.block_number();
 
 			// Get commitments from positions
-			let pre_commit = T::CommitmentFromPosition::commitments(
-				pre_block_num,
-				&pre_cell.seg_position(),
-			)
-			.ok_or(Error::<T>::PreCommitNotFound)?;
+			let pre_commit =
+				T::CommitmentFromPosition::commitments(pre_block_num, &pre_cell.seg.position)
+					.ok_or(Error::<T>::PreCommitNotFound)?;
 
-			let left_commit = T::CommitmentFromPosition::commitments(
-				left_block_num,
-				&win_cell_left.metadata.seg_position(),
-			)
-			.ok_or(Error::<T>::WinCommitNotFound)?;
+			let left_commit =
+				T::CommitmentFromPosition::commitments(left_block_num, &win_cell_left.seg.position)
+					.ok_or(Error::<T>::WinCommitNotFound)?;
 
 			let right_commit = T::CommitmentFromPosition::commitments(
 				right_block_num,
-				&win_cell_right.metadata.seg_position(),
+				&win_cell_right.seg.position,
 			)
 			.ok_or(Error::<T>::WinCommitNotFound)?;
 
-			let farmer_id = BlakeTwo256::hash_of(&who);
+			let farmer_id = FarmerId::new::<T::AccountId>(who.clone());
 
 			let solution = Solution::<T::Hash, BlockNumberFor<T>>::new(
 				&pre_block_hash,
@@ -165,8 +166,8 @@ pub mod pallet {
 					&pre_commit,
 					&left_commit,
 					&right_commit,
-					&win_block_hash,
-					&win_block_hash,
+					&win_block_hash_left,
+					&win_block_hash_right,
 					PRE_CELL_LEADING_ZEROS,
 					1,
 				),

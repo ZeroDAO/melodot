@@ -13,12 +13,13 @@
 // limitations under the License.
 
 use crate::{
-	utils, BlakeTwo256, Cell, DasKv, Decode, Encode, FarmerId, HashT, Piece, PreCell, Vec,
-	ZValueManager,
+	utils, BlakeTwo256, Cell, Decode, Encode, FarmerId, HashT, PreCell, Vec, ZValueManager,
 };
 #[cfg(feature = "std")]
+use crate::{DasKv, Piece};
+#[cfg(feature = "std")]
 use anyhow::{Ok, Result};
-use melo_das_primitives::{KZGCommitment, KZG};
+use melo_das_primitives::{KZGCommitment, Segment, KZG};
 use scale_info::TypeInfo;
 
 /// `Solution` represents a potential solution in the system.
@@ -55,7 +56,7 @@ where
 	) -> Self {
 		Self {
 			block_hash: block_hash.clone(),
-			farmer_id: *farmer_id,
+			farmer_id: farmer_id.clone(),
 			pre_cell: pre_cell.clone(),
 			win_cell_left: win_cell_left.clone(),
 			win_cell_right: win_cell_right.clone(),
@@ -77,7 +78,7 @@ where
 		let kzg = KZG::default_embedded();
 		let z = ZValueManager::<BlockNumber>::get_challenge(self.block_hash.as_ref());
 
-		Self::check_pre_cell(&self.pre_cell.data, &self.farmer_id, pre_cell_leading_zero) &&
+		Self::check_pre_cell(&self.pre_cell.seg, &self.farmer_id, pre_cell_leading_zero) &&
 			Self::is_index_valid(
 				&self.farmer_id,
 				&self.block_hash,
@@ -96,12 +97,8 @@ where
 			)
 	}
 
-	pub fn check_pre_cell(
-		cell_data: &[u8; 31],
-		farmer_id: &FarmerId,
-		pre_cell_leading_zero: u8,
-	) -> bool {
-		let pre_cell_hash = BlakeTwo256::hash_of(cell_data);
+	pub fn check_pre_cell(seg: &Segment, farmer_id: &FarmerId, pre_cell_leading_zero: u8) -> bool {
+		let pre_cell_hash = BlakeTwo256::hash_of(seg);
 		let xored_hash = utils::xor_byte_slices(farmer_id.as_ref(), pre_cell_hash.as_ref());
 
 		utils::validate_leading_zeros(&xored_hash, pre_cell_leading_zero as u32)
@@ -177,7 +174,6 @@ where
 		n: u32,
 		z: u16,
 	) -> bool {
-		// let z = ZValueManager::<BlockNumber>::get_challenge(self.block_hash.as_ref());
 		utils::is_index_valid(
 			win_left_block_hash.as_ref(),
 			self.win_cell_left.piece_index() as usize,
@@ -191,8 +187,8 @@ where
 		) && ZValueManager::<BlockNumber>::verify(
 			z,
 			&self.farmer_id,
-			&self.win_cell_left.data.into(),
-			&self.win_cell_right.data.into(),
+			&self.win_cell_left.seg,
+			&self.win_cell_right.seg,
 			&self.win_cell_left.metadata,
 			&self.win_cell_right.metadata,
 		)
@@ -246,9 +242,9 @@ where
 			let left_cell = Piece::get_cell(&left, db).ok()?;
 			let right_cell = Piece::get_cell(&right, db).ok()?;
 			if let (Some(left_cell_data), Some(right_cell_data)) = (left_cell, right_cell) {
-				let left_cell = Cell::<BlockNumber>::new(left, left_cell_data.1, &left_cell_data.0);
-				let right_cell =
-					Cell::<BlockNumber>::new(right, right_cell_data.1, &right_cell_data.0);
+				let left_cell = Cell::<BlockNumber>::new(left, left_cell_data);
+				let right_cell = Cell::<BlockNumber>::new(right, right_cell_data);
+
 				Some(Solution::<Hash, BlockNumber>::new(
 					block_hash,
 					farmer_id,
@@ -269,19 +265,8 @@ mod tests {
 	use super::*;
 	use crate::{mock::*, CellMetadata, PieceMetadata, PiecePosition};
 	use melo_das_db::mock_db::MockDb;
-	use melo_das_primitives::{BlsScalar, KZGProof, Position, Segment};
+	use melo_das_primitives::Segment;
 	use sp_core::H256;
-
-	#[test]
-	fn test_check_pre_cell() {
-		let cell_data: [u8; 31] = [0; 31];
-		let farmer_id = FarmerId::default();
-		let pre_cell_leading_zero: u8 = 0;
-
-		let result =
-			Solution::<H256, u32>::check_pre_cell(&cell_data, &farmer_id, pre_cell_leading_zero);
-		assert!(result);
-	}
 
 	#[test]
 	fn test_is_index_valid() {
@@ -320,13 +305,11 @@ mod tests {
 		let cell_metadata_left = CellMetadata::new(piece_metadata_left, 0u32);
 		let cell_metadata_right = CellMetadata::new(piece_metadata_right, 1u32);
 
-		let proof = KZGProof::default();
-
 		let win_left_block_hash: H256 = [0; 32].into();
 		let win_right_block_hash: H256 = [0; 32].into();
 
-		let left_cell = Cell::new(cell_metadata_left, proof, &BlsScalar::from(BLS_SCALAR11));
-		let right_cell = Cell::new(cell_metadata_right, proof, &BlsScalar::from(BLS_SCALAR12));
+		let left_cell = Cell::new(cell_metadata_left, Segment::default());
+		let right_cell = Cell::new(cell_metadata_right, Segment::default());
 
 		let solution = Solution::<H256, u32>::new(
 			&win_left_block_hash.into(),
@@ -348,17 +331,11 @@ mod tests {
 		let pre_cell = PreCell::default();
 		let block_hash: H256 = [0; 32].into();
 
-		let bs_left = BlsScalar::from(BLS_SCALAR11);
-		let bs_right = BlsScalar::from(BLS_SCALAR12);
+		let row = get_mock_row(&BLS_SCALAR11, &BLS_SCALAR12, 0, &PROOF_11, &PROOF_12, 16);
 
-		let mut segment = Segment::default();
-		segment.position = Position { x: 0, y: 0 };
-		segment.content.data.push(bs_left);
-		segment.content.data.push(bs_right);
-		
 		let piece_pos = PiecePosition::Row(0);
 
-		let piece = Piece::new(11, piece_pos, &[segment]);
+		let piece = Piece::new(11, piece_pos, &row);
 
 		let _ = piece.save(&mut db, &farmer_id);
 
@@ -376,13 +353,63 @@ mod tests {
 		.expect("Failed to find solutions");
 
 		assert!(!result.is_empty(), "Should have found solutions");
+	}
 
-		for solution in result {
-			assert_eq!(solution.block_hash, block_hash, "Incorrect block hash");
-			assert_eq!(solution.farmer_id, farmer_id, "Incorrect farmer id");
+	#[test]
+	fn test_solution_verify() {
+		let kzg = KZG::default_embedded();
+		let commitment = KZGCommitment::try_from(COMMIT1).unwrap();
 
-			assert_eq!(solution.win_cell_left.data, BLS_SCALAR12);
-			assert_eq!(solution.win_cell_right.data, BLS_SCALAR11);
-		}
+		let row = get_mock_row(&BLS_SCALAR11, &BLS_SCALAR12, 0, &PROOF_11, &PROOF_12, 16);
+
+		let pre_cell = PreCell::new(PiecePosition::Row(0), row[0].clone());
+
+		let piece_metadata = PieceMetadata::new(5, PiecePosition::Row(0));
+
+		let left_cell_metadata = CellMetadata::new(piece_metadata.clone(), 0);
+		let right_cell_metadata = CellMetadata::new(piece_metadata, 1);
+
+		let win_cell_left = Cell::new(left_cell_metadata, row[0].clone());
+
+		let win_cell_right = Cell::new(right_cell_metadata, row[1].clone());
+
+		let solution = Solution::<H256, u32>::new(
+			&BLOCK_HASH1.into(),
+			&FarmerId::default(),
+			&pre_cell,
+			&win_cell_left,
+			&win_cell_right,
+		);
+
+		let check_pre =
+			Solution::<H256, u32>::check_pre_cell(&solution.pre_cell.seg, &solution.farmer_id, 0);
+
+		assert!(check_pre);
+
+		let is_index_valid = Solution::<H256, u32>::is_index_valid(
+			&solution.farmer_id,
+			&solution.block_hash,
+			solution.pre_cell.piece_index() as usize,
+			32,
+			0,
+		);
+
+		assert!(is_index_valid);
+
+		let is_pre_cell_kzg_proof_valid = solution.pre_cell.verify_kzg_proof(&kzg, &commitment);
+
+		assert!(is_pre_cell_kzg_proof_valid);
+
+		let result = solution.verify(
+			&commitment,
+			&commitment,
+			&commitment,
+			&BLOCK_HASH1.into(),
+			&BLOCK_HASH1.into(),
+			0,
+			0,
+		);
+
+		assert!(result);
 	}
 }

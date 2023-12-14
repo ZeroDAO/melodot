@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use crate::{
-	BlsScalar, Decode, Encode, KZGProof, PieceMetadata, PiecePosition, Position, YPos,
-	FIELD_ELEMENTS_PER_SEGMENT,
+	Decode, Encode, PieceMetadata, PiecePosition, YPos, EXTENDED_SEGMENTS_PER_BLOB,
 };
-use melo_das_primitives::{KZGCommitment, SafeScalar, KZG};
+use melo_core_primitives::config::SEGMENTS_PER_BLOB;
+use melo_das_primitives::{KZGCommitment, Segment, KZG};
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 
@@ -26,31 +26,20 @@ where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
 	pub piece_metadata: PieceMetadata<BlockNumber>,
-	pub pos: u32,
+	pub offset: u32,
 }
 
 impl<BlockNumber> CellMetadata<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
-	pub fn new(piece_metadata: PieceMetadata<BlockNumber>, pos: u32) -> Self {
-		Self { piece_metadata, pos }
-	}
-	
-	pub fn seg_position(&self) -> Position {
-		get_position(&self.piece_metadata.pos, self.pos)
-	}
-
-	pub fn index(&self) -> u32 {
-		match self.piece_metadata.pos {
-			PiecePosition::Row(_) => self.pos,
-			PiecePosition::Column(_) => self.piece_metadata.pos.to_u32(),
-		}
+	pub fn new(piece_metadata: PieceMetadata<BlockNumber>, offset: u32) -> Self {
+		Self { piece_metadata, offset }
 	}
 
 	pub fn is_pair(&self, other: &Self) -> bool {
-		let x_pos = YPos::from_u32(self.pos);
-		let other_x_pos = YPos::from_u32(other.pos);
+		let x_pos = YPos::from_u32(self.offset);
+		let other_x_pos = YPos::from_u32(other.offset);
 		x_pos.is_pair(&other_x_pos)
 	}
 
@@ -66,22 +55,15 @@ where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
 	pub metadata: CellMetadata<BlockNumber>,
-	// The KZG proof of the cell's data in blob.
-	pub proof: KZGProof,
-	// The data of the cell.
-	pub data: [u8; 31],
+	pub seg: Segment,
 }
 
 impl<BlockNumber> Cell<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
-	pub fn new(metadata: CellMetadata<BlockNumber>, proof: KZGProof, data: &BlsScalar) -> Self {
-		Self { metadata, proof, data: data.to_bytes_safe() }
-	}
-
-	pub fn index(&self) -> u32 {
-		self.metadata.index()
+	pub fn new(metadata: CellMetadata<BlockNumber>, seg: Segment) -> Self {
+		Self { metadata, seg }
 	}
 
 	pub fn piece_index(&self) -> u32 {
@@ -89,59 +71,26 @@ where
 	}
 
 	pub fn verify_kzg_proof(&self, kzg: &KZG, commitment: &KZGCommitment) -> bool {
-		kzg.verify(commitment, self.index(), &self.data.into(), &self.proof)
-			.unwrap_or(false)
+		self.seg.verify(kzg, commitment, SEGMENTS_PER_BLOB).unwrap_or(false)
 	}
 }
 
 #[derive(Encode, Decode, RuntimeDebug, Default, Clone, PartialEq, Eq, TypeInfo)]
 pub struct PreCell {
-	/// The KZG proof of the cell's data in blob.
-	pub proof: KZGProof,
-	/// The data of the cell, limited to 31 bytes.
-	pub data: [u8; 31],
-	/// The position of the `Seg` in which this `PreCell` is located.
+	pub seg: Segment,
 	pub position: PiecePosition,
-	///
-	pub offset: u32,
 }
 
 impl PreCell {
-	pub fn new(position: PiecePosition, proof: KZGProof, data: &BlsScalar, offset: u32) -> Self {
-		Self {
-			position,
-			proof,
-			offset,
-			data: data.to_bytes_safe(),
-		}
+	pub fn new(position: PiecePosition, seg: Segment) -> Self {
+		Self { position, seg }
 	}
 
 	pub fn piece_index(&self) -> u32 {
 		self.position.to_u32()
 	}
 
-	pub fn seg_position(&self) -> Position {
-		get_position(&self.position, self.offset)
-	}
-
-	pub fn index(&self) -> u32 {
-		match self.position {
-			PiecePosition::Row(_) => self.offset,
-			PiecePosition::Column(col) => col,
-		}
-	}
-
 	pub fn verify_kzg_proof(&self, kzg: &KZG, commitment: &KZGCommitment) -> bool {
-		kzg.verify(commitment, self.index(), &self.data.into(), &self.proof)
-			.unwrap_or(false)
-	}
-}
-
-fn get_position(piece_pos: &PiecePosition, cell_offset: u32) -> Position {
-	let seg_index = cell_offset / FIELD_ELEMENTS_PER_SEGMENT as u32;
-	let piece_index = piece_pos.to_u32();
-	match piece_pos {
-		PiecePosition::Row(_) => Position { x: seg_index, y: piece_index },
-		PiecePosition::Column(_) => Position { x: piece_index, y: seg_index },
+		self.seg.verify(kzg, commitment, EXTENDED_SEGMENTS_PER_BLOB).unwrap_or(false)
 	}
 }

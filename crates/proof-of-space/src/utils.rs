@@ -37,9 +37,9 @@ pub fn fold_hash(hash: &[u8]) -> u32 {
 }
 
 pub fn hash_to_u16_xor(hash: &[u8]) -> u16 {
-    hash.chunks(2).fold(0u16, |acc, chunk| {
-        acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
-    })
+	hash.chunks(2).fold(0u16, |acc, chunk| {
+		acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
+	})
 }
 
 /// Selects indices from a hash where a specified number of consecutive bits are 1.
@@ -154,7 +154,28 @@ pub fn xor_byte_slices(a: &[u8], b: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	// use crate::BlakeTwo256;
+	// use sp_core::Hasher;
 	pub use sp_core::H256;
+
+	// #[test]
+	// fn find_y_collisions() {
+	// 	let target_hashes = [58239u16];
+	// 	let mut input = 0u64;
+
+	// 	loop {
+	// 		let hash = BlakeTwo256::hash(&input.to_be_bytes());
+	// 		let hash_bytes = hash.as_ref();
+	// 		let result = hash_to_u16_xor(hash_bytes);
+
+	// 		if target_hashes.contains(&result) {
+	// 			println!("Found a match for {}: input = {:?}", result, hash_bytes);
+	// 			break
+	// 		}
+
+	// 		input += 1;
+	// 	}
+	// }
 
 	#[test]
 	fn test_fold_hash() {

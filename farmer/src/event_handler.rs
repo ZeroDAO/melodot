@@ -17,22 +17,19 @@ use anyhow::{anyhow, Context};
 use futures::lock::Mutex;
 use log::{error, info};
 use melo_das_network::Arc;
-use melo_das_primitives::{Position, SafeScalar, Segment};
+use melo_das_primitives::{Position, Segment};
 use meloxt::{Client, MelodotHeader as Header};
-use subxt::{
-	config::{substrate::BlakeTwo256, Hasher},
-	utils::H256,
-};
+use subxt::utils::H256;
 use tokio::sync::mpsc::Sender;
 use tokio_stream::StreamExt;
 
 use melo_core_primitives::{
-	config::{EXTENDED_SEGMENTS_PER_BLOB, FIELD_ELEMENTS_PER_SEGMENT, PRE_CELL_LEADING_ZEROS},
+	config::{EXTENDED_SEGMENTS_PER_BLOB, PRE_CELL_LEADING_ZEROS},
 	traits::HeaderWithCommitment,
 };
 use melo_das_db::sqlite::SqliteDasDb;
 use melo_daser::{DasKv, DasNetworkServiceWrapper, FetchData, SamplingClient};
-use melo_proof_of_space::{find_solutions, Piece, PiecePosition, PreCell, Solution};
+use melo_proof_of_space::{find_solutions, FarmerId, Piece, PiecePosition, PreCell, Solution};
 
 pub async fn run<H: HeaderWithCommitment + Sync>(
 	rpc_client: Client,
@@ -44,8 +41,10 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 	let client: SamplingClient<H, SqliteDasDb, DasNetworkServiceWrapper> =
 		SamplingClient::new(network, database.clone());
 
-	let signer = rpc_client.signer.public_key();
-	let farmer_id = BlakeTwo256::hash(signer.as_ref());
+	let account_id = rpc_client.signer.public_key().to_account_id();
+
+	// let signer =
+	let farmer_id = FarmerId::new(account_id);
 
 	let mut new_heads_sub = match rpc_client.api.blocks().subscribe_best().await {
 		Ok(subscription) => {
@@ -155,7 +154,7 @@ fn process_segments<F>(
 	segments: &[Option<Segment>],
 	block_number: u32,
 	db: &mut impl DasKv,
-	farmer_id: &H256,
+	farmer_id: &FarmerId,
 	piece_position_fn: F,
 ) where
 	F: Fn(&Position) -> PiecePosition,
@@ -175,41 +174,16 @@ fn process_segments<F>(
 
 fn process_segment_data<F>(
 	segment: &Option<Segment>,
-	farmer_id: &H256,
+	farmer_id: &FarmerId,
 	position_fn: F,
 	pre_cells: &mut Vec<PreCell>,
 ) where
 	F: Fn(&Position) -> PiecePosition,
 {
 	if let Some(seg) = segment {
-		seg.content.data.iter().enumerate().for_each(|(i, data)| {
-			if Solution::<H256, u32>::check_pre_cell(
-				&data.to_bytes_safe(),
-				farmer_id,
-				PRE_CELL_LEADING_ZEROS,
-			) {
-				let piece_position = position_fn(&seg.position);
-				let offset = calculate_offset(&seg.position, i, &piece_position);
-				pre_cells.push(PreCell::new(
-					piece_position,
-					seg.content.proof,
-					data,
-					offset,
-				));
-			}
-		});
-	}
-}
-
-fn calculate_offset(
-	segment_position: &Position,
-	index: usize,
-	piece_position: &PiecePosition,
-) -> u32 {
-	match piece_position {
-		PiecePosition::Row(_) =>
-			segment_position.x * FIELD_ELEMENTS_PER_SEGMENT as u32 + index as u32,
-		PiecePosition::Column(_) =>
-			segment_position.y * FIELD_ELEMENTS_PER_SEGMENT as u32 + index as u32,
+		if Solution::<H256, u32>::check_pre_cell(&seg, farmer_id, PRE_CELL_LEADING_ZEROS) {
+			let piece_position = position_fn(&seg.position);
+			pre_cells.push(PreCell::new(piece_position, seg.clone()));
+		}
 	}
 }

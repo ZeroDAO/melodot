@@ -20,6 +20,15 @@ frame-system = { default-features = false, git = "https://github.com/paritytech/
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+[dev-dependencies]
+melo-das-primitives = { version = "0.1.0", path = "../das-primitives" }
+
+sp-io = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+melo-proof-of-space = { version = "0.0.1", path = "../proof-of-space" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+lazy_static = "1.4.0"
 
 [features]
 default = ["std"]
@@ -32,5 +41,6 @@ std = [
     "scale-info/std",
     "sp-runtime/std",
     "sp-std/std",
-    "melo-proof-of-space/std"
+    "melo-proof-of-space/std",
+    "sp-core/std",
 ]
