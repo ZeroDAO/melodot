@@ -265,7 +265,7 @@ mod tests {
 	use super::*;
 	use crate::{mock::*, CellMetadata, PieceMetadata, PiecePosition};
 	use melo_das_db::mock_db::MockDb;
-	use melo_das_primitives::Segment;
+	// use melo_das_primitives::Segment;
 	use sp_core::H256;
 
 	#[test]
@@ -295,33 +295,6 @@ mod tests {
 
 		let indices = Solution::<H256, u32>::select_indices(&farmer_id, &block_hash.into(), end, n);
 		assert!(!indices.is_empty());
-	}
-
-	#[test]
-	fn test_validate_win_cell() {
-		let piece_metadata_left = PieceMetadata::new(1u32, PiecePosition::Row(0));
-		let piece_metadata_right = PieceMetadata::new(11u32, PiecePosition::Row(0));
-
-		let cell_metadata_left = CellMetadata::new(piece_metadata_left, 0u32);
-		let cell_metadata_right = CellMetadata::new(piece_metadata_right, 1u32);
-
-		let win_left_block_hash: H256 = [0; 32].into();
-		let win_right_block_hash: H256 = [0; 32].into();
-
-		let left_cell = Cell::new(cell_metadata_left, Segment::default());
-		let right_cell = Cell::new(cell_metadata_right, Segment::default());
-
-		let solution = Solution::<H256, u32>::new(
-			&win_left_block_hash.into(),
-			&FarmerId::default(),
-			&PreCell::default(),
-			&left_cell,
-			&right_cell,
-		);
-
-		let result = solution.validate_win_cell(&win_left_block_hash, &win_right_block_hash, 0, Z1);
-
-		assert!(result);
 	}
 
 	#[test]

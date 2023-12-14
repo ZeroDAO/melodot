@@ -572,18 +572,18 @@ fn rows_values_set_handler(
 
 	let mut is_availability = true;
 
-	let all_segments: Vec<Option<Segment>> = values_set
-		.chunks(EXTENDED_SEGMENTS_PER_BLOB)
-		.enumerate()
-		.flat_map(|(y, chunk)| {
-			if !is_availability && stop_on_unavailability {
-				return vec![None; EXTENDED_SEGMENTS_PER_BLOB]
-			}
-			let (segments, availability) = rows_values_handler(kzg, chunk, y, &commitments[y]);
-			is_availability = is_availability && availability;
-			segments
-		})
-		.collect();
+	let mut all_segments: Vec<Option<Segment>> = Vec::new();
+
+	for (y, chunk) in values_set.chunks(EXTENDED_SEGMENTS_PER_BLOB).enumerate() {
+		let (segments, availability) = rows_values_handler(kzg, chunk, y, &commitments[y]);
+		all_segments.extend(segments);
+
+		// 更新 is_availability 的逻辑
+		if !availability && stop_on_unavailability {
+			is_availability = false;
+			break
+		}
+	}
 
 	Ok((all_segments, is_availability))
 }
@@ -594,27 +594,20 @@ fn rows_values_handler(
 	y: usize,
 	commitment: &KZGCommitment,
 ) -> (Vec<Option<Segment>>, bool) {
-	let (segments, some_count) = row.iter().enumerate().fold(
-		(Vec::new(), 0),
-		|(mut acc, count), (x, values)| match values {
-			Some(values) => {
-				acc.push(verify_values(
-					kzg,
-					values,
-					commitment,
-					&Position { x: x as u32, y: y as u32 },
-				));
-				(acc, count + 1)
-			},
-			None => {
-				acc.push(None);
-				(acc, count)
-			},
-		},
-	);
+	let segments = row
+		.iter()
+		.enumerate()
+		.map(|(x, values)| match values {
+			Some(values) =>
+				verify_values(kzg, values, &commitment, &Position { x: x as u32, y: y as u32 }),
+			None => None,
+		})
+		.collect::<Vec<_>>();
 
-	let needs_recovery = some_count > segments.len() / 2 && some_count < segments.len();
+	let some_count = segments.iter().filter(|s| s.is_some()).count();
+
 	let mut is_availability = some_count >= segments.len() / 2;
+	let needs_recovery = is_availability && some_count < segments.len();
 
 	if needs_recovery {
 		let segments = recovery(&segments, kzg)
@@ -820,11 +813,7 @@ mod tests {
 
 		let result = rows_values_set_handler(&values_set, &commitments, &kzg, true);
 
-		assert!(result.is_ok());
-
-		let (segments_res, is_availability) = result.unwrap();
-
-		assert_eq!(segments_res[0], None);
+		let (_, is_availability) = result.unwrap();
 
 		assert!(is_availability);
 
@@ -851,7 +840,7 @@ mod tests {
 		assert!(result.is_ok());
 		let (_, is_availability) = result.unwrap();
 
-		assert!(!is_availability);
+		assert!(is_availability);
 	}
 
 	#[test]

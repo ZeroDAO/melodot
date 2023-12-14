@@ -120,43 +120,34 @@ pub fn recovery_row_from_segments(
 /// A `Result` containing a vector of `Segment`s that represent the recovered data of the same row, or an error message if the 
 /// segment size and chunk count are not a power of two, or if the segments are not from the same row or not of the same size.
 pub fn recovery_order_row_from_segments(
-	order_segments: &[Option<Segment>],
-	kzg: &KZG,
+    order_segments: &[Option<Segment>],
+    kzg: &KZG,
 ) -> Result<Vec<Segment>, String> {
-	let chunk_count = order_segments.len();
-	let mut y = None;
-	let mut size = None;
+    let chunk_count = order_segments.len();
 
-	if !chunk_count.is_power_of_two() {
-		return Err("segment size and chunk_count must be a power of two".to_string())
-	}
+    if !chunk_count.is_power_of_two() {
+        return Err("segment size and chunk_count must be a power of two".to_string());
+    }
 
-	if order_segments.iter().any(|s| {
-		if let Some(segment) = s {
-			if y.is_none() {
-				y = Some(segment.position.y);
-			}
-			if size.is_none() {
-				size = Some(segment.size());
-			}
-			y == Some(segment.position.y) && size == Some(segment.size())
-		} else {
-			true
-		}
-	}) {
-		return Err("segments are not from the same row or not of the same size".to_string())
-	}
+    let mut iter = order_segments.iter().filter_map(|s| s.as_ref());
 
-	let segment_datas = order_segments
-		.iter()
-		.map(|s| s.as_ref().map(|segment| segment.content.clone()))
-		.collect::<Vec<_>>();
+    if let Some(first_segment) = iter.next() {
+        let y = first_segment.position.y;
+        let size = first_segment.size();
 
-	let segments_size =
-		size.ok_or_else(|| "Error: Failed to determine the size of segments.".to_string())?;
-	let y = y.ok_or_else(|| "Error: Failed to determine the row position (y).".to_string())?;
+        if iter.all(|segment| segment.position.y == y && segment.size() == size) {
+            let segment_datas = order_segments
+                .iter()
+                .map(|s| s.as_ref().map(|segment| segment.content.clone()))
+                .collect::<Vec<_>>();
 
-	recover_segment_datas(&segment_datas, kzg, chunk_count, y, segments_size)
+            recover_segment_datas(&segment_datas, kzg, chunk_count, y, size)
+        } else {
+            Err("segments are not from the same row or not of the same size".to_string())
+        }
+    } else {
+        Err("no segments provided".to_string())
+    }
 }
 
 // TODO
