@@ -5170,6 +5170,7 @@ dependencies = [
  "melo-core-primitives",
  "melo-das-primitives",
  "melo-das-rpc",
+ "melo-proof-of-space",
  "parity-scale-codec 3.6.4",
  "primitive-types",
  "rand 0.8.5",

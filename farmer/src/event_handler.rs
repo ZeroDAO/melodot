@@ -18,7 +18,7 @@ use futures::lock::Mutex;
 use log::{error, info};
 use melo_das_network::Arc;
 use melo_das_primitives::{Position, Segment};
-use meloxt::{Client, MelodotHeader as Header};
+use meloxt::{cell_to_runtime, melodot, pre_cell_to_runtime, Client, MelodotHeader as Header};
 use subxt::utils::H256;
 use tokio::sync::mpsc::Sender;
 use tokio_stream::StreamExt;
@@ -110,20 +110,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 				process_segment_data(col, &farmer_id, PiecePosition::from_column, &mut pre_cells);
 			});
 
-			let mut solutions: Vec<Solution<H256, u32>> = Vec::new();
-
 			let mut database_guard = database.lock().await;
-
-			pre_cells.iter().for_each(|pre_cell| {
-				match find_solutions(&mut *database_guard, &farmer_id, pre_cell, &block_hash) {
-					Ok(mut ss) => {
-						solutions.append(&mut ss);
-					},
-					Err(e) => {
-						error!("❌ Error finding solutions: {:?}", e);
-					},
-				};
-			});
 
 			process_segments(
 				&rows,
@@ -140,6 +127,43 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 				&farmer_id,
 				PiecePosition::from_column,
 			);
+
+			let mut solutions: Vec<Solution<H256, u32>> = Vec::new();
+
+			pre_cells.iter().for_each(|pre_cell| {
+				match find_solutions(&mut *database_guard, &farmer_id, pre_cell, &block_hash) {
+					Ok(mut ss) => {
+						solutions.append(&mut ss);
+					},
+					Err(e) => {
+						error!("❌ Error finding solutions: {:?}", e);
+					},
+				};
+			});
+
+			for solution in &solutions {
+				info!("✅ Found solution: {:?}", solution);
+
+				let solution_tx = melodot::tx().farmers_fortune().claim(
+					pre_cell_to_runtime(&solution.pre_cell),
+					cell_to_runtime(&solution.win_cell_left),
+					cell_to_runtime(&solution.win_cell_right),
+				);
+
+				let res = rpc_client
+					.api
+					.tx()
+					.sign_and_submit_then_watch_default(&solution_tx, &rpc_client.signer)
+					.await;
+
+				match res {
+					Ok(tx_status) => match tx_status.wait_for_finalized_success().await {
+						Ok(_) => info!("Transaction finalized successfully"),
+						Err(e) => error!("Error finalizing transaction: {:?}", e),
+					},
+					Err(e) => error!("Error submitting transaction: {:?}", e),
+				}
+			}
 		} else if let Err(e) = message {
 			error!("❌ Error receiving best header message: {:?}", e);
 		}

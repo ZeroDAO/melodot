@@ -15,12 +15,26 @@
 use crate::{
 	melodot::runtime_types::{
 		melo_core_primitives::sidecar::SidecarMetadata,
-		melo_das_primitives::crypto::{KZGCommitment, KZGProof},
+		melo_das_primitives::{
+			crypto::{BlsScalar, KZGCommitment, KZGProof, Position},
+			segment::{Segment, SegmentData},
+		},
+		melo_proof_of_space::{
+			cell::{Cell, CellMetadata, PreCell},
+			piece::{PieceMetadata, PiecePosition},
+		},
 	},
 	Client,
 };
 use melo_core_primitives::SidecarMetadata as SidecarMetadataT;
-use melo_das_primitives::crypto::{KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT};
+use melo_das_primitives::{
+	crypto::{BlsScalar as BlsScalarT, KZGCommitment as KZGCommitmentT, KZGProof as KZGProofT},
+	segment::Segment as SegmentT,
+};
+use melo_proof_of_space::{
+	cell::{Cell as CellT, PreCell as PreCellT},
+	piece::PiecePosition as PiecePositionT,
+};
 
 pub use primitive_types::H256;
 
@@ -55,6 +69,38 @@ pub fn sidecar_metadata_to_runtime(metadata: &SidecarMetadataT) -> SidecarMetada
 	}
 }
 
+pub fn pre_cell_to_runtime(pre_cell: &PreCellT) -> PreCell {
+	PreCell {
+		position: piece_position_to_runtime(&pre_cell.position),
+		seg: Segment {
+			position: Position { x: pre_cell.seg.position.x, y: pre_cell.seg.position.y },
+			content: SegmentData {
+				proof: KZGProof { inner: pre_cell.seg.content.proof.to_bytes() },
+				data: bls_scalars_to_runtime(&pre_cell.seg.content.data),
+			},
+		},
+	}
+}
+
+pub fn cell_to_runtime(cell: &CellT<u32>) -> Cell<u32> {
+	Cell {
+		metadata: CellMetadata {
+			piece_metadata: piece_metadata_to_runtime(
+				&cell.metadata.piece_metadata.pos,
+				cell.metadata.piece_metadata.block_num,
+			),
+			offset: cell.metadata.offset,
+		},
+		seg: Segment {
+			position: Position { x: cell.seg.position.x, y: cell.seg.position.y },
+			content: SegmentData {
+				proof: KZGProof { inner: cell.seg.content.proof.to_bytes() },
+				data: bls_scalars_to_runtime(&cell.seg.content.data),
+			},
+		},
+	}
+}
+
 /// Generates sidecar metadata based on a given byte length.
 ///
 /// # Arguments
@@ -86,6 +132,34 @@ pub fn commitments_to_runtime(commitments: Vec<KZGCommitmentT>) -> Vec<KZGCommit
 		.iter()
 		.map(|c| KZGCommitment { inner: c.to_bytes() })
 		.collect::<Vec<_>>()
+}
+
+pub fn bls_scalars_to_runtime(scalars: &[BlsScalarT]) -> Vec<BlsScalar> {
+	scalars.iter().map(|c| BlsScalar { inner: c.to_bytes() }).collect::<Vec<_>>()
+}
+
+pub fn piece_position_to_runtime(pos: &PiecePositionT) -> PiecePosition {
+	match pos {
+		PiecePositionT::Row(row) => PiecePosition::Row(*row),
+		PiecePositionT::Column(column) => PiecePosition::Column(*column),
+	}
+}
+
+pub fn piece_metadata_to_runtime(
+	pos: &PiecePositionT,
+	block_num: u32,
+) -> PieceMetadata<u32> {
+	PieceMetadata { pos: piece_position_to_runtime(pos), block_num }
+}
+
+pub fn segment_to_runtime(segment: &SegmentT) -> Segment {
+	Segment {
+		position: Position { x: segment.position.x, y: segment.position.y },
+		content: SegmentData {
+			proof: KZGProof { inner: segment.content.proof.to_bytes() },
+			data: bls_scalars_to_runtime(segment.content.data.as_slice()),
+		},
+	}
 }
 
 /// Converts KZG proofs to a runtime-friendly format.

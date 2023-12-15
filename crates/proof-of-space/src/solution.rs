@@ -34,11 +34,11 @@ where
 	// The ID of the farmer.
 	farmer_id: FarmerId,
 	// The previous cell. This is the cell that in the posted block.
-	pre_cell: PreCell,
+	pub pre_cell: PreCell,
 	// The winning cell.
-	win_cell_left: Cell<BlockNumber>,
+	pub win_cell_left: Cell<BlockNumber>,
 	// The winning cell.
-	win_cell_right: Cell<BlockNumber>,
+	pub win_cell_right: Cell<BlockNumber>,
 }
 
 impl<Hash, BlockNumber> Solution<Hash, BlockNumber>
