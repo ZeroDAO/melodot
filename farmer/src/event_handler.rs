@@ -69,6 +69,11 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 
 			info!("✅ Received best block header #{}", block_number.clone());
 
+			if rows_count == 0 {
+				info!("⏭️  No data in block #{}", block_number.clone());
+				continue
+			}
+
 			let message = (header.clone(), received_at);
 			if let Err(error) = message_tx.send(message).await.context("Send failed") {
 				error!("❌ Fail to process best block header: {error}");
