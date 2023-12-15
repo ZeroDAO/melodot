@@ -36,10 +36,29 @@ pub fn fold_hash(hash: &[u8]) -> u32 {
 	folded
 }
 
+/// Computes a 16-bit hash from a byte array using XOR folding.
+///
+/// This function takes a slice of bytes (`&[u8]`) and computes a 16-bit unsigned integer
+/// by performing an XOR operation on each pair of bytes. The XOR folding technique is used
+/// to condense the input byte array into a 16-bit hash value.
+///
+/// # Arguments
+///
+/// * `hash` - A byte slice (`&[u8]`) representing the input data to be hashed.
+///
+/// # Returns
+///
+/// A 16-bit unsigned integer (`u16`) representing the XOR folded hash of the input data.
+///
+/// # Notes
+///
+/// - The function iterates over the byte slice in chunks of two bytes.
+/// - Each pair of bytes is converted to a `u16` and then XORed with the accumulator.
+/// - If the number of bytes in the slice is odd, the last byte is XORed with 0.
 pub fn hash_to_u16_xor(hash: &[u8]) -> u16 {
-	hash.chunks(2).fold(0u16, |acc, chunk| {
-		acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
-	})
+    hash.chunks(2).fold(0u16, |acc, chunk| {
+        acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
+    })
 }
 
 /// Selects indices from a hash where a specified number of consecutive bits are 1.

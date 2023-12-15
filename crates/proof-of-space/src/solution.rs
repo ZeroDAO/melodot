@@ -22,22 +22,26 @@ use anyhow::{Ok, Result};
 use melo_das_primitives::{KZGCommitment, Segment, KZG};
 use scale_info::TypeInfo;
 
-/// `Solution` represents a potential solution in the system.
+/// Represents a potential solution in the system.
+///
+/// A solution is associated with a specific block and farmer and includes
+/// information about the winning cells (left and right) in the context of the
+/// proof of space.
 #[derive(Debug, Default, Clone, TypeInfo)]
 pub struct Solution<Hash, BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 	Hash: PartialEq + Eq + AsRef<[u8]> + 'static,
 {
-	// The hash of the block that posted the solution.
+	/// Hash of the block that posted the solution.
 	block_hash: Hash,
-	// The ID of the farmer.
+	/// Identifier of the farmer who proposed the solution.
 	farmer_id: FarmerId,
-	// The previous cell. This is the cell that in the posted block.
+	/// The cell that was present in the posted block (previous cell).
 	pub pre_cell: PreCell,
-	// The winning cell.
+	/// The left part of the winning cell in the solution.
 	pub win_cell_left: Cell<BlockNumber>,
-	// The winning cell.
+	/// The right part of the winning cell in the solution.
 	pub win_cell_right: Cell<BlockNumber>,
 }
 
@@ -46,7 +50,19 @@ where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
 	Hash: PartialEq + Eq + AsRef<[u8]> + Clone + 'static,
 {
-	/// Creates a new solution.
+	/// Creates a new `Solution` instance.
+	///
+	/// # Arguments
+	///
+	/// * `block_hash`: Hash of the block associated with the solution.
+	/// * `farmer_id`: ID of the farmer proposing the solution.
+	/// * `pre_cell`: The previous cell in the block.
+	/// * `win_cell_left`: The left part of the winning cell.
+	/// * `win_cell_right`: The right part of the winning cell.
+	///
+	/// # Returns
+	///
+	/// A new instance of `Solution`.
 	pub fn new(
 		block_hash: &Hash,
 		farmer_id: &FarmerId,
@@ -64,6 +80,24 @@ where
 	}
 
 	/// Verifies the correctness of the solution.
+	///
+	/// The verification process involves checking the pre-cell, ensuring
+	/// the solution index is valid, and validating the KZG proof for
+	/// both left and right winning cells.
+	///
+	/// # Arguments
+	///
+	/// * `pre_commit`: KZG commitment for the pre-cell.
+	/// * `win_left_commit`: KZG commitment for the left winning cell.
+	/// * `win_right_commit`: KZG commitment for the right winning cell.
+	/// * `win_left_block_hash`: Block hash associated with the left winning cell.
+	/// * `win_right_block_hash`: Block hash associated with the right winning cell.
+	/// * `pre_cell_leading_zero`: Number of leading zeros required in the pre-cell hash.
+	/// * `n`: A parameter used in the validation process.
+	///
+	/// # Returns
+	///
+	/// `true` if the solution is valid, otherwise `false`.
 	#[allow(clippy::too_many_arguments)]
 	pub fn verify(
 		&self,
@@ -97,6 +131,20 @@ where
 			)
 	}
 
+	/// Checks if the pre-cell is valid.
+	///
+	/// Validates the pre-cell by verifying its hash against the farmer's ID
+	/// and the required number of leading zeros.
+	///
+	/// # Arguments
+	///
+	/// * `seg`: The segment of the pre-cell.
+	/// * `farmer_id`: ID of the farmer.
+	/// * `pre_cell_leading_zero`: Required number of leading zeros in the pre-cell hash.
+	///
+	/// # Returns
+	///
+	/// `true` if the pre-cell is valid, otherwise `false`.
 	pub fn check_pre_cell(seg: &Segment, farmer_id: &FarmerId, pre_cell_leading_zero: u8) -> bool {
 		let pre_cell_hash = BlakeTwo256::hash_of(seg);
 		let xored_hash = utils::xor_byte_slices(farmer_id.as_ref(), pre_cell_hash.as_ref());
@@ -104,6 +152,19 @@ where
 		utils::validate_leading_zeros(&xored_hash, pre_cell_leading_zero as u32)
 	}
 
+	/// Checks if the index is valid based on the XORed hash of farmer ID and block hash.
+	///
+	/// # Arguments
+	///
+	/// * `farmer_id`: ID of the farmer.
+	/// * `block_hash`: Hash of the block.
+	/// * `index`: Index to be validated.
+	/// * `max_index`: Maximum allowable index.
+	/// * `n`: A parameter influencing the validation.
+	///
+	/// # Returns
+	///
+	/// `true` if the index is valid, otherwise `false`.
 	pub fn is_index_valid(
 		farmer_id: &FarmerId,
 		block_hash: &Hash,
@@ -150,7 +211,24 @@ where
 		)
 	}
 
-	// Validates the winning cell.
+	/// Validates the winning cell with KZG.
+	///
+	/// Verifies the validity of the winning cell using KZG proof and
+	/// additional validation criteria.
+	///
+	/// # Arguments
+	///
+	/// * `kzg`: KZG instance for proof verification.
+	/// * `win_left_commit`: KZG commitment for the left winning cell.
+	/// * `win_right_commit`: KZG commitment for the right winning cell.
+	/// * `win_left_block_hash`: Block hash for the left winning cell.
+	/// * `win_right_block_hash`: Block hash for the right winning cell.
+	/// * `n`: A parameter influencing the validation.
+	/// * `z`: Challenge value used in the validation process.
+	///
+	/// # Returns
+	///
+	/// `true` if the winning cell is valid, otherwise `false`.
 	#[allow(clippy::too_many_arguments)]
 	pub fn validate_win_cell_with_kzg(
 		&self,
@@ -167,7 +245,7 @@ where
 			self.win_cell_right.verify_kzg_proof(kzg, win_right_commit)
 	}
 
-	// Validates the winning cell.
+	/// Validates the winning cell.
 	pub fn validate_win_cell(
 		&self,
 		win_left_block_hash: &Hash,

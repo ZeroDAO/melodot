@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{
-	utils, BlakeTwo256, CellMetadata, Decode, Encode, FarmerId, HashT,
-	XValueManager,
-};
 #[cfg(feature = "std")]
 use crate::DasKv;
+use crate::{utils, BlakeTwo256, CellMetadata, Decode, Encode, FarmerId, HashT, XValueManager};
 #[cfg(feature = "std")]
 use anyhow::{Context, Result};
 use melo_das_primitives::Segment;
 
+/// Represents a manager for Z values in a specific blockchain context.
+/// Z values are calculated based on left and right cell data and used for
+/// various verification and management tasks within the blockchain system.
+///
+/// `BlockNumber` is a generic parameter that represents the type of the block number in the
+/// blockchain.
 #[derive(Default, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ZValueManager<BlockNumber>
 where
@@ -36,6 +39,12 @@ impl<BlockNumber> ZValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
 {
+	/// Calculates the Z value from given left and right segments of the blockchain.
+	/// This involves encoding the segments, combining them, and then hashing the combination
+	/// to produce a final Z value.
+	///
+	/// - `left_cell`: The left segment of the blockchain.
+	/// - `right_cell`: The right segment of the blockchain.
 	pub fn calculate_z(left_cell: &Segment, right_cell: &Segment) -> u16 {
 		let left_encoded = Encode::encode(left_cell);
 		let right_encoded = Encode::encode(right_cell);
@@ -46,14 +55,26 @@ where
 		utils::hash_to_u16_xor(hash.as_bytes())
 	}
 
+	/// Generates a challenge value (Z) directly from raw data.
+	/// This is typically used in scenarios where raw data needs to be quickly converted
+	/// into a Z value without the need for segment processing.
+	///
+	/// - `data`: Raw data used to calculate the challenge value.
 	pub fn get_challenge(data: &[u8]) -> u16 {
 		utils::hash_to_u16_xor(data)
 	}
 
+	/// Retrieves the stored Z value of the current instance.
 	pub fn get_z(&self) -> u16 {
 		self.z
 	}
 
+	/// Creates a new instance of `ZValueManager` using the provided cell metadata and segments.
+	///
+	/// - `left`: Metadata for the left cell.
+	/// - `right`: Metadata for the right cell.
+	/// - `left_cell`: The left segment of the blockchain.
+	/// - `right_cell`: The right segment of the blockchain.
 	pub fn new(
 		left: &CellMetadata<BlockNumber>,
 		right: &CellMetadata<BlockNumber>,
@@ -64,6 +85,11 @@ where
 		Self { z, left: left.clone(), right: right.clone() }
 	}
 
+	/// Saves the current state of the `ZValueManager` to a database.
+	/// This includes the Z value and associated cell metadata.
+	/// Only available when compiled with the `std` feature.
+	///
+	/// - `db`: A mutable reference to the database where the data will be stored.
 	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv) {
 		let key = Encode::encode(&self.z);
@@ -80,6 +106,11 @@ where
 		}
 	}
 
+	/// Retrieves a list of cell metadata pairs associated with a given Z value from the database.
+	/// Only available when compiled with the `std` feature.
+	///
+	/// - `db`: A mutable reference to the database to query.
+	/// - `z`: The Z value for which to retrieve cell metadata pairs.
 	#[cfg(feature = "std")]
 	pub fn get(
 		db: &mut impl DasKv,
@@ -93,6 +124,15 @@ where
 			.map(|opt| opt.unwrap_or_default())
 	}
 
+	/// Verifies whether the given Z value, farmer ID, and cell segments and metadata
+	/// match the expected criteria for validation.
+	///
+	/// - `z`: The Z value to verify.
+	/// - `farmer_id`: The ID of the farmer.
+	/// - `left_cell`: The left segment of the blockchain.
+	/// - `right_cell`: The right segment of the blockchain.
+	/// - `left_cell_metadata`: Metadata for the left cell.
+	/// - `right_cell_metadata`: Metadata for the right cell.
 	pub fn verify(
 		z: u16,
 		farmer_id: &FarmerId,
@@ -158,17 +198,17 @@ mod tests {
 	#[test]
 	fn test_get() {
 		let mut db = MockDb::new();
-		z_store(&BLS_SCALAR11, &BLS_SCALAR12, &PROOF_11, &PROOF_12,Z1, &mut db);
+		z_store(&BLS_SCALAR11, &BLS_SCALAR12, &PROOF_11, &PROOF_12, Z1, &mut db);
 		let zvms = ZValueManager::<u16>::get(&mut db, Z1).unwrap();
 		assert_eq!(zvms.len(), 1);
-		z_store(&BLS_SCALAR21, &BLS_SCALAR22, &PROOF_21, &PROOF_22,Z2, &mut db);
+		z_store(&BLS_SCALAR21, &BLS_SCALAR22, &PROOF_21, &PROOF_22, Z2, &mut db);
 		let zvms = ZValueManager::<u16>::get(&mut db, Z2).unwrap();
 		assert_eq!(zvms.len(), 1);
 
 		let zvms = ZValueManager::<u16>::get(&mut db, Z3).unwrap();
 		assert_eq!(zvms.len(), 0);
 
-		z_store(&BLS_SCALAR31, &BLS_SCALAR32, &PROOF_31, &PROOF_32,Z3, &mut db);
+		z_store(&BLS_SCALAR31, &BLS_SCALAR32, &PROOF_31, &PROOF_32, Z3, &mut db);
 		let zvms = ZValueManager::<u16>::get(&mut db, Z3).unwrap();
 		assert_eq!(zvms.len(), 1);
 

@@ -18,12 +18,12 @@ use crate::{
 	utils, CellMetadata, ChaCha8, Decode, Encode, FarmerId, KeyIvInit, Nonce, PieceMetadata,
 	StreamCipher, Vec,
 };
-// use alloc::vec;
 #[cfg(feature = "std")]
 use anyhow::{Context, Result};
 use chacha20::cipher::generic_array::GenericArray;
 use melo_das_primitives::Segment;
 
+/// Represents the Y-position in a 2D space, with options for Left and Right positions.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum YPos {
 	Left(u32),
@@ -31,6 +31,8 @@ pub enum YPos {
 }
 
 impl YPos {
+
+	/// Converts `YPos` to its `u32` representation.
 	pub fn to_u32(&self) -> u32 {
 		match self {
 			YPos::Left(pos) => *pos,
@@ -38,6 +40,7 @@ impl YPos {
 		}
 	}
 
+    /// Creates a `YPos` from a `u32`, determining Left or Right based on parity.
 	pub fn from_u32(pos: u32) -> Self {
 		if pos % 2 == 0 {
 			YPos::Left(pos)
@@ -46,6 +49,7 @@ impl YPos {
 		}
 	}
 
+    /// Matches `YPos` to its counterpart (Left to Right and vice versa) with an offset.
 	pub fn match_x_pos(&self) -> YPos {
 		match self {
 			YPos::Left(pos) => YPos::Right(pos + 1),
@@ -53,6 +57,7 @@ impl YPos {
 		}
 	}
 
+    /// Determines if two `YPos` instances are pairs (adjacent positions).
 	pub fn is_pair(&self, other: &Self) -> bool {
 		match self {
 			YPos::Left(pos) => match other {
@@ -67,6 +72,7 @@ impl YPos {
 	}
 }
 
+/// Manages the X-value in a blockchain context, linking to `CellMetadata`.
 pub struct XValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
@@ -80,6 +86,7 @@ impl<BlockNumber> XValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
+	/// Calculates the Y-value based on `FarmerId` and a `Segment`.
 	pub fn calculate_y(farmer_id: &FarmerId, seg: &Segment) -> u32 {
 		if seg.content.data.is_empty() {
 			return 0u32
@@ -93,6 +100,7 @@ where
 		utils::fold_hash(&buffer)
 	}
 
+    /// Constructs a new `XValueManager` instance.
 	pub fn new(piece_metadata: &PieceMetadata<BlockNumber>, index: u32, y: u32) -> Self {
 		let pos = YPos::from_u32(index);
 		Self {
@@ -102,16 +110,19 @@ where
 		}
 	}
 
+    /// Generates a key for the current `XValueManager`.
 	pub fn key(&self) -> Vec<u8> {
 		Self::key_by_x_pos(&self.pos, self.y)
 	}
 
+    /// Generates a key based on `YPos` and a Y-value.
 	pub fn key_by_x_pos(y_pos: &YPos, y: u32) -> Vec<u8> {
 		let mut key = Encode::encode(&y);
 		key.append(&mut Encode::encode(y_pos));
 		key
 	}
 
+    /// Conditionally compiled method to match cells in a database using `DasKv`.
 	#[cfg(feature = "std")]
 	pub fn match_cells(&self, db: &mut impl DasKv) -> Result<Vec<CellMetadata<BlockNumber>>> {
 		let match_pos = self.pos.match_x_pos();
@@ -122,6 +133,7 @@ where
 			.map(|opt| opt.unwrap_or_default())
 	}
 
+    /// Conditionally compiled method to save cell metadata to a database.
 	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv) {
 		if self.y == 0 {

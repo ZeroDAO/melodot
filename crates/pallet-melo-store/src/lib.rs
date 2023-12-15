@@ -662,7 +662,14 @@ impl<T: Config> Pallet<T> {
 		Ok(reports)
 	}
 
-
+	/// Push a vector of commitments to the CommitmentsExt storage.
+	/// 
+	/// # Arguments
+	/// * `at_block` - The block number to push commitments to.
+	/// * `commitments` - The commitments to push.
+	/// 
+	/// # Returns
+	/// A `Result` indicating whether the operation was successful.
 	pub fn push_commitments_ext(
 		at_block: BlockNumberFor<T>,
 		commitments: &[KZGCommitment],

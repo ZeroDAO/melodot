@@ -19,15 +19,26 @@ use anyhow::{anyhow, Ok, Result};
 use melo_das_primitives::Position;
 use scale_info::TypeInfo;
 
+// Import statements and module-level documentation are typically not included in inline
+// documentation.
+
+/// A structure representing a `Piece`, parameterized over a `BlockNumber`.
+///
+/// This struct encapsulates metadata and a list of segments that together define a `Piece`.
+/// `BlockNumber` is a generic type that represents the block number in which the piece is involved.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Piece<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash,
 {
+	/// Metadata about the piece, including block number and position.
 	pub metadata: PieceMetadata<BlockNumber>,
+
+	/// A vector of segments that make up the piece.
 	pub segments: Vec<Segment>,
 }
 
+/// An enumeration representing the position of a piece, either by row or column.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub enum PiecePosition {
 	Row(u32),
@@ -35,6 +46,8 @@ pub enum PiecePosition {
 }
 
 impl PiecePosition {
+	/// Converts the `PiecePosition` enum to a `u32` value.
+	/// Returns the row or column number based on the position type.
 	pub fn to_u32(&self) -> u32 {
 		match self {
 			PiecePosition::Row(row) => *row,
@@ -42,27 +55,36 @@ impl PiecePosition {
 		}
 	}
 
+	/// Creates a `PiecePosition` from a given `Position` as a row.
 	pub fn from_row(position: &Position) -> Self {
 		Self::Row(position.x)
 	}
 
+	/// Creates a `PiecePosition` from a given `Position` as a column.
 	pub fn from_column(position: &Position) -> Self {
 		Self::Column(position.y)
 	}
 }
 
 impl Default for PiecePosition {
+	/// Provides a default value for `PiecePosition`, defaulting to `Row(0)`.
 	fn default() -> Self {
 		PiecePosition::Row(0)
 	}
 }
 
+/// Metadata for a piece, parameterized over a `BlockNumber`.
+///
+/// Includes information about the block number and the position of the piece.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct PieceMetadata<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash,
 {
+	/// The block number associated with the piece.
 	pub block_num: BlockNumber,
+
+	/// The position of the piece, either in a row or a column.
 	pub pos: PiecePosition,
 }
 
@@ -70,10 +92,12 @@ impl<BlockNumber> PieceMetadata<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode,
 {
+	/// Constructs new `PieceMetadata` with the specified block number and position.
 	pub fn new(block_num: BlockNumber, pos: PiecePosition) -> Self {
 		Self { block_num, pos }
 	}
 
+	/// Generates a key for the piece metadata, useful for storage or identification purposes.
 	pub fn key(&self) -> Vec<u8> {
 		Encode::encode(&self)
 	}
@@ -83,15 +107,21 @@ impl<BlockNumber> Piece<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode + PartialEq,
 {
+	/// Generates a key for the piece, primarily based on its metadata.
 	pub fn key(&self) -> Vec<u8> {
 		Encode::encode(&self.metadata)
 	}
 
+	/// Constructs a new `Piece` with the provided block number, position, and segments.
 	pub fn new(blcok_num: BlockNumber, pos: PiecePosition, segments: &[Segment]) -> Self {
 		let metadata = PieceMetadata { block_num: blcok_num, pos };
 		Self { metadata, segments: segments.to_vec() }
 	}
 
+	/// Provides an iterator over the x-values of the segments, paired with references to the
+	/// segments.
+	///
+	/// This is useful for processing or iterating over segments with their computed x-values.
 	pub fn x_values_iterator<'a>(
 		&'a self,
 		farmer_id: &'a FarmerId,
@@ -102,6 +132,9 @@ where
 		})
 	}
 
+	/// Retrieves a segment at the specified position, if it exists.
+	///
+	/// Returns `None` if the position is out of bounds.
 	pub fn cell(&self, pos: u32) -> Option<Segment> {
 		if pos >= self.segments.len() as u32 {
 			return None
@@ -109,6 +142,7 @@ where
 		Some(self.segments[pos as usize].clone())
 	}
 
+	/// Retrieves a segment at the specified position, if it exists.
 	#[cfg(feature = "std")]
 	pub fn get_cell(
 		metadata: &CellMetadata<BlockNumber>,
@@ -124,6 +158,8 @@ where
 			.map(|opt| opt.flatten())
 	}
 
+	/// Saves the `Piece` to the database. This process involves handling all data within the
+	/// `Piece`, including calculating Y and Z values, and storing the corresponding index pairs.
 	#[cfg(feature = "std")]
 	pub fn save(&self, db: &mut impl DasKv, farmer_id: &FarmerId) -> Result<()> {
 		let metadata_clone = self.metadata.clone();
