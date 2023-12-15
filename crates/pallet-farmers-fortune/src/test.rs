@@ -47,8 +47,8 @@ fn claim_reward_should_work() {
 			FarmersFortune::claim(
 				RuntimeOrigin::signed(0),
 				pre_cell.clone(),
-				win_cell_left.clone(),
-				win_cell_right.clone(),
+				Box::new(win_cell_left.clone()),
+				Box::new(win_cell_right.clone()),
 			),
 			melo_farmers_fortune::Error::<Runtime>::PreCommitNotFound
 		);
@@ -59,8 +59,8 @@ fn claim_reward_should_work() {
 			FarmersFortune::claim(
 				RuntimeOrigin::signed(0),
 				pre_cell.clone(),
-				win_cell_left.clone(),
-				win_cell_right.clone(),
+				Box::new(win_cell_left.clone()),
+				Box::new(win_cell_right.clone()),
 			),
 			melo_farmers_fortune::Error::<Runtime>::WinCommitNotFound
 		);
@@ -71,8 +71,8 @@ fn claim_reward_should_work() {
 			FarmersFortune::claim(
 				RuntimeOrigin::signed(0),
 				pre_cell.clone(),
-				win_cell_left.clone(),
-				win_cell_right.clone(),
+				Box::new(win_cell_left.clone()),
+				Box::new(win_cell_right.clone()),
 			),
 			melo_farmers_fortune::Error::<Runtime>::WinCommitNotFound
 		);
@@ -82,16 +82,16 @@ fn claim_reward_should_work() {
 		assert_ok!(FarmersFortune::claim(
 			RuntimeOrigin::signed(0),
 			pre_cell.clone(),
-			win_cell_left.clone(),
-			win_cell_right.clone(),
+			Box::new(win_cell_left.clone()),
+			Box::new(win_cell_right.clone()),
 		));
 
 		assert_noop!(
 			FarmersFortune::claim(
 				RuntimeOrigin::signed(0),
 				pre_cell,
-				win_cell_left,
-				win_cell_right,
+				Box::new(win_cell_left.clone()),
+				Box::new(win_cell_right.clone()),
 			),
 			melo_farmers_fortune::Error::<Runtime>::AlreadyClaimed
 		);
@@ -130,8 +130,8 @@ fn claim_reward_works_for_different_farmer_ids() {
 			FarmersFortune::claim(
 				RuntimeOrigin::signed(0),
 				pre_cell,
-				win_cell_left,
-				win_cell_right,
+				Box::new(win_cell_left.clone()),
+				Box::new(win_cell_right.clone()),
 			),
 			melo_farmers_fortune::Error::<Runtime>::InvalidSolution
 		);

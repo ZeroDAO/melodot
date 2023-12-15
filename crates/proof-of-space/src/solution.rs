@@ -151,6 +151,7 @@ where
 	}
 
 	// Validates the winning cell.
+	#[allow(clippy::too_many_arguments)]
 	pub fn validate_win_cell_with_kzg(
 		&self,
 		kzg: &KZG,

@@ -599,7 +599,7 @@ fn rows_values_handler(
 		.enumerate()
 		.map(|(x, values)| match values {
 			Some(values) =>
-				verify_values(kzg, values, &commitment, &Position { x: x as u32, y: y as u32 }),
+				verify_values(kzg, values, commitment, &Position { x: x as u32, y: y as u32 }),
 			None => None,
 		})
 		.collect::<Vec<_>>();

@@ -181,7 +181,7 @@ fn process_segment_data<F>(
 	F: Fn(&Position) -> PiecePosition,
 {
 	if let Some(seg) = segment {
-		if Solution::<H256, u32>::check_pre_cell(&seg, farmer_id, PRE_CELL_LEADING_ZEROS) {
+		if Solution::<H256, u32>::check_pre_cell(seg, farmer_id, PRE_CELL_LEADING_ZEROS) {
 			let piece_position = position_fn(&seg.position);
 			pre_cells.push(PreCell::new(piece_position, seg.clone()));
 		}

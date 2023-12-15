@@ -48,7 +48,7 @@ pub use solution::Solution;
 pub use y_value_manager::{XValueManager, YPos};
 pub use z_value_manager::ZValueManager;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+#[derive(Default, Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct FarmerId(pub H256);
 
 impl From<H256> for FarmerId {
@@ -60,12 +60,6 @@ impl From<H256> for FarmerId {
 impl From<FarmerId> for H256 {
 	fn from(f: FarmerId) -> Self {
 		f.0
-	}
-}
-
-impl Default for FarmerId {
-	fn default() -> Self {
-		Self(H256::default())
 	}
 }
 

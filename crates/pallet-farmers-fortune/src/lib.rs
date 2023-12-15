@@ -110,8 +110,8 @@ pub mod pallet {
 		pub fn claim(
 			origin: OriginFor<T>,
 			pre_cell: PreCell,
-			win_cell_left: Cell<BlockNumberFor<T>>,
-			win_cell_right: Cell<BlockNumberFor<T>>,
+			win_cell_left: Box<Cell<BlockNumberFor<T>>>,
+			win_cell_right: Box<Cell<BlockNumberFor<T>>>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 			let now = <frame_system::Pallet<T>>::block_number();
