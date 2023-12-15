@@ -10,9 +10,11 @@ edition = "2021"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+# melodot
 melo-core-primitives = { version = "0.1.0", path = "../core-primitives", default-features = false }
 melo-proof-of-space = { version = "0.0.1", path = "../proof-of-space", default-features = false }
 
+# substrate
 sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-benchmarking = { default-features = false, optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 frame-support = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
@@ -21,6 +23,10 @@ codec = { package = "parity-scale-codec", version = "3.2.2", default-features = 
 scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
 sp-std = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
 sp-core = { default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+
+# runtime-benchmarks
+melo-das-primitives = { default-features = false, version = "0.1.0", optional = true, path = "../das-primitives" }
+pallet-melo-store = { version = "0.1.0", optional = true, path = "../pallet-melo-store", default-features = false }
 
 [dev-dependencies]
 melo-das-primitives = { version = "0.1.0", path = "../das-primitives" }
@@ -43,4 +49,16 @@ std = [
     "sp-std/std",
     "melo-proof-of-space/std",
     "sp-core/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+    "melo-das-primitives",
+    "pallet-melo-store",
+]
+try-runtime = [
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"sp-runtime/try-runtime",
 ]

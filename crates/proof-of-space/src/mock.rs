@@ -9,7 +9,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
+extern crate alloc;
+use alloc::vec;
+use alloc::vec::Vec;
 
 use melo_das_primitives::{BlsScalar, KZGProof, Position, Segment, SegmentData};
 pub const BLS_SCALAR11: [u8; 31] = [

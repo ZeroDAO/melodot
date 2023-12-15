@@ -952,6 +952,7 @@ mod benches {
 		[pallet_scheduler, Scheduler]
 		[pallet_bounties, Bounties]
 		[pallet_melo_store, MeloStore]
+		[pallet_farmers_fortune, FarmersFortune]
 		[pallet_elections_phragmen, Elections]
 	);
 }

@@ -1,4 +1,4 @@
-.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light run-light-e2e
+.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light run-light-e2e benchmarks
 
 run-light-dev: init
 	./target/release/melodot-light --dev-mode
@@ -32,3 +32,6 @@ test: init
 
 e2e:
 	./target/release/e2e
+
+bs:
+	cargo build --release -p melodot-node -p melodot-runtime --features runtime-benchmarks

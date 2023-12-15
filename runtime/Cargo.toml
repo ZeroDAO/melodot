@@ -189,6 +189,7 @@ runtime-benchmarks = [
 	"pallet-membership/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-melo-store/runtime-benchmarks",
+	"pallet-farmers-fortune/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
 ]

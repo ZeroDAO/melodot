@@ -6067,6 +6067,7 @@ dependencies = [
  "melo-das-primitives",
  "melo-proof-of-space",
  "pallet-balances",
+ "pallet-melo-store",
  "parity-scale-codec 3.6.4",
  "scale-info",
  "sp-core",

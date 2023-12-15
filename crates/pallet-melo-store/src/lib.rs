@@ -662,6 +662,28 @@ impl<T: Config> Pallet<T> {
 		Ok(reports)
 	}
 
+
+	pub fn push_commitments_ext(
+		at_block: BlockNumberFor<T>,
+		commitments: &[KZGCommitment],
+	) -> Result<(), Error<T>> {
+		let mut commitments_ext = CommitmentsExt::<T>::get(at_block).unwrap_or_default();
+
+		commitments_ext
+			.try_extend(commitments.iter().cloned())
+			.map_err(|_| Error::<T>::ExceedMaxBlobPerBlock)?;
+
+		match commitments.to_vec().try_into() {
+			Ok(bounded_extended) => {
+				let extended_option: Option<KZGCommitmentListFor<T>> =
+					Some(bounded_extended);
+				CommitmentsExt::<T>::insert(at_block, extended_option);
+				Ok(())
+			},
+			Err(_) => Err(Error::<T>::ExceedMaxBlobPerBlock),
+		}
+	}
+
 	// Helper method to send a single unavailability report.
 	fn send_single_unavailability_report(
 		authority_index: u32,

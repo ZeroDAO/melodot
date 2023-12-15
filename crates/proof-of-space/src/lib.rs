@@ -22,6 +22,7 @@ pub(crate) use chacha20::{
 };
 use codec::{Decode, Encode};
 use melo_core_primitives::config::EXTENDED_SEGMENTS_PER_BLOB;
+#[cfg(feature = "std")]
 use melo_das_db::traits::DasKv;
 use melo_das_primitives::Segment;
 use scale_info::TypeInfo;
@@ -30,7 +31,6 @@ pub use sp_core::H256;
 pub(crate) use alloc::vec::Vec;
 pub(crate) use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
-#[cfg(feature = "std")]
 pub mod mock;
 
 pub mod cell;
