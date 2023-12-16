@@ -290,27 +290,26 @@ impl DasNetworkServiceWrapper {
 		let extension = header.extension();
 
 		let mut keys = Vec::new();
-		for &idx in index {
-			if idx < row_count {
-				for x in 0..EXTENDED_SEGMENTS_PER_BLOB {
-					let position = Position { x: x as u32, y: idx };
-					let at = idx * EXTENDED_SEGMENTS_PER_BLOB as u32 + x as u32;
 
-					if let Some((app_lookup, _)) = extension.get_lookup(at) {
+		for &y in index {
+			if y < row_count {
+				for x in 0..EXTENDED_SEGMENTS_PER_BLOB {
+					let position = Position { x: x as u32, y };
+
+					if let Some((app_lookup, _)) = extension.get_lookup(y) {
 						let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
 						keys.push(KademliaKey::new(&key));
 					} else {
-						return Err(anyhow!("prepare_rows_keys: get_lookup failed"))
+						return Err(anyhow!("prepare_cols_keys: get_lookup failed"))
 					}
 				}
 			} else {
-				if idx >= row_count * 2 {
-					return Err(anyhow!("prepare_rows_keys: idx is too large"))
+				if y >= row_count * 2 {
+					return Err(anyhow!("prepare_cols_keys: idx is too large"))
 				}
-				let block_hash = HeaderWithCommitment::hash(header);
 				for x in 0..EXTENDED_SEGMENTS_PER_BLOB {
-					let position = Position { x: x as u32, y: idx };
-					let key = sample_key_from_block(&block_hash.encode(), &position);
+					let position = Position { x: x as u32, y };
+					let key = sample_key_from_block(&header.hash().encode(), &position);
 					keys.push(KademliaKey::new(&key));
 				}
 			}
@@ -332,26 +331,29 @@ impl DasNetworkServiceWrapper {
 			return Ok(vec![])
 		}
 
-		let block_hash = HeaderWithCommitment::hash(header);
 		let extension = header.extension();
 		let mut keys = Vec::new();
 
-		for &idx in index {
+		for &x in index {
 			for y in 0..row_count {
-				let position = Position { x: idx, y };
-				let at = idx * row_count * 2 + y;
-				let app_lookup = extension
-					.get_lookup(at)
-					.ok_or_else(|| anyhow!("prepare_cols_keys: get_lookup failed for sample_key"))?
-					.0;
-				let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
+				let position = Position { x, y };
+
+				if let Some((app_lookup, _)) = extension.get_lookup(y) {
+					let key = sample_key(app_lookup.app_id, app_lookup.nonce, &position);
+					keys.push(KademliaKey::new(&key));
+				} else {
+					return Err(anyhow!("prepare_rows_keys: get_lookup failed"))
+				}
+			}
+
+			for y in row_count..row_count * 2 {
+				let position = Position { x, y };
+				let key = sample_key_from_block(&header.hash().encode(), &position);
 				keys.push(KademliaKey::new(&key));
 			}
 
-			for y in row_count..(row_count * 2) {
-				let position = Position { x: idx, y };
-				let key = sample_key_from_block(&block_hash.encode(), &position);
-				keys.push(KademliaKey::new(&key));
+			if x > EXTENDED_SEGMENTS_PER_BLOB as u32 {
+				return Err(anyhow!("prepare_rows_keys: idx is too large"))
 			}
 		}
 

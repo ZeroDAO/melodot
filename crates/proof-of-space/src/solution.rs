@@ -195,6 +195,7 @@ where
 	/// # Returns
 	///
 	/// A vector of selected indices.
+	#[cfg(feature = "std")]
 	pub fn select_indices(
 		farmer_id: &FarmerId,
 		block_hash: &Hash,

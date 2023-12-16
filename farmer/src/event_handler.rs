@@ -67,12 +67,14 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 
 			let rows_count = header.col_num().unwrap_or_default();
 
-			info!("✅ Received best block header #{}", block_number.clone());
+			info!("⚓ Received best block header #{}", block_number.clone());
 
 			if rows_count == 0 {
 				info!("⏭️  No data in block #{}", block_number.clone());
 				continue
 			}
+
+			info!("🚩 Data rows num: {}", rows_count);
 
 			let message = (header.clone(), received_at);
 			if let Err(error) = message_tx.send(message).await.context("Send failed") {
@@ -133,6 +135,8 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 				PiecePosition::from_column,
 			);
 
+			info!("💾 Data saved successfully");
+
 			let mut solutions: Vec<Solution<H256, u32>> = Vec::new();
 
 			pre_cells.iter().for_each(|pre_cell| {
@@ -147,7 +151,7 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 			});
 
 			for solution in &solutions {
-				info!("✅ Found solution: {:?}", solution);
+				info!("✨ Found solution: {:?}", solution);
 
 				let solution_tx = melodot::tx().farmers_fortune().claim(
 					pre_cell_to_runtime(&solution.pre_cell),
@@ -163,12 +167,13 @@ pub async fn run<H: HeaderWithCommitment + Sync>(
 
 				match res {
 					Ok(tx_status) => match tx_status.wait_for_finalized_success().await {
-						Ok(_) => info!("Transaction finalized successfully"),
-						Err(e) => error!("Error finalizing transaction: {:?}", e),
+						Ok(_) => info!("❤️‍ Solution submitted successfully"),
+						Err(e) => error!("❌ Error submitted solution: {:?}", e),
 					},
-					Err(e) => error!("Error submitting transaction: {:?}", e),
+					Err(e) => error!("❌ Error submitting solution: {:?}", e),
 				}
 			}
+			
 		} else if let Err(e) = message {
 			error!("❌ Error receiving best header message: {:?}", e);
 		}
