@@ -62,6 +62,12 @@ make build-default
 make build-light
 ```
 
+3. Compile the farmer node, which may automatically install the sqlite database:
+
+```bash
+make build-farmer
+```
+
 ## 3. Run
 
 You can start a development chain with:
@@ -76,6 +82,12 @@ To launch a light node:
 make run-light-dev
 ```
 
+You can also start a farmer node:
+
+```bash
+make run-farmer
+```
+
 ## 4. Development
 
 ### Test All
@@ -86,7 +98,7 @@ Use the following command to run all tests:
 make test
 ```
 
-You can learn more detailed testing methods from the [testing guide](./TESTING.md) and [light client testing guide](./LIGHT_TESTING.md).
+You can learn more detailed testing methods from the [testing guide](./TESTING.md) , [light client testing guide](./LIGHT_TESTING.md) and [farmer testing guide](./FARMER_TESTING.md).
 
 ## 5. Docker
 
