@@ -56,33 +56,42 @@ pub fn fold_hash(hash: &[u8]) -> u32 {
 /// - Each pair of bytes is converted to a `u16` and then XORed with the accumulator.
 /// - If the number of bytes in the slice is odd, the last byte is XORed with 0.
 pub fn hash_to_u16_xor(hash: &[u8]) -> u16 {
-    hash.chunks(2).fold(0u16, |acc, chunk| {
-        acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
-    })
+	hash.chunks(2).fold(0u16, |acc, chunk| {
+		acc ^ u16::from_be_bytes([chunk[0], chunk.get(1).cloned().unwrap_or(0)])
+	})
 }
 
-/// Selects indices from a hash where a specified number of consecutive bits are 1.
+/// Selects indices from a hash where a specified number of consecutive bits are 1,
+/// with the `end` parameter indicating the bit position in binary.
 ///
 /// Parameters:
 /// * `hash`: A reference to a 32-byte hash array.
 /// * `start`: The starting index for the selection.
-/// * `end`: The ending index for the selection.
+/// * `end`: The bit position in binary to check in each byte.
 /// * `n`: The number of consecutive 1 bits required.
 ///
 /// Returns:
 /// A vector of indices where each index meets the specified bit criteria.
 pub fn select_indices(hash: &[u8; 32], start: usize, end: usize, n: usize) -> Vec<u32> {
-	(start..end)
-		.flat_map(|i| (0..8).map(move |bit| (i, bit))) // Generate index-bit pairs.
-		.filter_map(|(i, bit)| {
-			// Filter pairs where `n` consecutive bits are 1.
-			if (0..n).all(|offset| {
-				let next_bit_index = (bit + offset) % 8;
-				let next_byte_index = (i + (bit + offset) / 8) % 32;
+	assert!(end <= 7, "end must be a bit position within a byte (0-7)");
 
-				hash[next_byte_index] & (1 << next_bit_index) != 0
+	(start..32)
+		.filter_map(|i| {
+			// Check if `n` consecutive bits starting from the `end` bit are 1.
+			if (0..n).all(|offset| {
+				// Calculate the bit position and byte index for the offset.
+				let bit_position = (end + offset) % 8;
+				let byte_index = i + (end + offset) / 8;
+
+				// Prevent index out of bounds.
+				if byte_index >= 32 {
+					return false
+				}
+
+				// Check if the bit at the position is 1.
+				hash[byte_index] & (1 << bit_position) != 0
 			}) {
-				Some((i * 8 + bit) as u32)
+				Some(i as u32)
 			} else {
 				None
 			}
@@ -209,36 +218,39 @@ mod tests {
 	#[test]
 	fn test_select_indices() {
 		let hash = [0b1111_1111u8; 32];
-		let indices = select_indices(&hash, 0, 32, 3);
-		assert_eq!(indices.len(), 256);
+		// Check the 1st bit position in each byte
+		let indices = select_indices(&hash, 0, 1, 3);
+		// Every byte should match, since it's full of 1s
+		assert_eq!(indices.len(), 32);
 	}
 
 	#[test]
 	fn test_select_indices_non_uniform() {
 		let hash = [0b1010_1010u8; 32];
-		let indices = select_indices(&hash, 0, 32, 2);
+		// Check the 1st bit position in each byte
+		let indices = select_indices(&hash, 0, 1, 2);
+		// No match as there are no 2 consecutive 1s starting from 1st bit position
 		assert!(indices.is_empty());
 	}
 
 	#[test]
 	fn test_select_indices_no_match() {
 		let hash = [0b0101_0101u8; 32];
-		let indices = select_indices(&hash, 0, 32, 3);
+		// Check the 1st bit position in each byte
+		let indices = select_indices(&hash, 0, 1, 3);
+		// No match as there are no 3 consecutive 1s starting from 1st bit position
 		assert!(indices.is_empty());
 	}
 
 	#[test]
 	fn test_select_indices_partial_bytes() {
 		let hash = [0b1111_0000u8; 32];
-		let indices = select_indices(&hash, 2, 30, 4);
-		assert_eq!(
-			indices,
-			vec![
-				20, 28, 36, 44, 52, 60, 68, 76, 84, 92, 100, 108, 116, 124, 132, 140, 148, 156,
-				164, 172, 180, 188, 196, 204, 212, 220, 228, 236
-			]
-		);
-	}
+		// Check the 1st bit position in bytes from 2 to 29
+		let indices = select_indices(&hash, 2, 1, 4);
+		// No matches should be found
+		assert!(indices.is_empty());
+	}	
+
 	#[test]
 	fn test_is_index_valid_short_hash() {
 		let hash = [0b1111_1111u8; 16]; // Shorter than 32 bytes

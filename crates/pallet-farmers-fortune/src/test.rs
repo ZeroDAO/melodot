@@ -101,15 +101,15 @@ fn claim_reward_should_work() {
 #[test]
 fn claim_reward_works_for_different_farmer_ids() {
 	new_test_ext().execute_with(|| {
-		System::set_block_number(6);
-		<frame_system::BlockHash<Runtime>>::insert(5, H256::from(BLOCK_HASH1));
-		<frame_system::BlockHash<Runtime>>::insert(3, H256::from(BLOCK_HASH1));
+		System::set_block_number(16);
+		<frame_system::BlockHash<Runtime>>::insert(15, H256::from(BLOCK_HASH1));
+		<frame_system::BlockHash<Runtime>>::insert(13, H256::from(BLOCK_HASH1));
 
 		let segs = get_mock_row(&BLS_SCALAR11, &BLS_SCALAR12, 0, &PROOF_11, &PROOF_12, 16);
 		let commit = KZGCommitment::try_from(COMMIT1).unwrap();
 
 		let pre_cell = PreCell::new(PiecePosition::Row(0), segs[0].clone());
-		let piece_metadata = PieceMetadata::new(3, PiecePosition::Row(0));
+		let piece_metadata = PieceMetadata::new(13, PiecePosition::Row(0));
 
 		let left_cell_metadata = CellMetadata::new(piece_metadata.clone(), 0);
 		let right_cell_metadata = CellMetadata::new(piece_metadata, 1);
@@ -120,11 +120,11 @@ fn claim_reward_works_for_different_farmer_ids() {
 
 		let wrong_commit = KZGCommitment::try_from(COMMIT2).unwrap();
 
-		insert_mock_commitment(5, Position { x: 0, y: 0 }, wrong_commit);
+		insert_mock_commitment(15, Position { x: 0, y: 0 }, wrong_commit);
 
-		insert_mock_commitment(3, Position { x: 0, y: 0 }, commit);
+		insert_mock_commitment(13, Position { x: 0, y: 0 }, commit);
 
-		insert_mock_commitment(3, Position { x: 1, y: 0 }, commit);
+		insert_mock_commitment(13, Position { x: 1, y: 0 }, commit);
 
 		assert_noop!(
 			FarmersFortune::claim(

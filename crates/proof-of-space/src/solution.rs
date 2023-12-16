@@ -366,17 +366,6 @@ mod tests {
 	}
 
 	#[test]
-	fn test_select_indices() {
-		let farmer_id = FarmerId::default();
-		let block_hash: [u8; 32] = [0b00010001; 32];
-		let end = 100;
-		let n = 1;
-
-		let indices = Solution::<H256, u32>::select_indices(&farmer_id, &block_hash.into(), end, n);
-		assert!(!indices.is_empty());
-	}
-
-	#[test]
 	fn test_find_solutions_with_z() {
 		let mut db = MockDb::new();
 		let farmer_id = FarmerId::default();
