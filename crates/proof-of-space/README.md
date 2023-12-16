@@ -1,0 +1,9 @@
+# Melodot Proof-of-Space
+
+This document outlines the implementation of a Proof-of-Space (PoS) at a Proof-of-Concept (PoC) level, leveraging the principles of Hellman's Time-Memory Trade-Off Attack (TMTO). Our ambition extends to incorporating a broader spectrum of space-proof algorithms in future versions, including but not limited to space-proof algorithms based on the KZG commitment scheme.
+
+## Principle
+
+In the foundational model of space proof, computationally intensive methods are common. A basic example is the function `Math(x_1, x_2) = Hash(x_1) == Hash(x_2)` , where 'Hash' represents a hash function. Users are required to submit values `x_1` and `x_2` , and the verifier computes the result of `Math(x_1, x_2)` . A true result indicates successful verification. However, this approach has several drawbacks. For instance, storing only `1/m` of the data can still guarantee a `1/m` chance of success. Moreover, this model is vulnerable to various attack vectors, including the Hellman Attack. To discourage users from merely storing hash results and immediately accessing data upon success, methods like adding a salt are employed to increase the computational workload for honest users.
+
+Based on Hellman's TMTO, the fundamental idea is to reduce computational demands by precomputing and storing intermediate results, thereby giving users who honestly store data a significant advantage. Our product is a PoC-level implementation of Hellman's TMTO, aimed primarily at demonstrating its effectiveness in preventing witch and outsourced attacks. Future iterations should involve the creation of a multi-layered, tree-like structure of intermediate data, exponentially increasing the cost for attackers while also leading to an exponential increase in the size of the proof. However, it's important to note that we don't need to verify all data; similar to a Merkle tree, verifying a single branch can suffice.
