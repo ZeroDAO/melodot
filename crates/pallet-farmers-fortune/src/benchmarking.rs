@@ -64,8 +64,8 @@ benchmarks! {
 		let _ = MeloStore::<T>::push_commitments_ext(block_num5, commit_vec.as_slice()).unwrap();
 	}: _(RawOrigin::Signed(caller),
 		pre_cell.clone(),
-		win_cell_left.clone(),
-		win_cell_right.clone()
+		Box::new(win_cell_left.clone()),
+		Box::new(win_cell_right.clone())
 	)
 	verify {}
 }

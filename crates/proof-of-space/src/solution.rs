@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::{
-	utils, BlakeTwo256, Cell, Decode, Encode, FarmerId, HashT, PreCell, Vec, ZValueManager,
+	utils, BlakeTwo256, Cell, Decode, Encode, FarmerId, HashT, PreCell, ZValueManager,
 };
 #[cfg(feature = "std")]
 use crate::{DasKv, Piece};
