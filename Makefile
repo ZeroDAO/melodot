@@ -37,7 +37,7 @@ test: init
 	SKIP_WASM_BUILD=1 cargo test --release --all
 
 e2e:
-	./target/release/e2e
+	./target/release/melodot-light-e2e
 
 bs:
 	cargo build --release -p melodot-node -p melodot-runtime --features runtime-benchmarks
