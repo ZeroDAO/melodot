@@ -35,7 +35,7 @@ make build-farmer
 3. Compile the light client and e2e tests:
 
 ```bash
-make build-light
+make build-meloxt
 ```
 
 ### ****Launching the Development Network****
