@@ -32,6 +32,12 @@ make build-default
 make build-farmer
 ```
 
+3. Compile the light client and e2e tests:
+
+```bash
+make build-light
+```
+
 ### ****Launching the Development Network****
 
 To initiate the development network, use the command below:
