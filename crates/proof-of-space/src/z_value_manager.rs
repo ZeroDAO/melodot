@@ -14,7 +14,7 @@
 
 #[cfg(feature = "std")]
 use crate::DasKv;
-use crate::{utils, BlakeTwo256, CellMetadata, Decode, Encode, FarmerId, HashT, XValueManager};
+use crate::{utils, BlakeTwo256, CellMetadata, Decode, Encode, FarmerId, HashT, YValueManager};
 #[cfg(feature = "std")]
 use anyhow::{Context, Result};
 use melo_das_primitives::Segment;
@@ -143,8 +143,8 @@ where
 	) -> bool {
 		let calculated_z = Self::calculate_z(left_cell, right_cell);
 		let is_pair = left_cell_metadata.is_pair(right_cell_metadata);
-		let is_y_equal = XValueManager::<BlockNumber>::calculate_y(farmer_id, left_cell) ==
-			XValueManager::<BlockNumber>::calculate_y(farmer_id, right_cell);
+		let is_y_equal = YValueManager::<BlockNumber>::calculate_y(farmer_id, left_cell) ==
+		YValueManager::<BlockNumber>::calculate_y(farmer_id, right_cell);
 		z == calculated_z && is_pair && is_y_equal
 	}
 }

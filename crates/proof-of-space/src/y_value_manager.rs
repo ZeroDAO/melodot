@@ -73,7 +73,7 @@ impl YPos {
 }
 
 /// Manages the X-value in a blockchain context, linking to `CellMetadata`.
-pub struct XValueManager<BlockNumber>
+pub struct YValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
@@ -82,7 +82,7 @@ where
 	pos: YPos,
 }
 
-impl<BlockNumber> XValueManager<BlockNumber>
+impl<BlockNumber> YValueManager<BlockNumber>
 where
 	BlockNumber: Clone + sp_std::hash::Hash + Encode + Decode,
 {
@@ -100,7 +100,7 @@ where
 		utils::fold_hash(&buffer)
 	}
 
-    /// Constructs a new `XValueManager` instance.
+    /// Constructs a new `YValueManager` instance.
 	pub fn new(piece_metadata: &PieceMetadata<BlockNumber>, index: u32, y: u32) -> Self {
 		let pos = YPos::from_u32(index);
 		Self {
@@ -110,7 +110,7 @@ where
 		}
 	}
 
-    /// Generates a key for the current `XValueManager`.
+    /// Generates a key for the current `YValueManager`.
 	pub fn key(&self) -> Vec<u8> {
 		Self::key_by_x_pos(&self.pos, self.y)
 	}
@@ -197,8 +197,8 @@ mod tests {
 
 		let segs = poly_to_segment_vec(&poly, &kzg, 0, chunk_len).unwrap();
 
-		let y1 = XValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[0]);
-		let y2 = XValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[1]);
+		let y1 = YValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[0]);
+		let y2 = YValueManager::<u32>::calculate_y(&FarmerId::default(), &segs[1]);
 
 		if y1 == y2 {
 			print!("y: {:?}\n", y1);
@@ -299,7 +299,7 @@ mod tests {
 	#[test]
 	fn test_x_value_manager_new() {
 		let piece_metadata = PieceMetadata::<u32>::default();
-		let x_value_manager = XValueManager::new(&piece_metadata, 10, 20);
+		let x_value_manager = YValueManager::new(&piece_metadata, 10, 20);
 		assert_eq!(x_value_manager.y, 20);
 		assert_eq!(x_value_manager.pos, YPos::from_u32(10));
 	}
@@ -307,9 +307,9 @@ mod tests {
 	#[test]
 	fn test_x_value_manager_key() {
 		let piece_metadata = PieceMetadata::<u32>::default();
-		let x_value_manager = XValueManager::new(&piece_metadata, 10, 20);
+		let x_value_manager = YValueManager::new(&piece_metadata, 10, 20);
 		let key = x_value_manager.key();
-		let expected_key = XValueManager::<u32>::key_by_x_pos(&YPos::from_u32(10), 20);
+		let expected_key = YValueManager::<u32>::key_by_x_pos(&YPos::from_u32(10), 20);
 		assert_eq!(key, expected_key);
 	}
 
@@ -318,7 +318,7 @@ mod tests {
 
 		let seg = get_mock_seg(bs, 0, 0, &proof, FIELD_ELEMENTS_PER_SEGMENT);
 
-		let y = XValueManager::<u32>::calculate_y(&farmer_id, &seg);
+		let y = YValueManager::<u32>::calculate_y(&farmer_id, &seg);
 
 		assert!(y == y_e);
 	}
@@ -339,12 +339,12 @@ mod tests {
 		let index = 5;
 		let y = 10;
 
-		let x_value_manager = XValueManager::new(&piece_metadata, index, y);
+		let x_value_manager = YValueManager::new(&piece_metadata, index, y);
 
 		assert_eq!(x_value_manager.pos, YPos::from_u32(index));
 
 		let key = x_value_manager.key();
-		let expected_key = XValueManager::<u32>::key_by_x_pos(&YPos::from_u32(index), y);
+		let expected_key = YValueManager::<u32>::key_by_x_pos(&YPos::from_u32(index), y);
 		assert_eq!(key, expected_key);
 	}
 
@@ -403,7 +403,7 @@ mod tests {
 			&mut db,
 		);
 
-		let x_value_manager = XValueManager::new(&PieceMetadata::<u32>::default(), 0, Y1);
+		let x_value_manager = YValueManager::new(&PieceMetadata::<u32>::default(), 0, Y1);
 		let match_cells_set = x_value_manager.match_cells(&mut db).unwrap();
 
 		assert_eq!(match_cells_set.len(), 1);
@@ -416,7 +416,7 @@ mod tests {
 		let index = 5;
 		let y = 10;
 
-		let x_value_manager = XValueManager::new(&piece_metadata, index, y);
+		let x_value_manager = YValueManager::new(&piece_metadata, index, y);
 
 		x_value_manager.save(&mut db);
 

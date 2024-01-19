@@ -45,7 +45,7 @@ pub use piece::{Piece, PieceMetadata, PiecePosition};
 #[cfg(feature = "std")]
 pub use solution::find_solutions;
 pub use solution::Solution;
-pub use y_value_manager::{XValueManager, YPos};
+pub use y_value_manager::{YValueManager, YPos};
 pub use z_value_manager::ZValueManager;
 
 #[derive(Default, Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]

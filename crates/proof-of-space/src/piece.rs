@@ -13,7 +13,7 @@
 // limitations under the License.
 #[cfg(feature = "std")]
 use crate::{CellMetadata, DasKv, YPos, ZValueManager};
-use crate::{Decode, Encode, FarmerId, Segment, Vec, XValueManager};
+use crate::{Decode, Encode, FarmerId, Segment, Vec, YValueManager};
 #[cfg(feature = "std")]
 use anyhow::{anyhow, Ok, Result};
 use melo_das_primitives::Position;
@@ -127,7 +127,7 @@ where
 		farmer_id: &'a FarmerId,
 	) -> impl Iterator<Item = (u32, &Segment)> + 'a {
 		self.segments.iter().map(move |segment| {
-			let y = XValueManager::<BlockNumber>::calculate_y(farmer_id, segment);
+			let y = YValueManager::<BlockNumber>::calculate_y(farmer_id, segment);
 			(y, segment)
 		})
 	}
@@ -171,7 +171,7 @@ where
 					CellMetadata { piece_metadata: metadata_clone.clone(), offset: index as u32 };
 
 				let x_value_manager =
-					XValueManager::<BlockNumber>::new(&metadata_clone, index as u32, x);
+					YValueManager::<BlockNumber>::new(&metadata_clone, index as u32, x);
 
 				let x_pos = YPos::from_u32(index as u32);
 
