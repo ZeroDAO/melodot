@@ -20,7 +20,9 @@ use codec::{Decode, Encode};
 use futures::lock::Mutex;
 use log::{debug, info};
 use melo_core_primitives::{
-	reliability::{ReliabilitySample, ReliabilityType},
+	reliability::{
+		LastProcessedBlock, ReliabilitySample, ReliabilityType, LATEST_PROCESSED_BLOCK_KEY,
+	},
 	traits::HeaderWithCommitment,
 	AppLookup,
 };
@@ -135,7 +137,7 @@ where
 	}
 
 	/// Sets the last block number sampled.
-	async fn set_last_at<Number>(&self, last: Number)
+	async fn set_last_at<Number>(&self, last: Number, block_hash: &[u8])
 	where
 		Number: Encode + Decode + PartialOrd + Send,
 	{
@@ -151,8 +153,9 @@ where
 		};
 
 		if should_update {
-			let encoded = last.encode();
-			db_guard.set(LAST_AT_KEY, &encoded);
+			let last_processed_block =
+				LastProcessedBlock { block_num: last, block_hash: block_hash.into() };
+			db_guard.set(LATEST_PROCESSED_BLOCK_KEY, last_processed_block.encode().as_slice());
 		}
 	}
 }
@@ -213,7 +216,7 @@ impl<H: HeaderWithCommitment + Sync, DB: DasKv + Send, D: DasNetworkOperations +
 		}
 
 		let at = header.number();
-		self.set_last_at::<<Header as HeaderWithCommitment>::Number>(*at).await;
+		self.set_last_at::<<Header as HeaderWithCommitment>::Number>(*at, &block_hash).await;
 		Ok(())
 	}
 }

@@ -39,7 +39,8 @@ pub trait ConfidenceApi<DB, Hash, DN> {
 	///
 	/// # Returns
 	///
-	/// Returns the confidence of the block as an `Option<u32>`. If the block is not in the database, returns `None`.
+	/// Returns the confidence of the block as an `Option<u32>`. If the block is not in the
+	/// database, returns `None`.
 	#[method(name = "blockConfidence")]
 	async fn block_confidence(&self, block_hash: Hash) -> RpcResult<Option<u32>>;
 
@@ -51,7 +52,8 @@ pub trait ConfidenceApi<DB, Hash, DN> {
 	///
 	/// # Returns
 	///
-	/// Returns whether the block is available as an `Option<bool>`. If the block is not in the database, returns `None`.
+	/// Returns whether the block is available as an `Option<bool>`. If the block is not in the
+	/// database, returns `None`.
 	#[method(name = "isAvailable")]
 	async fn is_available(&self, block_hash: Hash) -> RpcResult<Option<bool>>;
 
@@ -66,6 +68,9 @@ pub trait ConfidenceApi<DB, Hash, DN> {
 	/// Returns `()` if the records were successfully removed.
 	#[method(name = "removeRecords")]
 	async fn remove_records(&self, keys: Vec<Bytes>) -> RpcResult<()>;
+
+	#[method(name = "last")]
+	async fn last(&self) -> RpcResult<Option<(u32, Bytes)>>;
 }
 
 /// The Das API's implementation.
@@ -91,6 +96,11 @@ where
 		let mut db = self.database.lock().await;
 		confidence_id.get_confidence(&mut *db)
 	}
+
+	pub async fn get_last(&self) -> Option<(Bytes, u32)> {
+		let last_pr = ReliabilityId::get_last(&mut *self.database.lock().await);
+		last_pr.map(|last| (Bytes::from(last.block_hash), last.block_num))
+	}
 }
 
 #[async_trait]
@@ -114,5 +124,9 @@ where
 		let keys = keys.iter().map(|key| &**key).collect::<Vec<_>>();
 		self.das_network.remove_records(keys).await?;
 		Ok(())
+	}
+
+	async fn last(&self) -> RpcResult<Option<(u32, Bytes)>> {
+		self.get_last().await.map_or(Ok(None), |(hash, number)| Ok(Some((number, hash))))
 	}
 }
