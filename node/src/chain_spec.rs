@@ -227,7 +227,8 @@ fn overtrue_testnet_genesis() -> GenesisConfig {
 		vec![],
 		// 5F1NhF2fdsvBwFxAhQga9WjB344ECAJ8hDQJ99p1gWqpuzY1
 		hex!["4850a46ca0afedc00ad8239f903fe0348fc7f2dfb6af5100ef85f1d934871b1c"].into(),
-		Some(vec![]),
+		// 5FCRAaNfM8wuYg6jQBHryeCXZSG68eLvHLdAYA6eWxukrbsG
+		Some(vec![hex!["8a9679d0624a555c9c1088578b0c488b03c5150fe6c021f4968d338a6ebfb24b"].into()]),
 	)
 }
 
