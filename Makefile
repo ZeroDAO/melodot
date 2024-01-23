@@ -1,4 +1,4 @@
-.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light run-light-e2e bs build-farmer run-farmer
+.PHONY: run-dev build-release build-default build-meloxt build-light purge-dev init test e2e run-light run-light-e2e bs build-farmer run-farmer run-overtrue build-node
 
 run-light-dev: init
 	./target/release/melodot-light --dev-mode
@@ -9,6 +9,9 @@ run-light-e2e: init
 run-dev:
 	./target/release/melodot-node --dev --ws-external
 
+run-overtrue:
+	./target/release/melodot-node --overtrue --ws-external
+
 run-farmer:
 	./target/release/melodot-farmer
 
@@ -17,6 +20,9 @@ build-release:
 
 build-default:
 	cargo build --release -p melodot-node -p melodot-runtime
+
+build-node:
+	cargo build --release -p melodot-node
 
 build-meloxt:
 	cargo build --release -p meloxt
