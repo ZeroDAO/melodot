@@ -44,7 +44,7 @@ melo-das-primitives = { version = "0.1.0", path = "../das-primitives"}
 melo-das-rpc = { version = "0.0.1", path = "../das-rpc"}
 melo-proof-of-space = { version = "0.0.1", path = "../proof-of-space"}
 
-sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42"}
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.42" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
