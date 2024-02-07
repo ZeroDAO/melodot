@@ -531,7 +531,7 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.enumerate()
 			.filter_map(|(i, metadata)| {
-				let mut db = OffchainKv::new(Some(DB_PREFIX));
+				let mut db = OffchainKv::new();
 				match ReliabilityId::app_confidence(metadata.app_id, metadata.nonce)
 					.get_confidence(&mut db)
 				{
@@ -551,7 +551,7 @@ impl<T: Config> Pallet<T> {
 	/// chain. Returns a vector of block numbers representing the unavailable blocks.
 	pub fn fetch_unavailability_blocks() -> Vec<BlockNumberFor<T>> {
 		let now = <frame_system::Pallet<T>>::block_number();
-		let mut db = OffchainKv::new(Some(DB_PREFIX));
+		let mut db = OffchainKv::new();
 
 		let last: BlockNumberFor<T> =
 			match ReliabilityManager::new(db.clone()).get_last_processed_block() {
