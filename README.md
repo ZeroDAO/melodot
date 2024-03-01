@@ -4,8 +4,6 @@
 
 ## 1. Introduction
 
-Here's the translation:
-
 Melodot is designed as a data availability layer for GB-level data throughput, featuring:
 
 1. Utilizes KZG commitments to ensure data is correctly encoded.
