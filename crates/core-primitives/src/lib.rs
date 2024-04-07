@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![recursion_limit = "256"]
 
 extern crate alloc;
 pub use alloc::{
@@ -27,6 +28,8 @@ use sp_runtime::generic::Digest;
 
 pub mod header;
 pub use header::*;
+
+pub mod block;
 
 pub mod sidecar;
 pub use sidecar::*;

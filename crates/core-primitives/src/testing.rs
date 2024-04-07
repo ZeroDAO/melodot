@@ -35,7 +35,7 @@ use sp_runtime::{
 	scale_info::TypeInfo,
 	traits::{
 		self, Applyable, BlakeTwo256, Checkable, DispatchInfoOf, Dispatchable, OpaqueKeys,
-		PostDispatchInfoOf, SignedExtension, ValidateUnsigned,
+		PostDispatchInfoOf, SignaturePayload, SignedExtension, ValidateUnsigned,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResultWithInfo, KeyTypeId,
@@ -240,7 +240,7 @@ pub type Header = HeaderT<u64, BlakeTwo256>;
 
 impl Header {
 	/// A new header with the given number and default hash for all other fields.
-	pub fn new_from_number(number: <Self as ExtendedHeader>::Number) -> Self {
+	pub fn new_from_number(number: <Self as traits::Header>::Number) -> Self {
 		Self {
 			number,
 			extrinsics_root: Default::default(),
@@ -299,6 +299,10 @@ pub struct Block<Xt> {
 	pub extrinsics: Vec<Xt>,
 }
 
+impl<Xt> traits::HeaderProvider for Block<Xt> {
+	type HeaderT = Header;
+}
+
 impl<
 		Xt: 'static + Codec + Sized + Send + Sync + Serialize + Clone + Eq + Debug + traits::Extrinsic,
 	> traits::Block for Block<Xt>
@@ -334,6 +338,15 @@ where
 			.map_err(|e| DeError::custom(format!("Invalid value passed into decode: {}", e)))
 	}
 }
+
+/// The signature payload of a `TestXt`.
+type TxSingaturePayload<Extra> = (u64, Extra);
+
+// impl<Extra: TypeInfo> SignaturePayload for TxSingaturePayload<Extra> {
+// 	type SignatureAddress = u64;
+// 	type Signature = ();
+// 	type SignatureExtra = Extra;
+// }
 
 /// From substrate sp_runtime test utils
 /// Test transaction, tuple of (sender, call, signed_extra)
@@ -388,9 +401,11 @@ impl<Call: Codec + Sync + Send, Context, Extra> Checkable<Context> for TestXt<Ca
 	}
 }
 
-impl<Call: Codec + Sync + Send, Extra> traits::Extrinsic for TestXt<Call, Extra> {
+impl<Call: Codec + Sync + Send + TypeInfo, Extra: TypeInfo> traits::Extrinsic
+	for TestXt<Call, Extra>
+{
 	type Call = Call;
-	type SignaturePayload = (u64, Extra);
+	type SignaturePayload = TxSingaturePayload<Extra>;
 
 	fn is_signed(&self) -> Option<bool> {
 		Some(self.signature.is_some())
