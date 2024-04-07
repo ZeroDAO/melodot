@@ -17,15 +17,10 @@ use core::fmt::Display;
 use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
 use codec::{Decode, Encode};
 use melo_das_primitives::Position;
-use sp_runtime::traits::{Hash, MaybeSerialize};
-
-pub trait ExtendedHeader {
-	/// Header number.
-	type Number;
-
-	/// Header hash type
-	type Hash;
-
+use sp_runtime::traits::{
+	Block as BlockT, Hash, Header as HeaderT, MaybeSerialize, MaybeSerializeDeserialize,
+};
+pub trait ExtendedHeader<Number>: HeaderT<Number = Number> {
 	/// Creates new header.
 	fn new_ext(
 		number: Self::Number,
@@ -50,6 +45,22 @@ pub trait ExtendedHeader {
 
 	/// Returns the number of columns.
 	fn col_num(&self) -> Option<u32>;
+}
+
+pub trait ExtendedBlock<Number>:
+	BlockT
+	+ ExtendedHeaderProvider<
+		Number,
+		ExtendedHeaderT = <Self as ExtendedBlock<Number>>::ExtendedHeader,
+	>
+{
+	type ExtendedHeader: ExtendedHeader<Number, Hash = Self::Hash> + MaybeSerializeDeserialize;
+}
+
+#[doc(hidden)]
+pub trait ExtendedHeaderProvider<Number> {
+	/// Header type.
+	type ExtendedHeaderT: ExtendedHeader<Number>;
 }
 
 pub trait HeaderCommitList {
@@ -113,6 +124,5 @@ sp_api::decl_runtime_apis! {
 pub trait CommitmentFromPosition {
 	type BlockNumber;
 
-	fn commitments(block_number: Self::BlockNumber, postion: &Position)
-		-> Option<KZGCommitment>;
+	fn commitments(block_number: Self::BlockNumber, postion: &Position) -> Option<KZGCommitment>;
 }
