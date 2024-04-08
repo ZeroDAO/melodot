@@ -20,7 +20,7 @@
 #![cfg(test)]
 
 use frame_support::{
-	parameter_types,
+	derive_impl, parameter_types,
 	traits::{ConstU32, ConstU64},
 	weights::Weight,
 };
@@ -28,9 +28,9 @@ use pallet_im_online as imonline;
 use pallet_session::historical as pallet_session_historical;
 use sp_core::H256;
 use sp_runtime::{
-	testing::{Header, TestXt, UintAuthorityId},
+	testing::{TestXt, UintAuthorityId},
 	traits::{BlakeTwo256, ConvertInto, IdentityLookup},
-	Permill,
+	BuildStorage, Permill,
 };
 use sp_staking::{
 	offence::{OffenceError, ReportOffence},
@@ -40,19 +40,14 @@ use sp_staking::{
 use crate as pallet_melo_store;
 use crate::Config;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
 type Block = frame_system::mocking::MockBlock<Runtime>;
 
 frame_support::construct_runtime!(
-	pub struct Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Historical: pallet_session_historical::{Pallet},
+	pub enum Runtime {
+		System: frame_system,
+		Session: pallet_session,
 		MeloStore: pallet_melo_store::{Pallet, Call, Storage, Event<T>},
+		Historical: pallet_session_historical,
 	}
 );
 
@@ -105,20 +100,35 @@ impl ReportOffence<u64, IdentificationTuple, Offence> for OffenceHandler {
 	}
 }
 
+parameter_types! {
+	pub static Ongoing: bool = false;
+}
+
+pub struct MockedMigrator;
+impl frame_support::migrations::MultiStepMigrator for MockedMigrator {
+	fn ongoing() -> bool {
+		Ongoing::get()
+	}
+
+	fn step() -> Weight {
+		Weight::zero()
+	}
+}
+
+#[derive_impl(frame_system::config_preludes::TestDefaultConfig as frame_system::DefaultConfig)]
 impl frame_system::Config for Runtime {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
 	type RuntimeOrigin = RuntimeOrigin;
-	type Index = u64;
-	type BlockNumber = u64;
+	type Nonce = u64;
 	type RuntimeCall = RuntimeCall;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
+	type Block = Block;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ConstU64<250>;
 	type Version = ();
@@ -216,7 +226,7 @@ where
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let t = frame_system::GenesisConfig::<Runtime>::default().build_storage().unwrap();
 	let mut result: sp_io::TestExternalities = t.into();
 	// Set the default keys, otherwise session will discard the validator.
 	result.execute_with(|| {

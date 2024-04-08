@@ -29,13 +29,13 @@ pub use pallet::*;
 pub mod weights;
 pub use weights::*;
 
-mod mock;
-mod test;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+mod mock;
+mod test;
 
 type BalanceOf<T> =
-<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -47,25 +47,25 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-        /// The overarching event type for the runtime.
-        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+		/// The overarching event type for the runtime.
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-        /// Weight information for this pallet's extrinsics.
-        type WeightInfo: WeightInfo;
+		/// Weight information for this pallet's extrinsics.
+		type WeightInfo: WeightInfo;
 
-        /// Mechanism to derive commitment from a block position.
-        type CommitmentFromPosition: CommitmentFromPosition<BlockNumber = BlockNumberFor<Self>>;
+		/// Mechanism to derive commitment from a block position.
+		type CommitmentFromPosition: CommitmentFromPosition<BlockNumber = BlockNumberFor<Self>>;
 
-        /// Defines the currency type used for handling balances.
-        type Currency: Currency<Self::AccountId>;
+		/// Defines the currency type used for handling balances.
+		type Currency: Currency<Self::AccountId>;
 
-        /// The fixed reward amount for successful claims.
-        #[pallet::constant]
-        type RewardAmount: Get<BalanceOf<Self>>;
+		/// The fixed reward amount for successful claims.
+		#[pallet::constant]
+		type RewardAmount: Get<BalanceOf<Self>>;
 
-        /// Maximum number of claimants allowed per block.
-        #[pallet::constant]
-        type MaxClaimantsPerBlock: Get<u32>;
+		/// Maximum number of claimants allowed per block.
+		#[pallet::constant]
+		type MaxClaimantsPerBlock: Get<u32>;
 	}
 
 	#[pallet::storage]
@@ -87,26 +87,26 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-        /// Error for invalid solutions, e.g., future block reports.
-        InvalidSolution,
-        /// Error when a pre-commitment is not found in the storage.
-        PreCommitNotFound,
-        /// Error for missing win-commitment for a block.
-        WinCommitNotFound,
-        /// Error when the maximum number of claimants for a block is reached.
-        MaxClaimantsReached,
-        /// Error indicating a user has already claimed a reward for the block.
-        AlreadyClaimed,
-        /// Error for reaching the storage limit of claimants.
-        StorageLimitReached,
-        /// Error for underflow in block number calculations.
-        BlockNumberUnderflow,
+		/// Error for invalid solutions, e.g., future block reports.
+		InvalidSolution,
+		/// Error when a pre-commitment is not found in the storage.
+		PreCommitNotFound,
+		/// Error for missing win-commitment for a block.
+		WinCommitNotFound,
+		/// Error when the maximum number of claimants for a block is reached.
+		MaxClaimantsReached,
+		/// Error indicating a user has already claimed a reward for the block.
+		AlreadyClaimed,
+		/// Error for reaching the storage limit of claimants.
+		StorageLimitReached,
+		/// Error for underflow in block number calculations.
+		BlockNumberUnderflow,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Claim a reward for providing a valid solution.
-        /// This function involves verifying the solution and rewarding the claimant.
+		/// This function involves verifying the solution and rewarding the claimant.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::claim())]
 		#[allow(clippy::large_enum_variant)]
@@ -126,11 +126,8 @@ pub mod pallet {
 			);
 			ensure!(!claimants.contains(&who), Error::<T>::AlreadyClaimed);
 
-			let pre_block_num = CheckedSub::checked_sub(
-				&now,
-				&T::BlockNumber::from(1u32),
-			)
-			.ok_or(Error::<T>::BlockNumberUnderflow)?;
+			let pre_block_num = CheckedSub::checked_sub(&now, &BlockNumberFor::<T>::from(1u32))
+				.ok_or(Error::<T>::BlockNumberUnderflow)?;
 
 			let pre_block_hash = <frame_system::Pallet<T>>::block_hash(pre_block_num);
 			let win_block_hash_left =
