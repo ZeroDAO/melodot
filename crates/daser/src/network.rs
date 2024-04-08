@@ -33,7 +33,7 @@ use melo_erasure_coding::{
 	extend_col::extend_segments_col as extend,
 	recovery::recovery_order_row_from_segments as recovery,
 };
-use sp_api::HeaderT;
+use sp_runtime::traits::Header as HeaderT;
 
 /// Defines a trait for network operations required by the DAS protocol.
 #[async_trait::async_trait]

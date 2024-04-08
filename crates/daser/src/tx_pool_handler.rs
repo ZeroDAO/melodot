@@ -36,7 +36,7 @@ use std::marker::PhantomData;
 
 use futures::stream::FuturesUnordered;
 use melo_core_primitives::traits::HeaderWithCommitment;
-use sp_api::HeaderT;
+use sp_runtime::traits::Header as HeaderT;
 
 // Define a constant for logging with a target string
 const LOG_TARGET: &str = "tx_pool_listener";

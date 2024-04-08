@@ -446,7 +446,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_finalize(now: BlockNumberFor<T>) {
 			// Deletion of expired polling data
-			if T::BlockNumber::from(DELAY_CHECK_THRESHOLD + 1) >= now {
+			if BlockNumberFor::<T>::from(DELAY_CHECK_THRESHOLD + 1) >= now {
 				return
 			}
 			let _ = UnavailableVote::<T>::clear_prefix(
@@ -639,7 +639,7 @@ impl<T: Config> Pallet<T> {
 	) -> OffchainResult<T, impl Iterator<Item = OffchainResult<T, ()>>> {
 		let reports = (0..DELAY_CHECK_THRESHOLD)
 			.filter_map(move |gap| {
-				if T::BlockNumber::from(gap) > now {
+				if BlockNumberFor::<T>::from(gap) > now {
 					return None
 				}
 				let at_block = now - gap.into();
@@ -857,9 +857,9 @@ impl<T: Config> HeaderCommitList for Pallet<T> {
 }
 
 impl<T: Config> CommitmentFromPosition for Pallet<T> {
-	type BlockNumber = T::BlockNumber;
+	type BlockNumber = BlockNumberFor<T>;
 
-	fn commitments(block_num: T::BlockNumber, position: &Position) -> Option<KZGCommitment> {
+	fn commitments(block_num: Self::BlockNumber, position: &Position) -> Option<KZGCommitment> {
 		if block_num > <frame_system::Pallet<T>>::block_number() - DELAY_CHECK_THRESHOLD.into() {
 			return None
 		}
