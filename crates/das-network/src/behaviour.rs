@@ -15,7 +15,7 @@
 use anyhow::Result;
 use derive_more::From;
 use libp2p::{
-	core::PeerId,
+	PeerId,
 	identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent},
 	kad::{store::MemoryStore, Kademlia, KademliaConfig, KademliaEvent},
 	mdns::{tokio::Behaviour as TokioMdns, Config as MdnsConfig, Event as MdnsEvent},
@@ -52,7 +52,7 @@ pub struct Behavior {
 impl Behavior {
 	/// Creates a new [`Behavior`] instance.
 	pub fn new(config: BehaviorConfig) -> Result<Self> {
-		let mdns = TokioMdns::new(MdnsConfig::default())?;
+		let mdns = TokioMdns::new(MdnsConfig::default(), config.peer_id.clone())?;
 		let kademlia = Kademlia::with_config(config.peer_id, config.kad_store, config.kademlia);
 
 		Ok(Self { identify: Identify::new(config.identify), mdns, kademlia, ping: Ping::default() })

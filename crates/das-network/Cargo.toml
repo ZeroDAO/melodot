@@ -21,20 +21,20 @@ log = "0.4"
 rand = "0.8"
 derive_more = "0.99.17"
 anyhow = "1.0.66"
-libp2p = { version = "0.50.0", features = ["dns", "metrics", "identify", "kad", "macros", "mdns", "mplex", "noise", "ping", "tcp",  "tokio", "yamux", "websocket"] }
+libp2p = { version = "0.51.4", features = ["dns", "metrics", "identify", "kad", "macros", "mdns", "mplex", "noise", "ping", "tcp",  "tokio", "yamux", "websocket"] }
 tokio-stream = { version = "0.1" }
 tokio = { version = "1.21.2", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 prometheus-client = "0.18.1"
 
-frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sc-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sc-network = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-node-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sc-client-api = {git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-sc-offchain = {git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
+frame-system = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-transaction-pool = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-network = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+node-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-client-api = {git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-offchain = {git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }

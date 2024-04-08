@@ -16,4 +16,4 @@ async-trait = "0.1.56"
 futures = "0.3.21"
 tracing = "0.1.37"
 
-sc-network = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0" }
+sc-network = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }

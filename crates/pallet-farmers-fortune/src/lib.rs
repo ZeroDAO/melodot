@@ -54,7 +54,7 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         /// Mechanism to derive commitment from a block position.
-        type CommitmentFromPosition: CommitmentFromPosition<BlockNumber = Self::BlockNumber>;
+        type CommitmentFromPosition: CommitmentFromPosition<BlockNumber = BlockNumberFor<Self>>;
 
         /// Defines the currency type used for handling balances.
         type Currency: Currency<Self::AccountId>;
@@ -73,7 +73,7 @@ pub mod pallet {
 	pub type ClaimantsForBlock<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		T::BlockNumber,
+		BlockNumberFor<T>,
 		BoundedVec<T::AccountId, T::MaxClaimantsPerBlock>,
 		ValueQuery,
 	>;

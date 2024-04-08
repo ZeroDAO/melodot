@@ -15,11 +15,11 @@
 use anyhow::{Ok, Result};
 use futures::channel::mpsc;
 use libp2p::{
+	PeerId,
 	core::{
 		muxing::StreamMuxerBox,
 		transport::{self},
 		upgrade::Version,
-		PeerId,
 	},
 	dns::TokioDnsConfig,
 	identify::Config as IdentifyConfig,

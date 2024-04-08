@@ -7,18 +7,18 @@ authors = ["DKLee <xiuerdwy@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sc-rpc-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
-sc-service = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.6.0"}
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sc-rpc-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
+sc-service = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
 
 codec = { package = "parity-scale-codec", version = "3.6.1" }
 jsonrpsee = { version = "0.16.2", features = ["server", "client", "macros"] }
 thiserror = "1.0"
-serde = { version = "1.0.159", features = ["derive"] }
+serde = { version = "1.0.197", features = ["derive"] }
 hex = { version = "0.4.3", features = ["serde"] }
 log = { version = "0.4.17", default-features = false }
 futures = "0.3.21"
