@@ -21,8 +21,9 @@ use futures::{
 };
 use libp2p::{
 	futures,
-	kad::{record, Quorum, Record},
+	kad::{Quorum, Record},
 	Multiaddr, PeerId,
+	// libp2p_kad::record::Key
 };
 use std::{fmt::Debug, time::Duration};
 
@@ -76,7 +77,7 @@ impl Service {
 
 	/// Asynchronously puts data into the Kademlia network.
 	pub async fn put_value(&self, key: KademliaKey, value: Vec<u8>) -> anyhow::Result<()> {
-		let record = Record::new(key as record::Key, value);
+		let record = Record::new(key, value);
 		self.put_kad_record(record, Quorum::All).await
 	}
 
