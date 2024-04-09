@@ -180,7 +180,7 @@ pub mod pallet {
 			ClaimantsForBlock::<T>::insert(now, claimants);
 
 			let reward = T::RewardAmount::get();
-			T::Currency::deposit_creating(&who, reward);
+			let _ = T::Currency::deposit_creating(&who, reward);
 
 			Self::deposit_event(Event::RewardClaimed(who, reward));
 
