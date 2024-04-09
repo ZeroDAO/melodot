@@ -15,22 +15,19 @@
 use anyhow::{Ok, Result};
 use futures::channel::mpsc;
 use libp2p::{
-	PeerId,
 	core::{
 		muxing::StreamMuxerBox,
-		transport::{self},
+		transport,
 		upgrade::Version,
 	},
 	dns::TokioDnsConfig,
 	identify::Config as IdentifyConfig,
-	identity,
-	identity::Keypair,
+	identity::{self, Keypair},
 	kad::{store::MemoryStore, KademliaConfig},
-	noise::NoiseAuthenticated,
+	noise,
 	swarm::SwarmBuilder,
 	tcp::{tokio::Transport as TokioTcpTransport, Config as GenTcpConfig},
-	yamux::YamuxConfig,
-	Transport,
+	PeerId, Transport,
 };
 use melo_core_primitives::config;
 
@@ -55,6 +52,9 @@ mod worker;
 
 const SWARM_MAX_NEGOTIATING_INBOUND_STREAMS: usize = 5000;
 
+// TODO: This should be configurable
+const MAX_BUFFER_SIZE: usize = 8 * 1024 * 1024;
+
 /// Creates a new [`DasNetwork`] instance.
 /// The [`DasNetwork`] instance is composed of a [`Service`] and a [`Worker`].
 pub fn create(
@@ -68,7 +68,7 @@ pub fn create(
 	let protocol_version = format!("/melodot-das/{}", protocol_version);
 	let identify = IdentifyConfig::new(protocol_version.clone(), keypair.public());
 
-	let transport = build_transport(&keypair, true)?;
+	let transport = build_transport(&keypair, true, None, MAX_BUFFER_SIZE)?;
 
 	let behaviour = Behavior::new(BehaviorConfig {
 		peer_id: local_peer_id,
@@ -96,9 +96,7 @@ pub fn default(
 ) -> Result<(service::Service, worker::DasNetwork)> {
 	let keypair = match keypair {
 		Some(keypair) => keypair,
-		None => {
-			identity::Keypair::generate_ed25519()
-		}
+		None => identity::Keypair::generate_ed25519(),
 	};
 
 	let config = match config {
@@ -108,27 +106,36 @@ pub fn default(
 
 	let metric_registry = prometheus_endpoint::Registry::default();
 
-	create(
-		keypair,
-		config::DAS_NETWORK_VERSION.to_string(),
-		Some(metric_registry),
-		config,
-	)
+	create(keypair, config::DAS_NETWORK_VERSION.to_string(), Some(metric_registry), config)
 }
 
 fn build_transport(
 	key_pair: &Keypair,
 	port_reuse: bool,
+	yamux_window_size: Option<u32>,
+	yamux_maximum_buffer_size: usize,
 ) -> Result<transport::Boxed<(PeerId, StreamMuxerBox)>> {
-	let noise = NoiseAuthenticated::xx(key_pair).unwrap();
 	let dns_tcp = TokioDnsConfig::system(TokioTcpTransport::new(
 		GenTcpConfig::new().nodelay(true).port_reuse(port_reuse),
 	))?;
 
+	let authentication_config = noise::Config::new(&key_pair).expect("Can create noise config. qed");
+	let multiplexing_config = {
+		let mut yamux_config = libp2p::yamux::Config::default();
+		yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
+		yamux_config.set_max_buffer_size(yamux_maximum_buffer_size);
+
+		if let Some(yamux_window_size) = yamux_window_size {
+			yamux_config.set_receive_window_size(yamux_window_size);
+		}
+
+		yamux_config
+	};
+
 	Ok(dns_tcp
 		.upgrade(Version::V1)
-		.authenticate(noise)
-		.multiplex(YamuxConfig::default())
+		.authenticate(authentication_config)
+		.multiplex(multiplexing_config)
 		.timeout(Duration::from_secs(20))
 		.boxed())
 }
