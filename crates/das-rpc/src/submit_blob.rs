@@ -29,10 +29,8 @@ use serde::{Deserialize, Serialize};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
-use sp_runtime::{generic, traits::Block as BlockT};
+use sp_runtime::traits::Block as BlockT;
 use std::{marker::PhantomData, sync::Arc};
-
-pub use sc_rpc_api::DenyUnsafe;
 
 /// Represents the status of a Blob transaction.
 /// Includes the transaction hash and potential error details.
@@ -123,7 +121,7 @@ where
 
 		// Validate the length of the data.
 		if !metadata.check() || data.len() != (metadata.bytes_len as usize) {
-			return Err(Error::DataLength.into())
+			return Err(Error::DataLength.into());
 		}
 
 		let mut err_msg = None;
@@ -154,10 +152,10 @@ where
 
 		// Submit to the transaction pool
 		let best_block_hash = self.client.info().best_hash;
-		let at = generic::BlockId::hash(best_block_hash)
-			as generic::BlockId<<P as sc_transaction_pool_api::TransactionPool>::Block>;
+		// let at = generic::BlockId::hash(best_block_hash)
+		// 	as generic::BlockId<<P as sc_transaction_pool_api::TransactionPool>::Block>;
 
-		let tx_hash = self.pool.submit_one(&at, TX_SOURCE, xt).await.map_err(|e| {
+		let tx_hash = self.pool.submit_one(best_block_hash, TX_SOURCE, xt).await.map_err(|e| {
 			e.into_pool_error()
 				.map(|e| Error::TransactionPushFailed(Box::new(e)))
 				.unwrap_or_else(|e| Error::TransactionPushFailed(Box::new(e)))
