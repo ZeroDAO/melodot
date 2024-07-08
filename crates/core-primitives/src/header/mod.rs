@@ -21,9 +21,9 @@
 //! This is an extension of the Substrate default header
 //! https://github.com/paritytech/substrate/blob/master/primitives/runtime/src/generic/header.rs
 
-use core::fmt::Display;
+// use crate::Vec;
 
-use crate::Vec;
+use core::fmt::Display;
 
 pub use codec::{Codec, Decode, Encode, EncodeLike};
 pub use scale_info::TypeInfo;
@@ -32,13 +32,14 @@ use crate::{
 	traits::{ExtendedHeader, HeaderWithCommitment},
 	Digest,
 };
+use crate::Vec;
 
 pub mod extension;
 pub use extension::{AppLookup, HeaderExtension};
 
-use melo_das_primitives::KZGCommitment;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use crate::runtime_serde;
+use melo_das_primitives::KZGCommitment;
 use sp_core::U256;
 use sp_runtime::traits::{
 	self, AtLeast32BitUnsigned, BlockNumber, Hash as HashT, MaybeDisplay, Member, SimpleBitOps,
@@ -47,7 +48,7 @@ use sp_runtime::traits::{
 /// Abstraction over a block header for a substrate chain.
 #[derive(Encode, Decode, PartialEq, Eq, Clone, sp_core::RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(Hash))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(runtime_serde::Serialize, runtime_serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct Header<Number: Copy + Into<U256> + TryFrom<U256>, Hash: HashT> {
@@ -81,6 +82,7 @@ where
 	let u256: U256 = (*val).into();
 	serde::Serialize::serialize(&u256, s)
 }
+
 #[cfg(feature = "serde")]
 pub fn deserialize_number<'a, D, T: Copy + Into<U256> + TryFrom<U256>>(d: D) -> Result<T, D::Error>
 where

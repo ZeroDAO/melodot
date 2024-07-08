@@ -16,14 +16,11 @@
 // limitations under the License.
 
 //! Testing utilities.
-use crate::{
-	traits::{ExtendedHeader, HeaderCommitList},
-	AppLookup, Header as HeaderT, HeaderExtension,
-};
+use crate::{traits::HeaderCommitList, AppLookup, Header as HeaderT, HeaderExtension};
 use lazy_static::lazy_static;
 use melo_das_primitives::KZGCommitment;
 
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
+use crate::runtime_serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use sp_core::{
 	crypto::{key_types, ByteArray, CryptoType, Dummy},
 	U256,
@@ -35,7 +32,7 @@ use sp_runtime::{
 	scale_info::TypeInfo,
 	traits::{
 		self, Applyable, BlakeTwo256, Checkable, DispatchInfoOf, Dispatchable, OpaqueKeys,
-		PostDispatchInfoOf, SignaturePayload, SignedExtension, ValidateUnsigned,
+		PostDispatchInfoOf, SignedExtension, ValidateUnsigned,
 	},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError},
 	ApplyExtrinsicResultWithInfo, KeyTypeId,

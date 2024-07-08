@@ -15,7 +15,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![recursion_limit = "256"]
 
-extern crate alloc;
+extern crate alloc;                                   
 pub use alloc::{
 	string::{String, ToString},
 	vec,
@@ -25,6 +25,16 @@ pub use alloc::{
 pub use melo_das_primitives::{KZGCommitment, KZGProof, Position};
 use sp_core::RuntimeDebug;
 use sp_runtime::generic::Digest;
+
+#[doc(hidden)]
+pub use codec;
+#[doc(hidden)]
+pub use scale_info;
+// #[cfg(feature = "serde")]
+// #[doc(hidden)]
+// pub use serde;
+#[doc(hidden)]
+pub use sp_std;
 
 pub mod header;
 pub use header::*;
@@ -37,6 +47,10 @@ pub use sidecar::*;
 pub mod config;
 pub mod reliability;
 pub mod traits;
+
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub(crate) use sp_runtime::serde as runtime_serde;
 
 #[cfg(feature = "std")]
 pub mod testing;

@@ -18,6 +18,7 @@
 //! Test utilities
 
 #![cfg(test)]
+#![allow(non_camel_case_types)]
 
 use frame_support::{
 	derive_impl, parameter_types,

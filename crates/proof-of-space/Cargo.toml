@@ -14,7 +14,7 @@ anyhow = "1.0.66"
 chacha20 = { version = "0.9.1", default-features = false}
 bit-vec = { version = "0.6.3", optional = true }
 
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = [
 	"derive", "max-encoded-len"
 ] }
@@ -26,7 +26,7 @@ sp-std = { default-features = false, git = "https://github.com/paritytech/polkad
 
 melo-das-primitives = { default-features = false, path = "../das-primitives" }
 melo-das-db = { default-features = false, path = "../das-db" }
-melo-core-primitives = { default-features = false, path = "../core-primitives" }
+melo-core-primitives = { default-features = false, path = "../core-primitives", features = ["serde"] }
 
 [dev-dependencies]
 melo-das-primitives = { path = "../das-primitives", features = ["rand"] }

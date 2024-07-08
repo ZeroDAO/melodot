@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use core::fmt::Display;
-
-use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata, Vec};
+use alloc::vec::Vec;
+use crate::{AppLookup, Digest, HeaderExtension, KZGCommitment, SidecarMetadata};
 use codec::{Decode, Encode};
 use melo_das_primitives::Position;
 use sp_runtime::traits::{
@@ -73,7 +73,7 @@ pub trait HeaderCommitList {
 
 pub trait HeaderWithCommitment: MaybeSerialize + Encode + Sized {
 	/// Header number.
-	type Number: PartialOrd + Send + Encode + Decode + Copy + Display + Ord;
+	type Number: PartialOrd + Send + Encode + Decode + Copy + Ord + Display;
 
 	/// Header hash type
 	type Hash: Encode;

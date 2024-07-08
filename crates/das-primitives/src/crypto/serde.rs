@@ -1,6 +1,6 @@
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
+use scale_info::prelude::format;
 use super::BYTES_PER_G1;
 
 macro_rules! kzg_type_wrapper {

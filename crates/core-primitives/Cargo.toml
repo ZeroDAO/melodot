@@ -10,27 +10,27 @@ edition = "2021"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false}
+melo-das-primitives = { version = "0.1.0", path = "../das-primitives", default-features = false, optional = true }
 melo-erasure-coding = { version = "0.1.0", path = "../melo-erasure-coding", default-features = false}
 melo-das-db = { version = "0.0.1", path = "../das-db", default-features = false}
 
 rayon = "1.5.1"
-codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
-log = { version = "0.4.17", default-features = false }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.197", optional = true, features = ["alloc", "derive"] }
-rand = { version = "0.8", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
+log = { version = "0.4.17" }
+scale-info = { version = "2.10.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.197", default-features = false, optional = true }
+rand = { version = "0.8", optional = true }
 
 sp-core = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-std = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-runtime = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"  }
 sp-io = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"  }
 sp-api = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"  }
-sp-arithmetic = { version = "3.0.0", default-features = false }
+sp-arithmetic = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 # For node
-sc-client-api = {optional = true, default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sc-offchain = {optional = true, default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-client-api = {optional = true, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sc-offchain = {optional = true, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 # For testing
 lazy_static = "1.4"
@@ -45,32 +45,43 @@ sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "po
 substrate-test-runtime-client = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 [features]
-default = ["std", "outside"]
+default = ["std"]
+runtime-benchmarks = []
+try-runtime = []
 std = [
 	"codec/std",
 	"log/std",
 	"scale-info/std",
-	"serde",
-	"rand/std",
-	"sp-core/std",
-	"sp-runtime/std",
+	"serde/std",
+	"rand",
 	"melo-das-primitives/std",
+	"melo-das-primitives/serde",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-api/std",
-    "melo-das-primitives/serde",
+	"sp-core/std",
+	"sp-runtime/std",
 	"sp-state-machine/std",
 	"sp-tracing/std",
 	"sp-application-crypto/std",
+	"sp-arithmetic/std",
 	"sc-client-api",
 	"sc-offchain",
 	"melo-das-db/std",
 ]
 outside = [
-    "melo-das-primitives/serde",
-	"sc-client-api",
-	"sc-offchain",
-	"rand/std",
+	# "dep:serde", 
+    # "melo-das-primitives/serde",
+	# "sc-client-api",
+	# "sc-offchain",
+	# "rand/std",
+	# # "dep:serde",
+	# "scale-info/serde",
+	# "sp-core/serde",
+	# "sp-application-crypto/serde",
+	# "sp-arithmetic/serde",
+	# "sp-runtime/serde",
+	# "melo-das-primitives/serde",
 	# "melo-das-db/outside",
 ]
 parallel = [
@@ -78,8 +89,11 @@ parallel = [
 ]
 # Serde support without relying on std features.
 serde = [
-	"dep:serde",
+	"dep:serde", 
 	"scale-info/serde",
 	"sp-core/serde",
 	"sp-application-crypto/serde",
+	"sp-arithmetic/serde",
+	"sp-runtime/serde",
+	"melo-das-primitives/serde",
 ]

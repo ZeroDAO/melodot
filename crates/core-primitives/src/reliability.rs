@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate alloc;
+// extern crate alloc;
 
 pub use sp_arithmetic::Permill;
 
@@ -23,6 +23,7 @@ use crate::config::EXTENDED_SEGMENTS_PER_BLOB;
 #[cfg(feature = "std")]
 use crate::AppLookup;
 use crate::{KZGCommitment, String};
+// use crate::KZGCommitment;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use melo_das_db::traits::DasKv;
@@ -207,8 +208,9 @@ impl ReliabilityType {
 	/// Returns whether the reliability type is available given the total count and success count.
 	pub fn is_availability(&self, total_count: u32, success_count: u32) -> bool {
 		match self {
-			ReliabilityType::App =>
-				success_count > APP_AVAILABILITY_THRESHOLD_PERMILL.mul_floor(total_count),
+			ReliabilityType::App => {
+				success_count > APP_AVAILABILITY_THRESHOLD_PERMILL.mul_floor(total_count)
+			},
 			ReliabilityType::Block => success_count >= BLOCK_AVAILABILITY_THRESHOLD,
 		}
 	}
@@ -315,7 +317,7 @@ impl Reliability {
 	pub fn verify_sample(&self, position: Position, segment: &Segment) -> Result<bool, String> {
 		let kzg = KZG::default_embedded();
 		if position.y >= self.commitments.len() as u32 {
-			return Ok(false)
+			return Ok(false);
 		}
 		let commitment = self.commitments[position.y as usize];
 		segment.checked()?.verify(&kzg, &commitment, FIELD_ELEMENTS_PER_SEGMENT)
@@ -336,7 +338,7 @@ impl ReliabilitySample for Reliability {
 		let column_count = self.commitments.len() as u32;
 
 		if column_count == 0 {
-			return Ok(vec![])
+			return Ok(vec![]);
 		}
 
 		let mut commitments = Vec::with_capacity(n);
@@ -459,13 +461,14 @@ mod tests {
 			new_value: &[u8],
 		) -> bool {
 			match (self.get(key), old_value) {
-				(Some(current_value), Some(old_value)) =>
+				(Some(current_value), Some(old_value)) => {
 					if current_value == old_value {
 						self.set(key, new_value);
 						true
 					} else {
 						false
-					},
+					}
+				},
 				(None, None) => {
 					self.set(key, new_value);
 					true

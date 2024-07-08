@@ -198,7 +198,7 @@ mod tests {
 	use super::*;
 	// use crate::BlakeTwo256;
 	// use sp_core::Hasher;
-	pub use sp_core::H256;
+	// pub use sp_core::H256;
 
 	// #[test]
 	// fn find_y_collisions() {
