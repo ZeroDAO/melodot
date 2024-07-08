@@ -25,8 +25,6 @@ use std::{marker::PhantomData, sync::Arc};
 
 use melo_das_db::traits::DasKv;
 
-pub use sc_rpc_api::DenyUnsafe;
-
 /// Defines the Das API's functionalities.
 #[rpc(client, server, namespace = "das")]
 pub trait ConfidenceApi<DB, Hash, DN> {
