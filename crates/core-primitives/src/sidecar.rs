@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{reliability::ReliabilityId, String, TypeInfo, Vec};
+use crate::{reliability::ReliabilityId, TypeInfo, Vec, String};
 use alloc::format;
 use codec::{Decode, Encode};
 use melo_das_primitives::{Blob, KZGCommitment, KZGProof, KZG};
@@ -20,8 +20,8 @@ use melo_erasure_coding::bytes_to_blobs;
 use sp_core::RuntimeDebug;
 
 use core::result::Result;
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use crate::runtime_serde::{Deserialize, Serialize};
 use sp_io::hashing;
 
 use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
@@ -30,7 +30,7 @@ use melo_das_primitives::config::FIELD_ELEMENTS_PER_BLOB;
 
 /// Represents the possible statuses of the sidecar, including failures and success cases.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SidecarStatus {
 	// Failed to retrieve data
 	NotFound,

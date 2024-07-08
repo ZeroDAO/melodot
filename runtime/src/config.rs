@@ -17,6 +17,11 @@
 
 //! A set of configuration types used to configure the FRAME pallets.
 #![allow(clippy::identity_op)]
+// use codec::{Decode, Encode, MaxEncodedLen};
+use frame_election_provider_support::{
+	bounds::{ElectionBounds, ElectionBoundsBuilder},
+	// onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
+};
 use frame_support::{
 	dispatch::DispatchClass,
 	parameter_types,
@@ -29,7 +34,10 @@ use sp_runtime::{
 };
 use static_assertions::const_assert;
 
-use crate::{Balance, BlockLength, BlockNumber, BlockWeights, Moment, RuntimeVersion};
+use crate::{
+	AccountId, Balance, BlockLength, BlockNumber, BlockWeights, Moment, Percent, RuntimeHoldReason,
+	RuntimeVersion, Treasury,
+};
 
 pub mod core {
 	use super::*;
@@ -69,6 +77,15 @@ pub mod core {
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * time::HOURS;
 
 	pub const MAX_BLOB_NUMBER: u32 = 100;
+
+	// pallet_safe_mode
+	parameter_types! {
+		pub const EnterDuration: BlockNumber = 4 * time::HOURS;
+		pub const EnterDepositAmount: Balance = 2_000_000 * currency::DOLLARS;
+		pub const ExtendDuration: BlockNumber = 2 * time::HOURS;
+		pub const ExtendDepositAmount: Balance = 1_000_000 * currency::DOLLARS;
+		pub const ReleaseDelay: u32 = 2 * time::HOURS;
+	}
 }
 
 /// Money matters.
@@ -115,10 +132,22 @@ pub mod system {
 		pub const BlockHashCount: BlockNumber = 2400;
 		pub const Version: RuntimeVersion = VERSION;
 
+		pub const MaxNominators: u32 = 64;
+
 		pub MaxBlobNumber: u32 = core::MAX_BLOB_NUMBER;
 		pub MaxExtedLen: u32 = core::MAX_BLOB_NUMBER * 2;
 		pub RuntimeBlockLength: BlockLength =
 			BlockLength::max_with_normal_ratio(5 * 1024 * 1024, core::NORMAL_DISPATCH_RATIO);
+
+		pub const MaxControllersInDeprecationBatch: u32 = 5900;
+
+		pub const SignedFixedDeposit: Balance = 1 * currency::DOLLARS;
+		pub const SignedDepositIncreaseFactor: Percent = Percent::from_percent(10);
+
+		pub ElectionBoundsMultiPhase: ElectionBounds = ElectionBoundsBuilder::default()
+		.voters_count(10_000.into()).targets_count(1_500.into()).build();
+		pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default()
+		.voters_count(5_000.into()).targets_count(1_250.into()).build();
 
 		pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
 		.base_block(BlockExecutionWeight::get())
@@ -146,6 +175,9 @@ pub mod consensus {
 
 	use crate::{ElectionProviderBenchmarkConfig, NposSolution16};
 	use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration};
+
+	/// Upper limit on the number of NPOS nominations.
+	pub const MAX_QUOTA_NOMINATIONS: u32 = 16;
 
 	/// Maximum number of iterations for balancing that will be executed in the embedded OCW
 	/// miner of election provider multi phase.
@@ -251,6 +283,11 @@ pub mod gov {
 
 	parameter_types! {
 		pub MaxCollectivesProposalWeight: Weight = Perbill::from_percent(50) * system::RuntimeBlockWeights::get().max_block;
+
+		pub const PreimageHoldReason: RuntimeHoldReason = RuntimeHoldReason::Preimage(pallet_preimage::HoldReason::Preimage);
+
+		pub TreasuryAccount: AccountId = Treasury::account_id();
+		pub const SpendPayoutPeriod: BlockNumber = 30 * time::DAYS;
 
 		// pallet_democracy
 		pub LaunchPeriod: BlockNumber = 28 * 24 * 60 * Minutes::get();

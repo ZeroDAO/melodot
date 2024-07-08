@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Decode, Encode, TypeInfo, Vec};
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
+use crate::{Decode, Encode, TypeInfo};
+#[cfg(feature = "serde")]
+use crate::runtime_serde::{Deserialize, Serialize};
+use crate::Vec;
 use sp_core::RuntimeDebug;
 
 /// The AppLookup struct represents information related to data in a block.
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AppLookup {
 	/// The id of the app.
 	#[codec(compact)]
@@ -62,7 +63,7 @@ impl AppLookup {
 }
 
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, TypeInfo, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HeaderExtension {
 	/// The commitment of the data root.
 	pub commitments_bytes: Vec<u8>,

@@ -7,18 +7,19 @@ repository = "https://github.com/ZeroDAO/melodot"
 keywords = ["substrate"]
 edition = "2021"
 license = "Apache-2.0"
-include = [
-	"/src",
-	"/build.rs",
-	"/Cargo.toml",
-]
+build = "build.rs"
+# include = [
+# 	"/src",
+# 	"/build.rs",
+# 	"/Cargo.toml",
+# ]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
-scale-info = { version = "2.5.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive","max-encoded-len",] }
+scale-info = {version = "2.10.0", default-features = false, features = ["derive", "serde",] }
 static_assertions = "1.1.0"
 log = { version = "0.4.17", default-features = false }
 melo-auto-config = { version = "0.9.42", default-features = false, path="../crates/auto-config" }
@@ -54,28 +55,45 @@ pallet-elections-phragmen = { git = "https://github.com/paritytech/polkadot-sdk.
 pallet-asset-tx-payment = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 pallet-assets = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-safe-mode = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-tx-pause = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-migrations = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-asset-rate = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-parameters = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+pallet-staking-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 
 frame-election-provider-support = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 frame-support = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 frame-system = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 frame-try-runtime = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", optional = true, tag = "polkadot-v1.9.0" }
 
-sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
-sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false, features = ["serde"] }
+sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false, features = ["serde"] }
 sp-io = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 sp-api = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-block-builder = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-consensus-aura = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-consensus-grandpa = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-core = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-consensus-aura = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", features = [
+	"serde",
+] }
+sp-consensus-grandpa = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", features = [
+	"serde",
+] }
+sp-core = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", features = [
+	"serde",
+] }
 sp-inherents = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-offchain = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", features = [
+	"serde",
+] }
 sp-session = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-std = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 sp-transaction-pool = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-version = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
-sp-staking = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
+sp-version = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", features = [
+	"serde",
+] }
+sp-staking = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false, features = ["serde"] }
+sp-genesis-builder = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 node-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 
@@ -90,32 +108,36 @@ frame-system-benchmarking = { default-features = false, git = "https://github.co
 # Local Dependencies
 frame-executive-ext = { default-features = false, path = "../crates/frame-executive-ext" }
 frame-system-ext = { default-features = false, path = "../crates/frame-system-ext" }
-melo-core-primitives = { version = "0.1.0", default-features = false, path = "../crates/core-primitives"}
+melo-core-primitives = { version = "0.1.0", default-features = false, path = "../crates/core-primitives", features = ["serde"]}
 melo-das-primitives = { version = "0.1.0", default-features = false, path = "../crates/das-primitives"}
 pallet-melo-store = { version = "0.1.0", default-features = false, path = "../crates/pallet-melo-store" }
 pallet-farmers-fortune = { version = "0.0.1", default-features = false, path = "../crates/pallet-farmers-fortune" }
+
+# frame-executive = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", optional = true, tag = "polkadot-v1.9.0" }
 
 [features]
 default = ["std"]
+with-tracing = ["frame-executive-ext/with-tracing"]
+# with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"frame-try-runtime?/std",
 	"sp-authority-discovery/std",
 	"frame-system-benchmarking?/std",
 	"frame-benchmarking?/std",
 	"sp-consensus-babe/std",
-	"pallet-authorship/std",
 	"codec/std",
 	"log/std",
-	"pallet-assets/std",
-	"pallet-indices/std",
 	"scale-info/std",
 	"frame-support/std",
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"frame-try-runtime/std",
+	"pallet-authorship/std",
+	"pallet-assets/std",
+	"pallet-indices/std",
 	"pallet-babe/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
@@ -125,6 +147,31 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-elections-phragmen/std",
 	"pallet-asset-tx-payment/std",
+	"pallet-melo-store/std",
+	"pallet-im-online/std",
+	"pallet-offences/std",
+	"pallet-session/std",
+	"pallet-staking/std",
+	"pallet-authority-discovery/std",
+	"pallet-collective/std",
+	"pallet-election-provider-multi-phase/std",
+	"pallet-democracy/std",
+	"pallet-treasury/std",
+	"pallet-nomination-pools/std",
+	"pallet-nomination-pools-runtime-api/std",
+	"pallet-nomination-pools-benchmarking?/std",
+	"pallet-scheduler/std",
+	"pallet-bounties/std",
+	"pallet-preimage/std",
+	"pallet-membership/std",
+	"pallet-utility/std",
+	"pallet-tx-pause/std",
+	"pallet-migrations/std",
+	"pallet-asset-rate/std",
+	"pallet-farmers-fortune/std",
+	"pallet-safe-mode/std",
+	"pallet-parameters/std",
+	"pallet-staking-runtime-api/std",
 	"sp-api/std",
 	"sp-block-builder/std",
 	"sp-consensus-aura/std",
@@ -138,43 +185,26 @@ std = [
 	"sp-transaction-pool/std",
 	"sp-version/std",
 	"sp-io/std",
+	"sp-genesis-builder/std",
 	"substrate-wasm-builder",
 	"frame-executive-ext/std",
+	# "frame-executive/std",
 	"frame-system-ext/std",
 	"melo-core-primitives/std",
-	"pallet-melo-store/std",
-	"pallet-im-online/std",
-	"pallet-offences/std",
-	"pallet-session/std",
-	"pallet-staking/std",
-	"pallet-authority-discovery/std",
 	"frame-election-provider-support/std",
-	"pallet-collective/std",
-	"pallet-election-provider-multi-phase/std",
-	"pallet-democracy/std",
-	"pallet-treasury/std",
-	"pallet-nomination-pools/std",
-	"pallet-nomination-pools-runtime-api/std",
-	"pallet-nomination-pools-benchmarking?/std",
-	"pallet-scheduler/std",
-	"pallet-bounties/std",
-	"pallet-preimage/std",
-	"pallet-membership/std",
-	"pallet-utility/std",
 	"sp-staking/std",
 	"node-primitives/std",
-	"pallet-farmers-fortune/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"frame-system-benchmarking/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-assets/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
-	"sp-runtime/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
@@ -192,10 +222,16 @@ runtime-benchmarks = [
 	"pallet-farmers-fortune/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
+	"pallet-safe-mode/runtime-benchmarks",
+	"pallet-tx-pause/runtime-benchmarks",
+	"pallet-migrations/runtime-benchmarks",
+	"pallet-asset-rate/runtime-benchmarks",
+	"pallet-parameters/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-try-runtime/try-runtime",
 	"frame-executive-ext/try-runtime",
+	# "frame-executive/try-runtime",
 	"frame-system/try-runtime",
 	"frame-support/try-runtime",
 	"pallet-assets/try-runtime",
@@ -222,4 +258,9 @@ try-runtime = [
 	"pallet-membership/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-safe-mode/try-runtime",
+	"pallet-tx-pause/try-runtime",
+	"pallet-migrations/try-runtime",
+	"pallet-asset-rate/try-runtime",
+	"pallet-parameters/try-runtime",
 ]
