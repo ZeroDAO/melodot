@@ -11,18 +11,23 @@ use melo_daser::{
 };
 use melodot_runtime::{self, Header, NodeBlock as Block, RuntimeApi};
 use sc_client_api::{Backend, BlockBackend};
-use sc_consensus_babe::{self, SlotProportion};
+use sc_consensus_babe::{self, ImportQueueParams, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_network::{event::Event, NetworkEventStream};
 use sc_offchain::OffchainDb;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use std::{sync::Arc, time::Duration};
 
 use crate::rpc as melo_rpc;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
+
+/// The minimum period of blocks on which justifications will be
+/// imported and generated.
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 
 impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 	/// Only enable the benchmarking host functions when we actually want to benchmark.
@@ -59,7 +64,7 @@ pub fn new_partial(
 		FullClient,
 		FullBackend,
 		FullSelectChain,
-		sc_consensus::DefaultImportQueue<Block, FullClient>,
+		sc_consensus::DefaultImportQueue<Block>,
 		sc_transaction_pool::FullPool<Block, FullClient>,
 		(
 			impl Fn(
@@ -117,6 +122,7 @@ pub fn new_partial(
 
 	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
+		GRANDPA_JUSTIFICATION_PERIOD,
 		&(client),
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
@@ -132,13 +138,13 @@ pub fn new_partial(
 
 	let slot_duration = babe_link.config().slot_duration();
 
-	let (import_queue, babe_worker_handle) = sc_consensus_babe::import_queue(
-		babe_link.clone(),
-		babe_block_import.clone(),
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain.clone(),
-		move |_, ()| async move {
+	let (import_queue, babe_worker_handle) = sc_consensus_babe::import_queue(ImportQueueParams {
+		link: babe_link.clone(),
+		block_import: babe_block_import.clone(),
+		justification_import: Some(Box::new(justification_import)),
+		client: client.clone(),
+		select_chain: select_chain.clone(),
+		create_inherent_data_providers: move |_, ()| async move {
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
@@ -149,10 +155,11 @@ pub fn new_partial(
 
 			Ok((slot, timestamp))
 		},
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
+		spawner: &task_manager.spawn_essential_handle(),
+		registry: config.prometheus_registry(),
+		offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
+		telemetry: telemetry.as_ref().map(|x| x.handle()),
+	})?;
 
 	let import_setup = (babe_block_import, grandpa_link, babe_link);
 
@@ -243,7 +250,7 @@ pub fn new_partial(
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> {
+pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -252,22 +259,31 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		import_queue,
 		keystore_container,
 		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, _, mut telemetry, das_client, das_networker),
+		other:
+			(
+				rpc_extensions_builder,
+				import_setup,
+				_,
+				mut telemetry,
+				das_client,
+				das_networker,
+			),
 	} = new_partial(&config)?;
+
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 
 	let grandpa_protocol_name = grandpa::protocol_standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
 		&config.chain_spec,
 	);
 
+	let (grandpa_protocol_config, grandpa_notification_service) =
+		grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone());
+	net_config.add_notification_protocol(grandpa_protocol_config);
+
 	let (block_import, grandpa_link, babe_link) = import_setup;
 
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
-
-	config
-		.network
-		.extra_sets
-		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
@@ -278,20 +294,34 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
 			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
+			block_relay: None,
 		})?;
 
 	if config.offchain_worker.enabled {
-		sc_service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
+		task_manager.spawn_handle().spawn(
+			"offchain-workers-runner",
+			"offchain-worker",
+			sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
+				runtime_api_provider: client.clone(),
+				is_validator: config.role.is_authority(),
+				keystore: Some(keystore_container.keystore()),
+				offchain_db: backend.offchain_storage(),
+				transaction_pool: Some(OffchainTransactionPoolFactory::new(
+					transaction_pool.clone(),
+				)),
+				network_provider: network.clone(),
+				enable_http_requests: true,
+				custom_extensions: |_| vec![],
+			})
+			.run(client.clone(), task_manager.spawn_handle())
+			.boxed(),
 		);
 	}
 
@@ -426,7 +456,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 
 		let grandpa_config = grandpa::Config {
 			gossip_duration: Duration::from_millis(333),
-			justification_period: 512,
+			justification_generation_period: 512,
 			name: Some(name),
 			observer_enabled: false,
 			keystore,
@@ -443,6 +473,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 		// could lead to finality stalls.
 		let grandpa_config = grandpa::GrandpaParams {
 			config: grandpa_config,
+			notification_service: grandpa_notification_service,
 			link: grandpa_link,
 			network: network.clone(),
 			sync: Arc::new(sync_service.clone()),
@@ -450,6 +481,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 			prometheus_registry,
 			shared_voter_state: SharedVoterState::empty(),
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
 		};
 
 		// the GRANDPA voter task is considered infallible, i.e.

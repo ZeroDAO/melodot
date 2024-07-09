@@ -60,7 +60,7 @@ where
 
 	let server = ServerBuilder::default().build(addre).await?;
 	let addr = server.local_addr()?;
-	let handle = server.start(module.clone())?;
+	let handle = server.start(module.clone());
 
 	tokio::spawn(handle.stopped());
 

@@ -18,10 +18,12 @@
 
 //! DAS RPC errors.
 
-use jsonrpsee::{
-    core::Error as JsonRpseeError,
-    types::error::{CallError, ErrorObject},
-};
+// use jsonrpsee::{
+//     core::Error as JsonRpseeError,
+//     types::error::{CallError, ErrorObject},
+// };
+
+use jsonrpsee::types::{error::ErrorObject, ErrorObjectOwned};
 
 /// DAS RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -44,44 +46,52 @@ pub enum Error {
     /// Failed to push transaction
     #[error("Failed to push transaction: {}", .0)]
     TransactionPushFailed(Box<dyn std::error::Error + Send + Sync>),
+    /// DAS network error
+    #[error("DAS network error")]
+    DASNetworkError,
 }
 
 /// DAS error codes
 const BASE_ERROR: i32 = 10000;
 
-impl From<Error> for JsonRpseeError {
+impl From<Error> for ErrorObjectOwned {
     fn from(e: Error) -> Self {
         match e {
-            Error::DecodingExtrinsicFailed(e) => CallError::Custom(ErrorObject::owned(
+            Error::DecodingExtrinsicFailed(e) => ErrorObject::owned(
                 BASE_ERROR + 1,
                 "Decoding extrinsic failed",
                 Some(format!("{:?}", e)),
-            )),
-            Error::DecodingTransactionMetadataFailed(e) => CallError::Custom(ErrorObject::owned(
+            ),
+            Error::DecodingTransactionMetadataFailed(e) => ErrorObject::owned(
                 BASE_ERROR + 2,
                 "Decoding transaction metadata failed",
                 Some(format!("{:?}", e)),
-            )),
-            Error::FetchTransactionMetadataFailed(e) => CallError::Custom(ErrorObject::owned(
+            ),
+            Error::FetchTransactionMetadataFailed(e) => ErrorObject::owned(
                 BASE_ERROR + 3,
                 "Failed to fetch transaction metadata details",
                 Some(format!("{:?}", e)),
-            )),
-            Error::InvalidTransactionFormat => CallError::Custom(ErrorObject::owned(
+            ),
+            Error::InvalidTransactionFormat => ErrorObject::owned(
                 BASE_ERROR + 4,
                 "Invalid transaction format",
                 None::<()>,
-            )),
-            Error::DataLength => CallError::Custom(ErrorObject::owned(
+            ),
+            Error::DataLength => ErrorObject::owned(
                 BASE_ERROR + 5,
                 "Data/Commitments/Proofs length error",
                 None::<()>,
-            )),
-            Error::TransactionPushFailed(e) => CallError::Custom(ErrorObject::owned(
+            ),
+            Error::TransactionPushFailed(e) => ErrorObject::owned(
                 BASE_ERROR + 6,
                 "Failed to push transaction",
                 Some(format!("{:?}", e)),
-            )),
+            ),
+            Error::DASNetworkError => ErrorObject::owned(
+                BASE_ERROR + 7,
+                "Failed to remove records",
+                None::<()>,
+            ),
         }.into()
     }
 }

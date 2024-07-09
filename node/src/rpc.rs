@@ -7,14 +7,13 @@
 
 use std::sync::Arc;
 
+use futures::lock::Mutex;
 use jsonrpsee::RpcModule;
 use melo_core_primitives::traits::AppDataApi;
 use melo_daser::DasNetworkOperations;
-pub use node_primitives::Signature;
-use futures::lock::Mutex;
 
-use melodot_runtime::{AccountId, Balance, BlockNumber, Hash, Index, NodeBlock as Block};
 use melo_das_db::traits::DasKv;
+use melodot_runtime::{AccountId, Balance, BlockNumber, Hash, NodeBlock as Block, Nonce};
 
 use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
@@ -33,6 +32,9 @@ use melodot_runtime::RuntimeCall;
 
 pub use sc_rpc::SubscriptionTaskExecutor;
 pub use sc_rpc_api::DenyUnsafe;
+
+/// A type representing all RPC extensions.
+pub type RpcExtension = RpcModule<()>;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -81,31 +83,26 @@ pub struct FullDeps<C, P, SC, B, D, DB> {
 /// Instantiate all full RPC extensions.
 pub fn create_full<C, P, SC, B, D, DB>(
 	deps: FullDeps<C, P, SC, B, D, DB>,
-) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
+) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
-	C: ProvideRuntimeApi<Block>
-		+ sc_client_api::BlockBackend<Block>
-		+ HeaderBackend<Block>
-		+ AuxStore
-		+ HeaderMetadata<Block, Error = BlockChainError>
-		+ Sync
-		+ Send
-		+ 'static,
-	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
+	C: ProvideRuntimeApi<Block>,
+	C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
+	C: Send + Sync + 'static,
+	C: sc_client_api::BlockBackend<Block> + AuxStore,
+	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: AppDataApi<Block, RuntimeCall>,
-	P: TransactionPool + 'static,
+	P: TransactionPool<Block = Block> + Sync + Send + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	P: TransactionPool<Block = Block> + Sync + Send + 'static,
+	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashingFor<Block>>,
 	D: DasNetworkOperations + Sync + Send + 'static + Clone,
 	DB: DasKv + Send + Sync + 'static,
 {
-	use melo_das_rpc::{SubmitBlob, SubmitBlobApiServer};
 	use melo_das_rpc::{Confidence, ConfidenceApiServer};
+	use melo_das_rpc::{SubmitBlob, SubmitBlobApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};

@@ -44,7 +44,7 @@ pub mod voter_bags;
 use codec::{Decode, Encode};
 use melo_auto_config::auto_config;
 pub use node_primitives::{AccountId, Signature};
-use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce};
+pub use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce};
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 
 // use sp_runtime::{
