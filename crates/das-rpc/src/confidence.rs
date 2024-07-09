@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::Error;
+
 use jsonrpsee::{
 	core::{async_trait, RpcResult},
 	proc_macros::rpc,
@@ -120,11 +122,17 @@ where
 
 	async fn remove_records(&self, keys: Vec<Bytes>) -> RpcResult<()> {
 		let keys = keys.iter().map(|key| &**key).collect::<Vec<_>>();
-		self.das_network.remove_records(keys).await?;
+		self.das_network
+			.remove_records(keys)
+			.await
+			.map_err(|_| Error::DASNetworkError)?;
+
 		Ok(())
 	}
 
 	async fn last(&self) -> RpcResult<Option<(u32, Bytes)>> {
-		self.get_last().await.map_or(Ok(None), |(hash, number)| Ok(Some((number, hash))))
+		self.get_last()
+			.await
+			.map_or(Ok(None), |(hash, number)| Ok(Some((number, hash))))
 	}
 }

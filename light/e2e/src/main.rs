@@ -14,7 +14,7 @@
 pub use anyhow::{Error, Result};
 pub use jsonrpsee::ws_client::WsClient;
 use jsonrpsee::{
-	core::{client::ClientT, traits::ToRpcParams, Error as JsonRpseeError},
+	core::{client::ClientT, traits::ToRpcParams},
 	ws_client::WsClientBuilder,
 };
 pub use log::{debug, error, info};
@@ -39,7 +39,7 @@ pub const DEFAULT_RPC_LISTEN_ADDR: &str = "127.0.0.1:4177";
 struct Params(Option<Box<RawValue>>);
 
 impl ToRpcParams for Params {
-	fn to_rpc_params(self) -> Result<Option<Box<RawValue>>, JsonRpseeError> {
+	fn to_rpc_params(self) -> Result<Option<Box<RawValue>>, serde_json::Error> {
 		Ok(self.0)
 	}
 }
@@ -93,7 +93,7 @@ pub async fn wait_for_block_confirmation(
 				"{} Data should have been verified by the validators at: {:?}",
 				SUCCESS, block_number
 			);
-			break
+			break;
 		} else {
 			info!("{} Data not verified yet, current block number: {:?}", HOURGLASS, block_number);
 			debug!(
@@ -104,7 +104,7 @@ pub async fn wait_for_block_confirmation(
 
 		if max_loop == 0 {
 			error!("{} Data not verified after {} blocks", ERROR, DELAY_CHECK_THRESHOLD);
-			return Err(anyhow::anyhow!("Data not verified"))
+			return Err(anyhow::anyhow!("Data not verified"));
 		}
 
 		max_loop -= 1;
@@ -124,14 +124,14 @@ pub async fn wait_for_finalized_success(client: &Client, at_block: u32) -> Resul
 
 		if block_number == at_block {
 			info!("{} Data finalized at block: {:?}", SUCCESS, block_number);
-			break
+			break;
 		} else {
 			info!("{} Data not finalized yet, current block number: {:?}", HOURGLASS, block_number);
 		}
 
 		if max_finalized_loop == 0 {
 			error!("{} Data not finalized after {} blocks", ERROR, max_finalized_loop);
-			return Err(anyhow::anyhow!("Data not finalized"))
+			return Err(anyhow::anyhow!("Data not finalized"));
 		}
 
 		max_finalized_loop -= 1;

@@ -4,10 +4,9 @@ use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use melodot_runtime::{
 	config::{consensus::MaxNominations, currency::*},
-	wasm_binary_unwrap, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Block, CouncilConfig,
-	DemocracyConfig, ElectionsConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
-	NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig, SudoConfig,
-	SystemConfig, TechnicalCommitteeConfig,
+	BalancesConfig, Block, CouncilConfig, DemocracyConfig, ElectionsConfig, ImOnlineConfig,
+	IndicesConfig, NominationPoolsConfig, SessionConfig, SessionKeys, StakerStatus, StakingConfig,
+	SudoConfig, TechnicalCommitteeConfig, WASM_BINARY,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
@@ -22,7 +21,7 @@ use sp_runtime::{
 };
 
 pub use helper::*;
-pub use melodot_runtime::GenesisConfig;
+pub use melodot_runtime::RuntimeGenesisConfig;
 pub use node_primitives::{AccountId, Balance, Signature};
 
 type AccountPublic = <Signature as Verify>::Signer;
@@ -43,15 +42,15 @@ pub struct Extensions {
 }
 
 /// Specialized `ChainSpec`.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
+pub type ChainSpec = sc_service::GenericChainSpec<RuntimeGenesisConfig>;
 
 /// Helper function to create GenesisConfig for testing
-pub fn testnet_genesis(
+fn testnet_genesis(
 	initial_authorities: Vec<AuthorityKeys>,
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> GenesisConfig {
+) -> serde_json::Value {
 	let default_endowed_accounts = vec![ALICE, BOB, CHARLIE, DAVE, EVE, FERDIE];
 	let mut endowed_accounts =
 		endowed_accounts.unwrap_or_else(|| endow_accounts(&default_endowed_accounts));
@@ -87,19 +86,18 @@ pub fn testnet_genesis(
 
 	let num_endowed_accounts = endowed_accounts.len();
 
-	GenesisConfig {
-		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
-		balances: BalancesConfig {
+	serde_json::json!( {
+		"balances": BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|x| (x, ENDOWMENT)).collect(),
 		},
-		indices: IndicesConfig { indices: vec![] },
-		session: SessionConfig {
+		"indices": IndicesConfig { indices: vec![] },
+		"session": SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| (x.stash.clone(), x.stash.clone(), x.session_keys.clone()))
 				.collect::<Vec<_>>(),
 		},
-		staking: StakingConfig {
+		"staking": StakingConfig {
 			validator_count: initial_authorities.len() as u32,
 			minimum_validator_count: initial_authorities.len() as u32,
 			invulnerables: initial_authorities.iter().map(|x| x.stash.clone()).collect(),
@@ -107,8 +105,8 @@ pub fn testnet_genesis(
 			stakers,
 			..Default::default()
 		},
-		democracy: DemocracyConfig::default(),
-		elections: ElectionsConfig {
+		"democracy": DemocracyConfig::default(),
+		"elections": ElectionsConfig {
 			members: endowed_accounts
 				.iter()
 				.take((num_endowed_accounts + 1) / 2)
@@ -116,8 +114,8 @@ pub fn testnet_genesis(
 				.map(|member| (member, STASH))
 				.collect(),
 		},
-		council: CouncilConfig::default(),
-		technical_committee: TechnicalCommitteeConfig {
+		"council": CouncilConfig::default(),
+		"technical_committee": TechnicalCommitteeConfig {
 			members: endowed_accounts
 				.iter()
 				.take((num_endowed_accounts + 1) / 2)
@@ -125,51 +123,41 @@ pub fn testnet_genesis(
 				.collect(),
 			phantom: Default::default(),
 		},
-		sudo: SudoConfig { key: Some(root_key) },
-		babe: BabeConfig {
-			authorities: vec![],
-			epoch_config: Some(melodot_runtime::GENESIS_EPOCH_CONFIG),
+		"sudo": SudoConfig { key: Some(root_key) },
+		"babe":
+		{
+			"epochConfig": Some(melodot_runtime::GENESIS_EPOCH_CONFIG),
 		},
-		im_online: ImOnlineConfig { keys: vec![] },
-		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-		grandpa: GrandpaConfig { authorities: vec![] },
-		technical_membership: Default::default(),
-		treasury: Default::default(),
-		transaction_payment: Default::default(),
-		assets: pallet_assets::GenesisConfig {
-			// This asset is used by the NIS pallet as counterpart currency.
-			assets: vec![(9, sr25519_id(ALICE), true, 1)],
-			..Default::default()
+		"im_online": ImOnlineConfig { keys: vec![] },
+		"assets": {
+			"assets": vec![(9, sr25519_id(ALICE), true, 1)]
 		},
-		nomination_pools: NominationPoolsConfig {
+		"nomination_pools": NominationPoolsConfig {
 			min_create_bond: 10 * DOLLARS,
 			min_join_bond: DOLLARS,
 			..Default::default()
 		},
-	}
+	})
 }
 
-fn development_config_genesis() -> GenesisConfig {
+fn development_config_genesis() -> serde_json::Value {
 	testnet_genesis(authority_keys_from_seeds(&[ALICE]), vec![], sr25519_id(ALICE), None)
 }
 
 /// Development config (single validator Alice)
-pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Development",
-		"dev",
-		ChainType::Development,
-		development_config_genesis,
-		vec![],
+pub fn development_config() -> Result<ChainSpec, String> {
+	Ok(ChainSpec::builder(
+		WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?,
 		None,
-		None,
-		None,
-		None,
-		Default::default(),
 	)
+	.with_name("Development")
+	.with_id("dev")
+	.with_chain_type(ChainType::Development)
+	.with_genesis_config_patch(development_config_genesis())
+	.build())
 }
 
-fn local_testnet_genesis() -> GenesisConfig {
+fn local_testnet_genesis() -> serde_json::Value {
 	testnet_genesis(
 		authority_keys_from_seeds(&[ALICE, BOB, CHARLIE]),
 		vec![],
@@ -179,22 +167,19 @@ fn local_testnet_genesis() -> GenesisConfig {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn local_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		ChainType::Local,
-		local_testnet_genesis,
-		vec![],
+pub fn local_testnet_config() -> Result<ChainSpec, String> {
+	Ok(ChainSpec::builder(
+		WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?,
 		None,
-		None,
-		None,
-		None,
-		Default::default(),
 	)
+	.with_name("Local Testnet")
+	.with_id("local_testnet")
+	.with_chain_type(ChainType::Local)
+	.with_genesis_config_patch(local_testnet_genesis())
+	.build())
 }
 
-fn overtrue_testnet_genesis() -> GenesisConfig {
+fn overtrue_testnet_genesis() -> serde_json::Value {
 	let initial_authorities = vec![
 		AuthorityKeys::from_accounts(
 			// 5DhXG4yusZ98m7Tfm3doqvasUD2en6omxtLPXsW2hdS4rCcK
@@ -232,19 +217,16 @@ fn overtrue_testnet_genesis() -> GenesisConfig {
 	)
 }
 
-pub fn overtrue_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Overtrue Testnet",
-		"overtrue_testnet",
-		ChainType::Live,
-		overtrue_testnet_genesis,
-		vec![],
+pub fn overtrue_testnet_config() -> Result<ChainSpec, String> {
+	Ok(ChainSpec::builder(
+		WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?,
 		None,
-		None,
-		None,
-		None,
-		Default::default(),
 	)
+	.with_name("Overtrue Testnet")
+	.with_id("overtrue_testnet")
+	.with_chain_type(ChainType::Live)
+	.with_genesis_config_patch(overtrue_testnet_genesis())
+	.build())
 }
 
 mod helper {

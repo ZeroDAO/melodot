@@ -16,7 +16,7 @@ sc-rpc-api = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "po
 sc-service = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0"}
 
 codec = { package = "parity-scale-codec", version = "3.6.1" }
-jsonrpsee = { version = "0.16.2", features = ["server", "client", "macros"] }
+jsonrpsee = { version = "0.22", features = ["server", "client", "macros"] }
 thiserror = "1.0"
 serde = { version = "1.0.197", features = ["derive"] }
 hex = { version = "0.4.3", features = ["serde"] }
