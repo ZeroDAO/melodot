@@ -28,7 +28,7 @@ benchmarks! {
 			[u8; 32]: Into<<T as frame_system::Config>::AccountId>,
 			[u8; 32]: From<<T as frame_system::Config>::Hash>,
 			[u8; 32]: Into<<T as frame_system::Config>::Hash>,
-			u32: From<<T as frame_system::Config>::BlockNumber>,
+			u32: From<BlockNumberFor<T>>,
 			BalanceOf<T>: From<u128>,
 			T: Config<CommitmentFromPosition = MeloStore<T>>,
 			T: pallet_melo_store::Config,
@@ -41,8 +41,8 @@ benchmarks! {
 		System::<T>::set_block_number(6u32.into());
 
 		let header_hash: T::Hash = BLOCK_HASH1.into();
-		let block_num5: T::BlockNumber = 5u32.into();
-		let block_num3: T::BlockNumber = 3u32.into();
+		let block_num5: BlockNumberFor<T> = 5u32.into();
+		let block_num3: BlockNumberFor<T> = 3u32.into();
 
 		<frame_system::BlockHash<T>>::insert(block_num5, header_hash);
 		<frame_system::BlockHash<T>>::insert(block_num3, header_hash);

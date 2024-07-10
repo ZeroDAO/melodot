@@ -94,6 +94,7 @@ sp-version = { default-features = false, git = "https://github.com/paritytech/po
 ] }
 sp-staking = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false, features = ["serde"] }
 sp-genesis-builder = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
+sp-storage = { default-features = false, git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0" }
 
 node-primitives = { git = "https://github.com/paritytech/polkadot-sdk.git", tag = "polkadot-v1.9.0", default-features = false }
 
@@ -186,6 +187,7 @@ std = [
 	"sp-version/std",
 	"sp-io/std",
 	"sp-genesis-builder/std",
+	"sp-storage/std",
 	"substrate-wasm-builder",
 	"frame-executive-ext/std",
 	# "frame-executive/std",
