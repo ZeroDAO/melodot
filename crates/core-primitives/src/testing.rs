@@ -152,7 +152,7 @@ impl AsRef<[u8]> for UintAuthorityId {
 
 thread_local! {
 	/// A list of all UintAuthorityId keys returned to the runtime.
-	static ALL_KEYS: RefCell<Vec<UintAuthorityId>> = RefCell::new(vec![]);
+	static ALL_KEYS: RefCell<Vec<UintAuthorityId>> = const { RefCell::new(vec![]) };
 }
 
 impl UintAuthorityId {

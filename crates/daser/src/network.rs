@@ -378,7 +378,7 @@ impl DasNetworkOperations for DasNetworkServiceWrapper {
 	}
 
 	fn extend_segments_col(&self, segments: &[Segment]) -> Result<Vec<Segment>> {
-		extend(self.kzg.get_fs(), &segments.to_vec()).map_err(|e| anyhow!(e))
+		extend(self.kzg.get_fs(), segments).map_err(|e| anyhow!(e))
 	}
 
 	fn recovery_order_row_from_segments(

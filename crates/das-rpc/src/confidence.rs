@@ -125,7 +125,7 @@ where
 		self.das_network
 			.remove_records(keys)
 			.await
-			.map_err(|_| Error::DASNetworkError)?;
+			.map_err(|_| Error::FailedToRemoveRecords)?;
 
 		Ok(())
 	}

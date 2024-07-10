@@ -390,8 +390,8 @@ pub mod pallet {
 			);
 
 			ensure!(
-				unavailable_data_report.at_block + DELAY_CHECK_THRESHOLD.into() >=
-					current_block_number,
+				unavailable_data_report.at_block + DELAY_CHECK_THRESHOLD.into()
+					>= current_block_number,
 				Error::<T>::ExceedUnavailableDataConfirmTime
 			);
 
@@ -447,7 +447,7 @@ pub mod pallet {
 		fn on_finalize(now: BlockNumberFor<T>) {
 			// Deletion of expired polling data
 			if BlockNumberFor::<T>::from(DELAY_CHECK_THRESHOLD + 1) >= now {
-				return
+				return;
 			}
 			let _ = UnavailableVote::<T>::clear_prefix(
 				now - (DELAY_CHECK_THRESHOLD + 1).into(),
@@ -498,7 +498,7 @@ pub mod pallet {
 
 				let keys = Keys::<T>::get();
 				if keys.len() as u32 != unavailable_data_report.validators_len {
-					return InvalidTransaction::Custom(INVALID_VALIDATORS_LEN).into()
+					return InvalidTransaction::Custom(INVALID_VALIDATORS_LEN).into();
 				}
 
 				let signature_valid = unavailable_data_report.using_encoded(|encoded_report| {
@@ -506,7 +506,7 @@ pub mod pallet {
 				});
 
 				if !signature_valid {
-					return InvalidTransaction::BadProof.into()
+					return InvalidTransaction::BadProof.into();
 				}
 
 				ValidTransaction::with_tag_prefix("MeloStore")
@@ -535,12 +535,13 @@ impl<T: Config> Pallet<T> {
 				match ReliabilityId::app_confidence(metadata.app_id, metadata.nonce)
 					.get_confidence(&mut db)
 				{
-					Some(confidence) =>
+					Some(confidence) => {
 						if !confidence.is_availability() {
 							Some(i as u32)
 						} else {
 							None
-						},
+						}
+					},
 					None => None,
 				}
 			})
@@ -564,7 +565,7 @@ impl<T: Config> Pallet<T> {
 		for i in 0..BLOCK_SAMPLE_LIMIT {
 			let process_block = last + i.into();
 			if process_block >= now {
-				break
+				break;
 			}
 
 			let maybe_avail = {
@@ -579,7 +580,7 @@ impl<T: Config> Pallet<T> {
 					unavail_blocks.push(process_block)
 				}
 			} else {
-				break
+				break;
 			}
 		}
 		unavail_blocks
@@ -640,7 +641,7 @@ impl<T: Config> Pallet<T> {
 		let reports = (0..DELAY_CHECK_THRESHOLD)
 			.filter_map(move |gap| {
 				if BlockNumberFor::<T>::from(gap) > now {
-					return None
+					return None;
 				}
 				let at_block = now - gap.into();
 				let index_set = Self::get_unavailability_apps(at_block);
@@ -664,11 +665,11 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Push a vector of commitments to the CommitmentsExt storage.
-	/// 
+	///
 	/// # Arguments
 	/// * `at_block` - The block number to push commitments to.
 	/// * `commitments` - The commitments to push.
-	/// 
+	///
 	/// # Returns
 	/// A `Result` indicating whether the operation was successful.
 	pub fn push_commitments_ext(
@@ -683,8 +684,7 @@ impl<T: Config> Pallet<T> {
 
 		match commitments.to_vec().try_into() {
 			Ok(bounded_extended) => {
-				let extended_option: Option<KZGCommitmentListFor<T>> =
-					Some(bounded_extended);
+				let extended_option: Option<KZGCommitmentListFor<T>> = Some(bounded_extended);
 				CommitmentsExt::<T>::insert(at_block, extended_option);
 				Ok(())
 			},
@@ -741,16 +741,17 @@ impl<T: Config> Pallet<T> {
 
 		let storage = StorageValueRef::persistent(&key);
 
-		match storage.mutate(
+		let mutate_fn =
 			|status: Result<Option<ReportStatus<BlockNumberFor<T>>>, StorageRetrievalError>| {
 				if let Ok(Some(status)) = status {
 					if status.is_recent(at_block, now) {
-						return Err(OffchainErr::WaitingForInclusion(status.sent_at))
+						return Err(OffchainErr::WaitingForInclusion(status.sent_at));
 					}
 				}
 				Ok(ReportStatus { at_block, sent_at: now })
-			},
-		) {
+			};
+
+		match storage.mutate(mutate_fn) {
 			Err(MutateStorageError::ValueFunctionFailed(err)) => Err(err),
 			res => {
 				let mut new_status = res.map_err(|_| OffchainErr::FailedToAcquireLock)?;
@@ -861,7 +862,7 @@ impl<T: Config> CommitmentFromPosition for Pallet<T> {
 
 	fn commitments(block_num: Self::BlockNumber, position: &Position) -> Option<KZGCommitment> {
 		if block_num > <frame_system::Pallet<T>>::block_number() - DELAY_CHECK_THRESHOLD.into() {
-			return None
+			return None;
 		}
 
 		let y_usize = position.y as usize;
@@ -870,14 +871,14 @@ impl<T: Config> CommitmentFromPosition for Pallet<T> {
 		match &commitments_ext {
 			Some(ext) => {
 				if y_usize >= ext.len() {
-					return None
+					return None;
 				}
-				return ext.get(y_usize).cloned()
+				return ext.get(y_usize).cloned();
 			},
 			_ => {
 				let commitments = Self::get_commitments(block_num);
 				if y_usize < commitments.len() {
-					return commitments.get(y_usize).cloned()
+					return commitments.get(y_usize).cloned();
 				}
 
 				let kzg = KZG::default_embedded();
@@ -889,7 +890,7 @@ impl<T: Config> CommitmentFromPosition for Pallet<T> {
 									let extended_option: Option<KZGCommitmentListFor<T>> =
 										Some(bounded_extended);
 									CommitmentsExt::<T>::insert(block_num, extended_option);
-									return extended.get(y_usize).cloned()
+									return extended.get(y_usize).cloned();
 								},
 								Err(_) => return None,
 							}

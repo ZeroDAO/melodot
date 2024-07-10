@@ -79,7 +79,7 @@ pub fn recover_segment_datas(
 /// * `kzg` - A `KZG` instance to use for recovery.
 /// * `chunk_count` - The number of segments in the original data.
 pub fn recovery_row_from_segments(
-	segments: &Vec<Segment>,
+	segments: &[Segment],
 	kzg: &KZG,
 	chunk_count: usize,
 ) -> Result<Vec<Segment>, String> {

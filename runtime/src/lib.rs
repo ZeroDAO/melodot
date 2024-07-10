@@ -53,14 +53,10 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 // 	traits::{BlakeTwo256, Block as BlockT, OpaqueKeys},
 // };
 use sp_runtime::{
-	create_runtime_str,
-	generic,
+	create_runtime_str, generic,
 	generic::Era,
 	impl_opaque_keys,
-	traits::{
-		self, BlakeTwo256, Block as BlockT, NumberFor,
-		One, OpaqueKeys,
-	},
+	traits::{self, BlakeTwo256, Block as BlockT, NumberFor, One, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, Perbill, Percent,
 };
@@ -164,10 +160,7 @@ pub fn native_version() -> NativeVersion {
 pub struct SafeModeWhitelistedCalls;
 impl Contains<RuntimeCall> for SafeModeWhitelistedCalls {
 	fn contains(call: &RuntimeCall) -> bool {
-		match call {
-			RuntimeCall::System(_) | RuntimeCall::SafeMode(_) | RuntimeCall::TxPause(_) => true,
-			_ => false,
-		}
+		matches!(call, RuntimeCall::System(_) | RuntimeCall::SafeMode(_) | RuntimeCall::TxPause(_))
 	}
 }
 
@@ -176,10 +169,7 @@ pub struct TxPauseWhitelistedCalls;
 /// Whitelist `Balances::transfer_keep_alive`, all others are pauseable.
 impl Contains<RuntimeCallNameOf<Runtime>> for TxPauseWhitelistedCalls {
 	fn contains(full_name: &RuntimeCallNameOf<Runtime>) -> bool {
-		match (full_name.0.as_slice(), full_name.1.as_slice()) {
-			(b"Balances", b"transfer_keep_alive") => true,
-			_ => false,
-		}
+		matches!((full_name.0.as_slice(), full_name.1.as_slice()), (b"Balances", b"transfer_keep_alive"))
 	}
 }
 
@@ -1118,11 +1108,11 @@ pub mod dynamic_params {
 	pub mod storage {
 		/// Configures the base deposit of storing some data.
 		#[codec(index = 0)]
-		pub static BaseDeposit: Balance = 1 * DOLLARS;
+		pub static BaseDeposit: Balance = DOLLARS;
 
 		/// Configures the per-byte deposit of storing some data.
 		#[codec(index = 1)]
-		pub static ByteDeposit: Balance = 1 * CENTS;
+		pub static ByteDeposit: Balance = CENTS;
 	}
 
 	#[dynamic_pallet_params]
@@ -1150,11 +1140,11 @@ impl EnsureOriginWithArg<RuntimeOrigin, RuntimeParametersKey> for DynamicParamet
 		match key {
 			RuntimeParametersKey::Storage(_) => {
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
-				return Ok(());
+				Ok(())
 			},
 			RuntimeParametersKey::Contract(_) => {
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
-				return Ok(());
+				Ok(())
 			},
 		}
 	}
