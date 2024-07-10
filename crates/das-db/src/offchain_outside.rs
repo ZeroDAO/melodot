@@ -14,7 +14,7 @@
 
 use core::marker::PhantomData;
 
-use crate::traits::DasKv;
+use crate::{traits::DasKv, DEFAULT_PREFIX};
 
 use sc_client_api::Backend;
 use sc_offchain::OffchainDb;
@@ -22,8 +22,6 @@ use sp_core::offchain::DbExternalities;
 use sp_runtime::traits::Block;
 
 use sp_core::offchain::StorageKind;
-
-const DEFAULT_PREFIX: &[u8] = b"das_default_prefix";
 
 #[derive(Debug, Clone)]
 pub struct OffchainKvOutside<B: Block, BE: Backend<B>> {

@@ -19,6 +19,8 @@ pub use alloc::{
 	vec,
 };
 
+pub(crate) const DEFAULT_PREFIX: &[u8] = b"das_default_prefix";
+
 pub mod traits;
 #[cfg(feature = "sqlite")]
 pub mod sqlite;
