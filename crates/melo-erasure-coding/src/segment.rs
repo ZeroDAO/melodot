@@ -36,7 +36,7 @@ use crate::{String, Vec, ToString, vec};
 /// 
 /// A `Result` containing a vector of `Option<SegmentData>` representing the ordered row, or an error message 
 /// if ordering fails.
-pub fn order_segments_row(segments: &Vec<Segment>, chunk_count: usize) -> Result<Vec<Option<SegmentData>>, String> {
+pub fn order_segments_row(segments: &[Segment], chunk_count: usize) -> Result<Vec<Option<SegmentData>>, String> {
     if segments.len() > chunk_count * 2 || segments.is_empty() {
         return Err("segments x not equal".to_string());
     }
@@ -70,7 +70,7 @@ pub fn order_segments_row(segments: &Vec<Segment>, chunk_count: usize) -> Result
 ///
 /// Returns an error message if the length of `segments` is greater than `k * 2` or if the length of `segments` is 0.
 pub fn order_segments_col(
-    segments: &Vec<Segment>,
+    segments: &[Segment],
     k: usize,
 ) -> Result<Vec<Option<SegmentData>>, String> {
     if segments.len() > k * 2 || segments.is_empty() {

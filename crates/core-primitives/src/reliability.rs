@@ -83,8 +83,7 @@ impl ReliabilityId {
 
 	pub fn get_last(db: &mut impl DasKv) -> Option<LastProcessedBlock<u32>> {
 		db.get(LATEST_PROCESSED_BLOCK_KEY).map(|data| {
-			let last_processed_block = LastProcessedBlock::decode(&mut &data[..]).unwrap();
-			last_processed_block
+			LastProcessedBlock::decode(&mut &data[..]).unwrap()
 		})
 	}
 

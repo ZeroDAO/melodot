@@ -52,7 +52,7 @@ pub struct Behavior {
 impl Behavior {
 	/// Creates a new [`Behavior`] instance.
 	pub fn new(config: BehaviorConfig) -> Result<Self> {
-		let mdns = TokioMdns::new(MdnsConfig::default(), config.peer_id.clone())?;
+		let mdns = TokioMdns::new(MdnsConfig::default(), config.peer_id)?;
 		let kademlia = Kademlia::with_config(config.peer_id, config.kad_store, config.kademlia);
 
 		Ok(Self { identify: Identify::new(config.identify), mdns, kademlia, ping: Ping::default() })

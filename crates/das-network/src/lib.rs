@@ -119,7 +119,7 @@ fn build_transport(
 		GenTcpConfig::new().nodelay(true).port_reuse(port_reuse),
 	))?;
 
-	let authentication_config = noise::Config::new(&key_pair).expect("Can create noise config. qed");
+	let authentication_config = noise::Config::new(key_pair).expect("Can create noise config. qed");
 	let multiplexing_config = {
 		let mut yamux_config = libp2p::yamux::Config::default();
 		yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());

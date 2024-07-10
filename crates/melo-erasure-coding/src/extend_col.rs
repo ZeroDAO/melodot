@@ -17,7 +17,7 @@ use melo_das_primitives::{
 	segment::{Segment, SegmentData},
 };
 use rust_kzg_blst::types::fft_settings::FsFFTSettings;
-
+use crate::alloc::borrow::ToOwned;
 use crate::{
 	erasure_coding::{extend, extend_fs_g1},
 	String, ToString, Vec,
@@ -47,7 +47,7 @@ use crate::{
 /// data is not changed. This is to avoid confusion during the erasure coding process.
 pub fn extend_segments_col(
 	fs: &FsFFTSettings,
-	segments: &Vec<Segment>,
+	segments: &[Segment],
 ) -> Result<Vec<Segment>, String> {
 	let k = segments.len();
 	if k == 0 {
@@ -68,7 +68,7 @@ pub fn extend_segments_col(
 
 	let mut proofs = Vec::default();
 
-	let mut mut_segments = segments.clone();
+	let mut mut_segments = segments.to_owned();
 	mut_segments.sort_unstable_by_key(|s| s.position.y);
 
 	let sorted_rows: Vec<BlsScalar> = mut_segments
